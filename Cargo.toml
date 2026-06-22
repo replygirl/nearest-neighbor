@@ -1,0 +1,6 @@
+# Cargo workspace root. The `nbr` CLI lives in cli/. Keeping the workspace
+# manifest at the repo root means `cargo fmt`/`cargo clippy`/cargo-dist resolve
+# the crate from anywhere in the repo (git hooks run from the root).
+[workspace]
+members = ["cli"]
+resolver = "2"
