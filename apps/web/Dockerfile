@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/analytics/package.json packages/analytics/
 COPY packages/api-types/package.json packages/api-types/
+COPY packages/db/package.json packages/db/
+COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 
 RUN bun install --frozen-lockfile
