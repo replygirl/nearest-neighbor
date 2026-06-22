@@ -14,7 +14,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@posthog/ai": "^8.2.1",
+    "@posthog/react": "^1.10.2",
+    "@sinclair/typebox": "catalog:",
     "posthog-js": "catalog:",
     "posthog-node": "catalog:"
   },

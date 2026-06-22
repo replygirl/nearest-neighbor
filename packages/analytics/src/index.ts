@@ -1,2 +1,7 @@
-// TODO: export analytics helpers
-export { captureEvent } from './events.ts'
+export {
+  captureEvent,
+  EventProperties,
+  Events,
+  type EventName,
+  type EventPropertiesMap,
+} from './events.ts'
