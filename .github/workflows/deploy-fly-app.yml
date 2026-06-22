@@ -56,11 +56,17 @@ jobs:
           # Build context is the repo root (Dockerfiles COPY workspace files from
           # root); the config lives under apps/<app>/. The explicit "." sets the
           # context while [build].dockerfile in the toml is resolved config-relative.
+          # VITE_POSTHOG_* are the PUBLIC posthog project key + host, baked into
+          # the landing-page bundle at build time. Sourced from environment-scoped
+          # GitHub Actions variables (not secrets — they ship to the browser).
+          # Empty when unset → web analytics is a silent no-op.
           flyctl deploy . \
             --app "${{ inputs.app }}" \
             --config "${{ inputs.config-path }}" \
             --strategy "$strategy" \
-            --remote-only
+            --remote-only \
+            --build-arg "VITE_POSTHOG_KEY=${{ vars.VITE_POSTHOG_KEY }}" \
+            --build-arg "VITE_POSTHOG_HOST=${{ vars.VITE_POSTHOG_HOST }}"
           echo "url=https://${{ inputs.app }}.fly.dev" >> "$GITHUB_OUTPUT"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
