@@ -78,7 +78,10 @@
         "scripts/mise-tasks/**",
         "apps/api/src/server.ts",
         "apps/web/server.ts",
-        "e2e/run.ts"
+        "e2e/run.ts",
+        "packages/db/src/migrate.ts",
+        "packages/db/src/seed.ts",
+        "packages/db/src/reset.ts"
       ],
       "rules": {
         "no-console": "off"

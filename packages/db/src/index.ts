@@ -1,3 +1,4 @@
-// @nearest-neighbor/db public API. Expanded in the db package phase.
+// @nearest-neighbor/db public API.
 export * from './client.ts'
 export * from './schema/index.ts'
+export * from './utils.ts'
