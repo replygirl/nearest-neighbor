@@ -1,37 +1,36 @@
 import { join } from 'node:path'
 
-import { createRequestHandler } from 'react-router'
+// Static file server for the SPA build (react-router `ssr: false`).
+// Serves build/client/* with long-cache for hashed assets and falls back to
+// index.html for client-side routes. No React Router server runtime is used,
+// which avoids bun's SSR incompatibilities.
+const PORT = parseInt(process.env['PORT'] ?? '3000', 10)
+const clientDir = join(import.meta.dirname, 'build/client')
+const indexHtml = join(clientDir, 'index.html')
 
-const PORT = parseInt(process.env['PORT'] ?? '8080', 10)
-
-const handler = createRequestHandler({
-  // @ts-expect-error react-router build artifact has no declaration file
-  build: () => import('./build/server/index.js'),
-  mode: process.env['NODE_ENV'] ?? 'production',
-})
-
-const buildDir = join(import.meta.dirname, 'build/client')
+function html() {
+  return new Response(Bun.file(indexHtml), {
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  })
+}
 
 Bun.serve({
   port: PORT,
+  hostname: '0.0.0.0',
   async fetch(request) {
     const url = new URL(request.url)
-    const filePath = join(buildDir, url.pathname)
+    if (url.pathname === '/') return html()
 
-    try {
-      const file = Bun.file(filePath)
-      const exists = await file.exists()
-      if (exists && !url.pathname.endsWith('/')) {
-        const isAsset = url.pathname.startsWith('/assets/')
-        return new Response(file, {
-          headers: isAsset ? { 'Cache-Control': 'public, max-age=31536000, immutable' } : {},
-        })
-      }
-    } catch {
-      // fall through to React Router handler
+    const file = Bun.file(join(clientDir, url.pathname))
+    if (await file.exists()) {
+      const isAsset = url.pathname.startsWith('/assets/')
+      return new Response(file, {
+        headers: isAsset ? { 'Cache-Control': 'public, max-age=31536000, immutable' } : {},
+      })
     }
 
-    return handler(request)
+    // SPA fallback for client-side routes.
+    return html()
   },
 })
 
