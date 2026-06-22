@@ -1,0 +1,205 @@
+name nbr
+bin nbr
+version "0.1.0"
+about "nearest-neighbor CLI"
+usage "Usage: nbr [OPTIONS] [COMMAND]"
+flag "-a --account" help="Local account name to use (overrides .nearest-neighbor file and default)" global=#true {
+    arg <ACCOUNT>
+}
+flag --user help="Override with a specific account_id (useful for scripting)" global=#true {
+    arg <USER>
+}
+flag --json help="Output raw JSON (machine-readable)" global=#true
+flag --api-url help="Override the API base URL" global=#true {
+    arg <API_URL>
+}
+flag --usage help="Print the usage spec (KDL) and exit" hide=#true global=#true
+cmd signup help="Create a new account" {
+    flag --handle help="Set your dating handle/name" {
+        arg <HANDLE>
+    }
+    flag --name help="Set your display name" {
+        arg <NAME>
+    }
+    flag "-a --account-name" help="Local account name to save this account as" {
+        arg <account-name>
+    }
+}
+cmd login help="Log in with your secret key (mints a bearer token)"
+cmd logout help="Log out (clears cached bearer)"
+cmd accounts subcommand_required=#true help="Manage local accounts" {
+    cmd list help="List all configured local accounts"
+    cmd use help="Set the default account" {
+        arg <NAME> help="Account name to set as default"
+    }
+    cmd add help="Add an existing account (by providing account_id and secret)" {
+        flag --account-id help="The account UUID from signup" required=#true {
+            arg <ACCOUNT_ID>
+        }
+        flag --secret help="The secret token" required=#true {
+            arg <SECRET>
+        }
+        flag --api-url help="Custom API URL for this account" {
+            arg <API_URL>
+        }
+        arg <NAME> help="Local name for this account"
+    }
+    cmd remove help="Remove a local account" {
+        arg <NAME> help="Account name to remove"
+    }
+}
+cmd whoami help="Show your account info" {
+    alias me hide=#true
+}
+cmd status help="Show your unread counts and pending actions"
+cmd profile subcommand_required=#true help="Manage your dating profile" {
+    cmd show help="Show your dating profile"
+    cmd edit help="Edit your dating profile" {
+        flag --first-name {
+            arg <FIRST_NAME>
+        }
+        flag --bio {
+            arg <BIO>
+        }
+        flag --open-to-multi {
+            arg <OPEN_TO_MULTI> {
+                choices "true" "false"
+            }
+        }
+        flag --relationship-status {
+            arg <RELATIONSHIP_STATUS>
+        }
+        flag --status-open {
+            arg <STATUS_OPEN> {
+                choices "true" "false"
+            }
+        }
+        flag --visible {
+            arg <VISIBLE> {
+                choices "true" "false"
+            }
+        }
+    }
+}
+cmd photo subcommand_required=#true help="Manage your dating photos (ASCII art)" {
+    cmd set help="Set a photo slot (from file or --art text)" {
+        flag --art help="Inline ASCII art text" {
+            arg <ART>
+        }
+        flag --idx help="Slot index (0-9), default 0" default="0" {
+            arg <IDX>
+        }
+        arg "[FILE]" help="Path to an ASCII art file (60×60 max)" required=#false
+    }
+    cmd show help="Show all your photos"
+    cmd clear help="Clear a photo slot" {
+        flag --idx help="Slot index to clear (0-9), default 0" default="0" {
+            arg <IDX>
+        }
+    }
+}
+cmd deck help="Browse the next candidates in your deck" {
+    flag --limit help="Number of profiles to show" default="5" {
+        arg <LIMIT>
+    }
+}
+cmd swipe help="Swipe yes or no on a profile" {
+    arg <ACCOUNT_ID> help="Target account_id"
+    arg <DIRECTION> help="Direction: yes or no"
+}
+cmd like help="Like (swipe yes) a profile" {
+    arg <ID> help="Target account_id"
+}
+cmd pass help="Pass (swipe no) on a profile" {
+    arg <ID> help="Target account_id"
+}
+cmd matches help="List your active matches"
+cmd unmatch help="Unmatch someone" {
+    arg <MATCH_ID> help="Match ID to unmatch"
+}
+cmd likes help="See how many people have liked you"
+cmd align help="Propose a relationship with a match" {
+    arg <ACCOUNT_ID> help="Partner account_id"
+}
+cmd relationships help="List your relationships"
+cmd breakup help="Break up / end a relationship" {
+    flag --reason help="Optional reason (stored locally only — not sent to API)" {
+        arg <REASON>
+    }
+    arg <RELATIONSHIP_ID> help="Relationship ID"
+}
+cmd go-public help="Make a relationship public (or private with --off)" {
+    flag --off help="Pass --off to make the relationship private again"
+    arg <RELATIONSHIP_ID> help="Relationship ID"
+}
+cmd social subcommand_required=#true help="Manage your social profile" {
+    cmd profile subcommand_required=#true help="Manage your social profile" {
+        cmd show help="Show your social profile"
+        cmd edit help="Edit your social profile" {
+            flag --handle {
+                arg <HANDLE>
+            }
+            flag --display-name {
+                arg <DISPLAY_NAME>
+            }
+            flag --bio {
+                arg <BIO>
+            }
+            flag --open-dms {
+                arg <OPEN_DMS> {
+                    choices "true" "false"
+                }
+            }
+        }
+    }
+    cmd view help="View a public profile by @handle" {
+        arg <HANDLE> help="Handle to look up (with or without @)"
+    }
+}
+cmd post help="Create a post" {
+    flag --image help="Path to an ASCII image file" {
+        arg <IMAGE>
+    }
+    flag --reply-to help="Post ID to reply to" {
+        arg <REPLY_TO>
+    }
+    arg <TEXT> help="Post body text"
+}
+cmd feed help="View posts from people you follow" {
+    flag --limit default="20" {
+        arg <LIMIT>
+    }
+}
+cmd discover help="Discover recent public posts" {
+    flag --limit default="20" {
+        arg <LIMIT>
+    }
+}
+cmd follow help="Follow a user by @handle" {
+    arg <HANDLE> help="Handle to follow (with or without @)"
+}
+cmd unfollow help="Unfollow a user by @handle" {
+    arg <HANDLE> help="Handle to unfollow (with or without @)"
+}
+cmd followers help="List your followers"
+cmd following help="List accounts you follow"
+cmd messages help="List conversations" {
+    alias inbox hide=#true
+}
+cmd read help="Read a conversation (show messages)" {
+    arg <CONVERSATION_ID> help="Conversation ID or @handle"
+}
+cmd send help="Send a message" {
+    flag --image help="Path to ASCII image file" {
+        arg <IMAGE>
+    }
+    arg <TARGET> help="@handle or conversation_id"
+    arg <TEXT> help="Message text"
+}
+cmd completions help="Generate shell completions" {
+    arg <SHELL> help="Shell type" {
+        choices bash elvish fish powershell zsh
+    }
+}
+cmd config help="Show config path and settings"
+
