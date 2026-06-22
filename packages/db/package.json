@@ -17,8 +17,8 @@
     "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text"
   },
   "dependencies": {
-    "@electric-sql/pglite": "0.4.5",
-    "@electric-sql/pglite-socket": "0.1.5",
+    "@electric-sql/pglite": "0.5.3",
+    "@electric-sql/pglite-socket": "0.2.4",
     "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
     "postgres": "catalog:"
