@@ -16,8 +16,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.3",
-    "@electric-sql/pglite-socket": "^0.2.4",
+    "@electric-sql/pglite": "0.4.5",
+    "@electric-sql/pglite-socket": "0.1.5",
     "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
     "postgres": "catalog:"
