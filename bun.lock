@@ -30,6 +30,8 @@
         "postgres": "catalog:",
       },
       "devDependencies": {
+        "@electric-sql/pglite": "0.4.5",
+        "@electric-sql/pglite-socket": "0.1.5",
         "@elysiajs/eden": "^1.4.9",
         "bun-types": "catalog:",
       },
@@ -43,6 +45,7 @@
         "@nearest-neighbor/analytics": "workspace:*",
         "@nearest-neighbor/api-types": "workspace:*",
         "@react-router/node": "catalog:",
+        "isbot": "^5",
         "posthog-js": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
@@ -93,8 +96,8 @@
       "name": "@nearest-neighbor/db",
       "version": "0.0.0",
       "dependencies": {
-        "@electric-sql/pglite": "^0.5.3",
-        "@electric-sql/pglite-socket": "^0.2.4",
+        "@electric-sql/pglite": "0.4.5",
+        "@electric-sql/pglite-socket": "0.1.5",
         "drizzle-kit": "catalog:",
         "drizzle-orm": "catalog:",
         "postgres": "catalog:",
@@ -252,23 +255,9 @@
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
 
-    "@electric-sql/pglite": ["@electric-sql/pglite@0.5.3", "", {}, "sha512-iTTYbA5Uesrl+N7zss0J5LopT7KE4j9aymYo+EZZh+rZbARQCUQOs+n2pay64JRUpc3fCkpfrniTNJnvYzOE+g=="],
+    "@electric-sql/pglite": ["@electric-sql/pglite@0.4.5", "", {}, "sha512-aGG2zGEyZzGWKy8P+9ZoNUV0jxt1+hgbeTf+bVAYyxVZZLXg3/9aFlfLxb08AYZVAfAkQlQIysmWjhc5hwDG8g=="],
 
-    "@electric-sql/pglite-age": ["@electric-sql/pglite-age@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-n8lzYvxKHQbwdaj2/8NLSRRS5dABXZ6e83kd35iTcYMW7fc2oCxvkzFhYa+2XY25UYWfSMH6IYRSXqMKa5pkog=="],
-
-    "@electric-sql/pglite-pg_hashids": ["@electric-sql/pglite-pg_hashids@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-4c9/dtj2bswRVDDpsTcQw65f1hvHWvDlL1oHlqQCSfuKHgdaJGu80tz8RrEAlg1qG8JYUwQsAVafJsAy+CSSUw=="],
-
-    "@electric-sql/pglite-pg_ivm": ["@electric-sql/pglite-pg_ivm@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-dbf9QMAs57qRR28GdUhVG//a6lYd2KCPEVcwPuMenvm6DKQmCAPeqWv9eMh+vnsO2jSqAJCnixI6Mg1CWVtCVQ=="],
-
-    "@electric-sql/pglite-pg_textsearch": ["@electric-sql/pglite-pg_textsearch@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-EElRliKJzBfBCyIXj+CivkyBdw9GSZt9yl1fht/wgljjd4aZQwSg/eGspK79J5BaLJQcQayYkIl4YZ5Dv9vuIw=="],
-
-    "@electric-sql/pglite-pg_uuidv7": ["@electric-sql/pglite-pg_uuidv7@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-bgLxaqzGA+SNI6c6qsFffnBl7/nTzjPJ6Vo78JLyZUWp8GSWHhC7X4G8XBw2w9xX3YOh6seDqotuB8we2HFyRw=="],
-
-    "@electric-sql/pglite-pgtap": ["@electric-sql/pglite-pgtap@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-aJx4PJ+FYa6q4wvR3L9EKWyZqH+m4Ef1MBIAOHVKuMr5+TFXBva9DUt271EeB4iGoDo8QKsjjJz+wixr8Nbgww=="],
-
-    "@electric-sql/pglite-pgvector": ["@electric-sql/pglite-pgvector@0.0.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3" } }, "sha512-oHOQlYMzgxmoFWRbKhhoV0UNfoNUdbTHUD/z/nujr8LrUe4HdiSAUY2+Mv+Z033hZO9UWqOuj3Be2KztwK79ow=="],
-
-    "@electric-sql/pglite-socket": ["@electric-sql/pglite-socket@0.2.4", "", { "peerDependencies": { "@electric-sql/pglite": "0.5.3", "@electric-sql/pglite-age": "0.0.4", "@electric-sql/pglite-pg_hashids": "0.0.4", "@electric-sql/pglite-pg_ivm": "0.0.4", "@electric-sql/pglite-pg_textsearch": "0.0.4", "@electric-sql/pglite-pg_uuidv7": "0.0.4", "@electric-sql/pglite-pgtap": "0.0.4", "@electric-sql/pglite-pgvector": "0.0.4" }, "bin": { "pglite-server": "dist/scripts/server.js" } }, "sha512-vchApkv1CCYC/mZhZDe41ox2+AX3+lvULgZFpuC2RC9Q5eYmIDNt/M3ro9quu4zeXWGhZ/lbITYygXFnGIwY1w=="],
+    "@electric-sql/pglite-socket": ["@electric-sql/pglite-socket@0.1.5", "", { "peerDependencies": { "@electric-sql/pglite": "0.4.5" }, "bin": { "pglite-server": "dist/scripts/server.js" } }, "sha512-/RAye+3EPKfO9nY4tljzxXmkT7yIpFDm0L3F+c28b+Z6uxPOjy/Zz/QEHYHXcrfuUC88/a9S72EO0+3E0j97wQ=="],
 
     "@elysiajs/cors": ["@elysiajs/cors@1.4.2", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-FTCcbH35brTLigF1W7BYySRZomgI/dBEMK9BgK9RP9Nez7zmpGh4koL/Yr1BFv8nYz7CfhRvcM8d/c+XnwMaVQ=="],
 

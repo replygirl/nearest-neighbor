@@ -1,0 +1,13 @@
+[test]
+coverageSkipTestFiles = true
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+# Coverage is opt-in via --coverage flag.
+# Global teardown: closes the postgres.js pool after all test files complete so
+# bun test exits cleanly with code 0 rather than being force-killed (code 99).
+preload = ["./src/test/global-teardown.ts"]
+
+[test.coverageThreshold]
+line = 0.80
+function = 0.80
+statement = 0.80
