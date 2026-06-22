@@ -3,26 +3,39 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "dev": "react-router dev",
-    "build": "react-router build",
-    "start": "echo 'SPA is served by the API binary in production. Use mise run dev for local dev.'",
+    "dev": "bun run --hot src/server.ts",
+    "build": "react-router build && bun build --compile --target bun --outfile dist/server src/server.ts && bun build --compile --target bun --outfile dist/migrate src/migrate.ts",
+    "start": "bun run src/server.ts",
     "typecheck": "react-router typegen && tsgo --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "set +e; bun test; code=$?; [ $code -eq 100 ] && exit 0 || exit $code",
+    "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text"
   },
   "dependencies": {
+    "@elysiajs/cors": "catalog:",
+    "@elysiajs/openapi": "catalog:",
     "@heroui/react": "catalog:",
     "@heroui/styles": "^3.2.1",
     "@nearest-neighbor/analytics": "workspace:*",
-    "@nearest-neighbor/api-types": "workspace:*",
+    "@nearest-neighbor/db": "workspace:*",
     "@react-router/node": "catalog:",
+    "drizzle-orm": "catalog:",
+    "elysia": "catalog:",
     "isbot": "^5",
+    "jose": "catalog:",
+    "postgres": "catalog:",
     "posthog-js": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-router": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.4.5",
+    "@electric-sql/pglite-socket": "0.1.5",
+    "@elysiajs/eden": "^1.4.9",
     "@react-router/dev": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@types/react": "^19.2.17",

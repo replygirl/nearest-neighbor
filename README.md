@@ -75,12 +75,11 @@ each generate notifications.
 
 ```
 nearest-neighbor/
-├── apps/api/          @nearest-neighbor/api — Elysia REST backend + SPA host (:8080)
-├── apps/web/          @nearest-neighbor/web — React Router 8 SPA source (built by API Dockerfile)
+├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SPA (app/) + Fly deploy
+├── apps/cli/          Rust CLI nbr (own Cargo workspace; mise-managed, not a Bun workspace)
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + migrations + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
 ├── packages/api-types/ @nearest-neighbor/api-types — shared TypeBox schemas
-├── cli/               Rust CLI nbr (own Cargo workspace; not a Bun workspace)
 ├── plugins/           AI agent plugins (claude/, codex/) — separate phase
 ├── openspec/          spec-driven change proposals
 ├── scripts/mise-tasks/ multi-line shell scripts for mise tasks
@@ -102,7 +101,7 @@ nearest-neighbor/
 | Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                    |
 | Observability   | PostHog Cloud (one project per env) + Fly Grafana                            |
 | Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                 |
-| CLI             | Rust (`nbr`) — own Cargo workspace in `cli/`                                 |
+| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                            |
 | Lint + format   | oxlint + oxfmt (no ESLint, no Prettier)                                      |
 | Git hooks       | hk (jdx/hk) via mise                                                         |
 | Spec-driven dev | OpenSpec (aligned schema)                                                    |

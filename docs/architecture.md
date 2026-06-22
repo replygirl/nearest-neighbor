@@ -20,28 +20,27 @@ nearest-neighbor/
 ├── .mcp.json                        # MCP server registry
 │
 ├── apps/
-│   ├── api/                         # Elysia backend (@nearest-neighbor/api)
-│   │   ├── src/
-│   │   │   ├── index.ts             # web process entrypoint (:8080)
+│   ├── web/                         # Elysia API + React Router 8 SPA (@nearest-neighbor/web)
+│   │   ├── src/                     # Elysia backend
+│   │   │   ├── server.ts            # Bun-compiled server binary entrypoint (:8080)
+│   │   │   ├── index.ts             # Elysia app export (for Eden Treaty / api-types)
 │   │   │   ├── auth/                # macro, token mint/verify
 │   │   │   ├── lib/                 # conversations, notifications, pagination, ratelimit, validation
 │   │   │   ├── modules/             # auth, dating, messaging, relationships, social, status
 │   │   │   └── v1/                  # versioned route mount + OpenAPI
-│   │   ├── fly.prod.toml, fly.staging.toml, fly.preview.toml
+│   │   ├── app/                     # React Router 8 SPA source
+│   │   │   ├── root.tsx
+│   │   │   └── routes/
+│   │   ├── fly.production.toml, fly.staging.toml
 │   │   └── Dockerfile
 │   │
-│   └── web/                         # React Router 8 SPA source (@nearest-neighbor/web)
-│       ├── app/
-│       │   ├── root.tsx
-│       │   └── routes/
-│       └── (built by API Dockerfile; no standalone server or Fly config)
+│   └── cli/                         # Rust CLI (nbr) — standalone Cargo project
 │
 ├── packages/
 │   ├── api-types/                   # type-only App export for Eden Treaty
 │   ├── analytics/                   # PostHog web/node/OTLP/LLM
 │   └── db/                          # Drizzle ORM schema + migrations + client
 │
-├── cli/                             # Rust CLI (nbr) — separate Cargo workspace
 ├── plugins/
 │   ├── claude/                      # Claude Code plugin
 │   └── codex/                       # Codex plugin
@@ -224,7 +223,7 @@ the compiled SPA at `/`.
 pull_request: opened/sync
   → detect-changes
   → ci-bun     (lint + format:check + typecheck + test:coverage)
-  → ci-rust    (cargo fmt + clippy + nextest)  ← only when cli/ changed
+  → ci-rust    (fmt:check + clippy + test via mise //apps/cli:*)  ← only when apps/cli/ changed
   → ci-openspec (openspec:validate)            ← only when openspec/ changed
   → ci-gate    (required status check; passes if all triggered jobs pass or are skipped)
 

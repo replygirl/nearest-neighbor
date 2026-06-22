@@ -51,5 +51,6 @@ multi-line scripts, create `scripts/mise-tasks/<name>` and add
 
 ## Monorepo task dispatch
 
-Per-app tasks: `mise //apps/api:test`, `mise //apps/web:build`, etc. Root tasks
-orchestrate via `depends = ["//apps/api:test", "//apps/web:test"]`.
+Per-app tasks: `mise run //apps/web:test`, `mise run //apps/web:build`,
+`mise run //apps/cli:clippy`, etc. Root tasks orchestrate via
+`depends = ["//apps/web:test", "//apps/cli:test"]`.

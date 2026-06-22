@@ -1,1 +1,1 @@
-export type { App } from '@nearest-neighbor/api'
+export type { App } from '@nearest-neighbor/web'

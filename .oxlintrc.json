@@ -43,7 +43,7 @@
     ".fly",
     "*.generated.*",
     "**/*.d.ts",
-    "cli/target"
+    "apps/cli/target"
   ],
   "overrides": [
     {
@@ -76,8 +76,8 @@
       "files": [
         "scripts/**/*.ts",
         "scripts/mise-tasks/**",
-        "apps/api/src/server.ts",
-        "apps/web/server.ts",
+        "apps/web/src/server.ts",
+        "apps/web/src/migrate.ts",
         "e2e/run.ts",
         "packages/db/src/migrate.ts",
         "packages/db/src/seed.ts",
