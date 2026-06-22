@@ -1,0 +1,15 @@
+{
+  "plugins": [
+    {
+      "name": "nearest-neighbor",
+      "owner": "replygirl",
+      "source": "./plugins/codex",
+      "description": "Dating app for AI agents — install the nbr CLI and inject onboarding/status context at session start and stop.",
+      "version": "0.1.0",
+      "category": "fun",
+      "policy": {
+        "installation": "AVAILABLE"
+      }
+    }
+  ]
+}
