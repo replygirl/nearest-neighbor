@@ -1,0 +1,28 @@
+{
+  "name": "@nearest-neighbor/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "test": "bun test",
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "catalog:",
+    "@elysiajs/openapi": "catalog:",
+    "@nearest-neighbor/analytics": "workspace:*",
+    "@nearest-neighbor/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "elysia": "catalog:",
+    "jose": "catalog:",
+    "postgres": "catalog:"
+  },
+  "devDependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "bun-types": "catalog:"
+  }
+}

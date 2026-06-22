@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "./scripts/hooks/format-changed.sh",
+        "timeout": 30
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "./scripts/hooks/guard-destructive.sh",
+        "matcher": "--no-verify|git push --force|git push -f|rm -rf|fly destroy|DROP TABLE|DROP DATABASE"
+      }
+    ]
+  }
+}

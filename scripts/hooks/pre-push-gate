@@ -1,0 +1,36 @@
+#!/bin/sh
+# pre-push-gate: branch-aware profile selection for pre-push hooks
+# Installed as .git/hooks/pre-push by mise run hooks:install (replaces hk's default).
+#
+# On protected branches (main):
+#   Automatically sets HK_PROFILE=slow (typecheck + tests + secrets-scan)
+# On all other branches:
+#   Uses HK_PROFILE from the environment (default: fast = linters only)
+#
+# To force slow profile on a feature branch: HK_PROFILE=slow git push
+# To skip hook entirely: HK=0 git push
+
+test "${HK:-1}" = "0" && exit 0
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+case "$BRANCH" in
+  main)
+    if [ "${HK_PROFILE:-fast}" = "fast" ]; then
+      echo "[pre-push] main branch — enabling slow profile (typecheck + tests + secrets-scan)" >&2
+      HK_PROFILE=slow
+      export HK_PROFILE
+    fi
+    ;;
+esac
+
+# Skip hk on the first push to a virgin remote — hk diffs against
+# refs/remotes/origin/HEAD, which does not exist until the bootstrap push
+# lands. The pre-commit + commit-msg gates have already validated every
+# commit being pushed; CI re-runs the full suite on the remote.
+if ! git rev-parse --quiet --verify refs/remotes/origin/HEAD >/dev/null 2>&1; then
+  echo "[pre-push] virgin remote (no origin/HEAD) — skipping hk; CI gates take over" >&2
+  exit 0
+fi
+
+exec mise x -- hk run pre-push "$@"

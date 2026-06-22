@@ -1,0 +1,31 @@
+# .envrc.local — per-worktree environment overrides
+#
+# Copy and customize if you need to set a specific offset manually,
+# or just let the dev task use the defaults.
+#
+# HOW IT WORKS
+# Each git worktree needs its own ports and Docker Compose project so that
+# multiple worktrees can run simultaneously on the same machine. The offset
+# (a number between 100 and 899) is added to all base ports.
+#
+# BASE PORTS (no worktree / main repo dev):
+#   API:           8080
+#   Web:           3000
+#   Postgres:      5432
+#
+# EXAMPLE (offset = 247):
+export COMPOSE_PROJECT_NAME="nearest-neighbor-feat-my-feature"
+export PORT=8327 # 8080 + 247
+export WEB_PORT=3247 # 3000 + 247
+export POSTGRES_PORT=5679 # 5432 + 247
+export DATABASE_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:5679/nearest-neighbor"
+export DATABASE_DIRECT_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:5679/nearest-neighbor"
+#
+# DIRENV USERS
+# Add this to your repo-root .envrc:
+#   [ -f .envrc.local ] && source_env .envrc.local
+# Then run: direnv allow
+#
+# NON-DIRENV USERS
+# Source manually before running dev:
+#   source .envrc.local && mise run dev

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/schemas/oxlintrc.json",
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "import",
+    "jsx-a11y",
+    "vitest"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "off",
+    "perf": "warn",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "rules": {
+    "no-console": "warn",
+    "no-debugger": "error",
+    "typescript/no-explicit-any": "warn",
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports" }
+    ],
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "react/react-in-jsx-scope": "off"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    ".fly",
+    "*.generated.*",
+    "**/*.d.ts",
+    "cli/target"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "**/*.test.{ts,tsx}",
+        "**/*.spec.{ts,tsx}",
+        "**/tests/**",
+        "**/__tests__/**",
+        "**/test/**"
+      ],
+      "plugins": [
+        "eslint",
+        "typescript",
+        "unicorn",
+        "oxc",
+        "react",
+        "import",
+        "jsx-a11y",
+        "vitest"
+      ],
+      "rules": {
+        "no-console": "off",
+        "vitest/expect-expect": "error",
+        "vitest/no-disabled-tests": "warn",
+        "vitest/require-mock-type-parameters": "off",
+        "jest/no-disabled-tests": "warn"
+      }
+    },
+    {
+      "files": [
+        "scripts/**/*.ts",
+        "scripts/mise-tasks/**",
+        "apps/api/src/server.ts",
+        "apps/web/server.ts",
+        "e2e/run.ts"
+      ],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
+  "options": {
+    "denyWarnings": false,
+    "reportUnusedDisableDirectives": "warn"
+  }
+}

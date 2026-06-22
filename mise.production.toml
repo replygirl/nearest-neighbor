@@ -1,0 +1,9 @@
+# Loaded when MISE_ENV=production (e.g. `mise -E production run deploy`)
+# Overrides env vars from mise.toml for the production environment.
+
+[env]
+NODE_ENV = "production"
+FLY_APP = "nearest-neighbor-prod"
+LOG_LEVEL = "warn"
+# PostHog is active in production — set POSTHOG_KEY in CI secrets
+# DATABASE_URL comes from Fly secrets / CI env

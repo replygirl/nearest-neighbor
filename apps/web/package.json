@@ -1,0 +1,36 @@
+{
+  "name": "@nearest-neighbor/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev",
+    "build": "react-router build",
+    "start": "bun run server.ts",
+    "typecheck": "echo 'web typecheck deferred (stub) — restored in landing-page phase'",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@heroui/react": "catalog:",
+    "@heroui/styles": "^3.2.1",
+    "@nearest-neighbor/analytics": "workspace:*",
+    "@nearest-neighbor/api-types": "workspace:*",
+    "@react-router/node": "catalog:",
+    "posthog-js": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-router": "catalog:"
+  },
+  "devDependencies": {
+    "@react-router/dev": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "bun-types": "catalog:",
+    "happy-dom": "catalog:testing",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:build",
+    "vitest": "catalog:testing"
+  }
+}

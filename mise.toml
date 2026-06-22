@@ -1,0 +1,553 @@
+min_version = "2026.4.1"
+experimental_monorepo_root = true
+
+redactions = [
+  "*_SECRET",
+  "*_KEY",
+  "*_TOKEN",
+  "DATABASE_URL",
+  "DATABASE_DIRECT_URL",
+]
+
+[settings]
+experimental = true
+jobs = 8
+
+[env]
+NODE_ENV = "development"
+HK_MISE = "1"
+HK_PKL_BACKEND = "pklr"
+# Load per-developer secrets; file is git-ignored
+_.file = [{ path = ".env.local", redact = true }]
+# Paths injected by the mise-managed node_modules
+_.path = ["{{config_root}}/node_modules/.bin"]
+# DATABASE_URL is intentionally NOT declared here. mise [env] entries override
+# the inherited environment, so an empty default would silently shadow values
+# set in CI job env or .env.local. Tasks that need these read them directly
+# from the environment (`${VAR:-default}` in shell, `process.env.X` in TS) and
+# fail loudly when absent.
+
+[tools]
+bun = "1.3.14"
+node = "lts"
+
+# Rust toolchain — needed by the cargo backend below (taplo-cli).
+# Ubuntu runners ship cargo so this is a no-op there, but container CI jobs
+# (ci-e2e on the playwright noble image) don't have cargo preinstalled and
+# mise install otherwise fails to bootstrap the cargo-backed tools.
+rust = "stable"
+
+# TS7 — Go-based native compiler (tsgo binary); swap to "npm:typescript" = "7" when stable
+"npm:@typescript/native-preview" = "7.0.0-dev.20260621.1"
+
+# Lint + format (oxc ecosystem)
+"npm:oxlint" = "1.70.0"
+"npm:oxfmt" = "0.55.0"
+
+# Git hooks runner — pinned to 1.41.0; 1.44.1 regression skips pre-push install
+"aqua:jdx/hk" = "1.41.0"
+"aqua:jdx/usage" = "3.2.1"
+
+# TOML formatter (used by hk taplo step) — cargo backend is most reliable
+"cargo:taplo-cli" = "0.10.0"
+
+# GitHub CLI (also installed globally via `mise use --global gh@latest`)
+"aqua:cli/cli" = "2.91.0"
+
+# Shell script linter (used by hk shellcheck step)
+"aqua:koalaman/shellcheck" = "0.10.0"
+
+# GitHub Actions workflow linter (used by hk actionlint step)
+"aqua:rhysd/actionlint" = "1.7.12"
+
+[hooks]
+# Auto-install git hooks whenever `mise install` runs
+# hk installs pre-commit/commit-msg; custom scripts install post-merge, post-checkout, and branch-aware pre-push
+postinstall = "hk install --mise && HOOKS_DIR=$(git rev-parse --git-dir)/hooks && install -m 755 scripts/hooks/post-merge $HOOKS_DIR/post-merge && install -m 755 scripts/hooks/post-checkout $HOOKS_DIR/post-checkout && install -m 755 scripts/hooks/pre-push-gate $HOOKS_DIR/pre-push"
+
+[monorepo]
+config_roots = ["apps/*", "packages/*"]
+
+[task_config]
+# Scripts in scripts/mise-tasks/ are invoked directly by toml tasks (run = "bash scripts/mise-tasks/...").
+# An empty includes list stops mise from auto-discovering scripts as duplicate tasks,
+# so that toml description fields are authoritative in `mise tasks ls`.
+includes = []
+
+# ───────────────────────────────────────────────
+# Core tasks
+# ───────────────────────────────────────────────
+
+[tasks.dev]
+description = "Start full local dev: postgres + migrations + api (8080) + web (3000)"
+depends = ["dev:free-ports"]
+run = """
+set -euo pipefail
+
+# Apply local dev defaults if .env.local is absent / vars are blank.
+# Docker Compose creates postgres with these credentials.
+export DATABASE_URL="${DATABASE_URL:-postgres://nearest-neighbor:nearest-neighbor@localhost:5432/nearest-neighbor}"
+export DATABASE_DIRECT_URL="${DATABASE_DIRECT_URL:-$DATABASE_URL}"
+
+# 1. Start backing services and wait for healthchecks
+docker compose -f docker-compose.dev.yml up -d --wait
+
+# 2. Run pending migrations
+bun run packages/db/src/migrate.ts
+
+# 3. Optional seed (DEV_SEED=1 mise run dev)
+if [ "${DEV_SEED:-0}" = "1" ]; then bun run packages/db/src/seed.ts; fi
+
+# 4. Start api + web in parallel with hot reload
+echo "[dev] api  → http://localhost:8080"
+echo "[dev] web  → http://localhost:3000"
+echo "[dev] Press Ctrl+C to stop api + web (docker services stay running; use mise run dev:down to stop them)"
+
+trap 'echo "[dev] shutting down..."; jobs -p | xargs -r kill 2>/dev/null || true; wait 2>/dev/null || true' INT TERM
+
+bun --filter @nearest-neighbor/api dev &
+bun --filter @nearest-neighbor/web dev &
+wait
+"""
+
+[tasks."dev:down"]
+description = "Stop docker dev services (postgres)"
+run = "docker compose -f docker-compose.dev.yml down"
+
+[tasks."dev:reset"]
+description = "DESTRUCTIVE: wipe docker dev volumes (postgres data lost) and restart clean"
+run = """
+echo "WARNING: This will delete all local dev data (postgres volume). Waiting 3s..." >&2
+sleep 3
+docker compose -f docker-compose.dev.yml down -v
+"""
+
+[tasks."dev:free-ports"]
+description = "Kill any process holding the dev ports (idempotent; no-op when ports are clean)"
+run = """
+for port in 8080 3000 5432; do
+  pid="$(lsof -t -i :$port 2>/dev/null || true)"
+  if [ -n "$pid" ]; then echo "freeing $port (pid $pid)"; kill -9 $pid 2>/dev/null || true; fi
+done
+"""
+
+[tasks.build]
+description = "Build all packages"
+run = "bun run --filter '*' build"
+
+# ───────────────────────────────────────────────
+# Lint
+# ───────────────────────────────────────────────
+
+[tasks.lint]
+description = "Lint all TypeScript/JavaScript with oxlint"
+run = "find . -not -path '*/node_modules/*' -not -path '*/dist/*' \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) | head -1 | grep -q . && oxlint . || echo 'No source files to lint.'"
+
+[tasks."lint:fix"]
+description = "Auto-fix lint issues"
+run = "find . -not -path '*/node_modules/*' -not -path '*/dist/*' \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) | head -1 | grep -q . && oxlint --fix . || echo 'No source files to lint.'"
+
+[tasks."lint:ci"]
+description = "Lint with GitHub Actions annotations (fails on lint errors)"
+run = "find . -not -path '*/node_modules/*' -not -path '*/dist/*' \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) | head -1 | grep -q . && oxlint --format=github . || echo 'No source files to lint.'"
+
+# ───────────────────────────────────────────────
+# Format
+# ───────────────────────────────────────────────
+
+[tasks.format]
+description = "Check formatting (alias for format:check)"
+run = "oxfmt --check ."
+
+[tasks."format:check"]
+description = "Check formatting — exits non-zero if any file differs"
+run = "oxfmt --check ."
+
+[tasks."format:fix"]
+description = "Auto-format all files"
+run = "oxfmt --write ."
+
+# ───────────────────────────────────────────────
+# Typecheck
+# ───────────────────────────────────────────────
+
+[tasks.typecheck]
+description = "Type-check all workspaces (apps + packages) with tsgo"
+run = "bun run --filter '*' typecheck"
+
+# ───────────────────────────────────────────────
+# Test
+# ───────────────────────────────────────────────
+
+[tasks.test]
+description = "Run unit/component tests across all workspaces (e2e separate via test:e2e)"
+# Splitting the heaviest two (api + web) into a sequential prelude before the
+# parallel run of the lighter packages keeps total wall-time reasonable
+# and eliminates flake from DB-backed tests contending with JSDOM tests.
+run = """
+bun run --filter '@nearest-neighbor/api' test \
+  && bun run --filter '@nearest-neighbor/web' test \
+  && bun run --filter '@nearest-neighbor/db' --filter '@nearest-neighbor/analytics' test
+"""
+
+[tasks."test:coverage"]
+description = "Run all tests with coverage and gate against thresholds"
+run = "bun run --filter '*' test:coverage && bash scripts/check-coverage.sh"
+
+[tasks."test:affected"]
+description = "Run tests for files changed vs main branch"
+run = "bun test --changed"
+
+[tasks."test:api"]
+description = "Run API tests"
+run = "bun test apps/api/"
+dir = "{{config_root}}"
+
+[tasks."test:api:watch"]
+description = "Run API tests in watch mode"
+run = "bun test apps/api/ --watch"
+dir = "{{config_root}}"
+
+[tasks."test:api:coverage"]
+description = "Run API tests with lcov coverage"
+run = "bun test apps/api/ --coverage --coverage-reporter=lcov"
+dir = "{{config_root}}"
+
+[tasks."test:web"]
+description = "Run web app component tests"
+run = "bun test"
+dir = "{{config_root}}/apps/web"
+
+[tasks."test:web:coverage"]
+description = "Run web app tests with lcov coverage"
+run = "bun test --coverage --coverage-reporter=lcov"
+dir = "{{config_root}}/apps/web"
+
+[tasks."test:e2e"]
+description = "Run Playwright E2E tests (spawns its own isolated postgres via testcontainers — no precondition needed)"
+run = """
+# Ensure browsers are present. `playwright install` is idempotent — it
+# returns quickly if the requested browsers are already cached at
+# ~/Library/Caches/ms-playwright (macOS) or $PLAYWRIGHT_BROWSERS_PATH
+# (the CI container sets this to /ms-playwright, where the noble image
+# pre-installs everything, so this is a no-op there).
+bunx playwright install chromium firefox webkit
+bun run e2e/run.ts
+"""
+dir = "{{config_root}}"
+
+[tasks."test:e2e:update"]
+# Run on Linux CI only — baselines generated on macOS will fail CI due to font rendering differences
+description = "Update Playwright visual regression baselines (Linux CI only)"
+run = "bunx playwright test --config e2e/playwright.config.ts --update-snapshots --project chromium"
+dir = "{{config_root}}"
+
+[tasks."test:e2e:ui"]
+description = "Open Playwright test UI"
+run = "bunx playwright test --config e2e/playwright.config.ts --ui"
+dir = "{{config_root}}"
+
+# ───────────────────────────────────────────────
+# Full CI gate
+# ───────────────────────────────────────────────
+
+[tasks.check]
+description = "Full CI gate: lint + format:check + typecheck + test + test:coverage"
+depends = ["lint", "format:check", "typecheck", "test", "test:coverage"]
+
+# ───────────────────────────────────────────────
+# Agents sync
+# ───────────────────────────────────────────────
+
+[tasks."agents:sync"]
+description = "Sync .agents/shared.md into CLAUDE.md and AGENTS.md shared blocks"
+run = "bash scripts/mise-tasks/agents/sync"
+
+[tasks."agents:check"]
+description = "CI drift check — exit non-zero if shared blocks are out of sync"
+run = "bash scripts/mise-tasks/agents/sync --check"
+
+# ───────────────────────────────────────────────
+# Database
+# ───────────────────────────────────────────────
+
+[tasks."db:generate"]
+description = "Generate Drizzle migrations from schema changes"
+run = "cd packages/db && bunx drizzle-kit generate"
+
+[tasks."db:migrate"]
+description = "Apply pending migrations via programmatic runner"
+run = "bun run packages/db/src/migrate.ts"
+
+[tasks."db:migrate:check"]
+description = "Warn (non-blocking) if local DB has fewer applied migrations than files on disk; exits 0 always"
+run = """
+set -euo pipefail
+
+MIGRATIONS_DIR="packages/db/migrations"
+
+# Count migration files on disk
+FILE_COUNT=$(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$FILE_COUNT" -eq 0 ]; then
+  echo "db:migrate:check: no migration files found in $MIGRATIONS_DIR — skipping check."
+  exit 0
+fi
+
+# Try to count applied migrations in the DB; skip gracefully if DB is unreachable
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "db:migrate:check: DATABASE_URL not set — cannot query DB. Skipping." >&2
+  exit 0
+fi
+
+DB_COUNT=$(bunx --bun -e "
+const { Client } = require('pg')
+const client = new Client({ connectionString: process.env.DATABASE_URL })
+client.connect().then(() =>
+  client.query('SELECT COUNT(*) AS n FROM drizzle.__drizzle_migrations')
+    .then(r => { console.log(r.rows[0].n); client.end() })
+    .catch(() => { console.log('0'); client.end() })
+).catch(() => console.log('-1'))
+" 2>/dev/null || echo "-1")
+
+if [ "$DB_COUNT" = "-1" ]; then
+  echo "db:migrate:check: DB unreachable (Docker not running?) — skipping migration drift check." >&2
+  exit 0
+fi
+
+if [ "$DB_COUNT" -lt "$FILE_COUNT" ]; then
+  PENDING=$((FILE_COUNT - DB_COUNT))
+  echo "WARNING: $PENDING pending migration(s) ($DB_COUNT applied, $FILE_COUNT on disk)." >&2
+  echo "         Run 'mise run db:migrate' to apply them." >&2
+fi
+
+exit 0
+"""
+
+[tasks."db:push"]
+description = "Push schema directly to DB (dev only — avoids migration files)"
+run = """
+echo 'db:push bypasses migration files — use only in local dev. Never run against staging or production. Waiting 5s...' >&2
+sleep 5
+cd packages/db && bunx drizzle-kit push
+"""
+
+[tasks."db:studio"]
+description = "Open Drizzle Studio database browser"
+run = "cd packages/db && bunx drizzle-kit studio"
+
+[tasks."db:seed"]
+description = "Seed dev database with hello-world fixtures"
+run = "bun run packages/db/src/seed.ts"
+
+[tasks."db:reset"]
+description = "Truncate all app tables (dev/test only)"
+run = "bun run packages/db/src/reset.ts"
+
+# ───────────────────────────────────────────────
+# CLI (Rust)
+# ───────────────────────────────────────────────
+
+[tasks."cli:build"]
+description = "Build the Rust CLI (nbr) in release mode"
+run = "cargo build --release"
+dir = "{{config_root}}/cli"
+
+[tasks."cli:build:debug"]
+description = "Build the Rust CLI in debug mode"
+run = "cargo build"
+dir = "{{config_root}}/cli"
+
+[tasks."cli:test"]
+description = "Run Rust CLI tests"
+run = "cargo test"
+dir = "{{config_root}}/cli"
+
+[tasks."cli:check"]
+description = "Check Rust CLI (no build output)"
+run = "cargo check"
+dir = "{{config_root}}/cli"
+
+[tasks."cli:clippy"]
+description = "Lint the Rust CLI with clippy"
+run = "cargo clippy --all-targets -- -D warnings"
+dir = "{{config_root}}/cli"
+
+# ───────────────────────────────────────────────
+# hk helpers
+# ───────────────────────────────────────────────
+
+[tasks."hooks:install"]
+description = "Install git hooks via hk + custom hooks (post-merge, post-checkout, branch-aware pre-push)"
+run = """
+set -euo pipefail
+HOOKS_DIR="$(git rev-parse --git-dir)/hooks"
+
+# hk installs pre-commit, commit-msg (hk 1.41.0 supported hooks)
+hk install --mise
+
+# post-merge: hk 1.41.0 doesn't support this hook type — install manually
+install -m 755 scripts/hooks/post-merge "$HOOKS_DIR/post-merge"
+echo "Installed custom hook: $HOOKS_DIR/post-merge"
+
+# post-checkout: trigger worktree:setup automatically when entering a fresh worktree
+install -m 755 scripts/hooks/post-checkout "$HOOKS_DIR/post-checkout"
+echo "Installed custom hook: $HOOKS_DIR/post-checkout"
+
+# pre-push: replace hk's default with branch-aware wrapper that upgrades
+# to HK_PROFILE=slow automatically when pushing to main.
+install -m 755 scripts/hooks/pre-push-gate "$HOOKS_DIR/pre-push"
+echo "Installed branch-aware hook: $HOOKS_DIR/pre-push"
+"""
+
+[tasks."commit:check-range"]
+description = "Validate commit messages on a range (use COMMIT_FROM and COMMIT_TO env vars)"
+run = "bunx commitlint --from \"${COMMIT_FROM:-origin/main}\" --to \"${COMMIT_TO:-HEAD}\""
+
+[tasks."hooks:check"]
+description = "Run all pre-commit checks manually (fast profile)"
+# hk check --all routes to pre-commit in check-only mode on all repo files
+run = "hk run pre-commit --check --all"
+
+[tasks."hooks:check:slow"]
+description = "Run all checks including slow profile (typecheck + tests)"
+run = "HK_PROFILE=slow hk run pre-commit --check --all"
+
+# ───────────────────────────────────────────────
+# PostHog
+# ───────────────────────────────────────────────
+
+[tasks."posthog:upload-sourcemaps"]
+description = "Build and upload web sourcemaps to PostHog (requires POSTHOG_PERSONAL_API_KEY + POSTHOG_HOST)"
+run = "bash scripts/mise-tasks/posthog/upload-sourcemaps"
+
+# ───────────────────────────────────────────────
+# Web (React Router)
+# ───────────────────────────────────────────────
+
+[tasks."web:dev"]
+description = "Start the React Router dev server for apps/web"
+run = "bun --filter @nearest-neighbor/web dev"
+dir = "{{config_root}}"
+
+[tasks."web:build"]
+description = "Build apps/web for production"
+run = "bun --filter @nearest-neighbor/web build"
+dir = "{{config_root}}"
+
+[tasks."web:start"]
+description = "Start the production web server (requires bun run web:build first)"
+run = "bun --filter @nearest-neighbor/web start"
+dir = "{{config_root}}"
+
+[tasks."web:typecheck"]
+description = "Type-check apps/web with react-router typegen + tsgo"
+run = "bun --filter @nearest-neighbor/web typecheck"
+dir = "{{config_root}}"
+
+# ───────────────────────────────────────────────
+# Fly.io deploy
+# ───────────────────────────────────────────────
+
+[tasks."fly:deploy:api:staging"]
+description = "Deploy apps/api to nearest-neighbor-staging"
+run = "flyctl deploy --config apps/api/fly.staging.toml --remote-only"
+dir = "{{config_root}}"
+
+[tasks."fly:deploy:api:prod"]
+description = "Deploy apps/api to nearest-neighbor-prod (bluegreen)"
+run = "flyctl deploy --config apps/api/fly.prod.toml --remote-only"
+dir = "{{config_root}}"
+
+[tasks."fly:deploy:web:staging"]
+description = "Deploy apps/web to nearest-neighbor-web-staging"
+run = "flyctl deploy --config apps/web/fly.staging.toml --remote-only"
+dir = "{{config_root}}"
+
+[tasks."fly:deploy:web:prod"]
+description = "Deploy apps/web to nearest-neighbor-web-prod (bluegreen)"
+run = "flyctl deploy --config apps/web/fly.prod.toml --remote-only"
+dir = "{{config_root}}"
+
+[tasks."fly:logs:api:prod"]
+description = "Stream live logs from nearest-neighbor-prod"
+run = "flyctl logs --app nearest-neighbor-prod"
+
+[tasks."fly:logs:api:staging"]
+description = "Stream live logs from nearest-neighbor-staging"
+run = "flyctl logs --app nearest-neighbor-staging"
+
+[tasks."fly:logs:web:prod"]
+description = "Stream live logs from nearest-neighbor-web-prod"
+run = "flyctl logs --app nearest-neighbor-web-prod"
+
+[tasks."fly:logs:web:staging"]
+description = "Stream live logs from nearest-neighbor-web-staging"
+run = "flyctl logs --app nearest-neighbor-web-staging"
+
+[tasks."fly:ssh:api:prod"]
+description = "Open SSH console on nearest-neighbor-prod web machine"
+run = "flyctl ssh console --app nearest-neighbor-prod --process-group web"
+
+[tasks."fly:ssh:api:staging"]
+description = "Open SSH console on nearest-neighbor-staging web machine"
+run = "flyctl ssh console --app nearest-neighbor-staging --process-group web"
+
+[tasks."fly:status:api:prod"]
+description = "Show machine status for nearest-neighbor-prod"
+run = "flyctl status --app nearest-neighbor-prod"
+
+[tasks."fly:status:api:staging"]
+description = "Show machine status for nearest-neighbor-staging"
+run = "flyctl status --app nearest-neighbor-staging"
+
+[tasks."fly:status:web:prod"]
+description = "Show machine status for nearest-neighbor-web-prod"
+run = "flyctl status --app nearest-neighbor-web-prod"
+
+[tasks."fly:status:web:staging"]
+description = "Show machine status for nearest-neighbor-web-staging"
+run = "flyctl status --app nearest-neighbor-web-staging"
+
+# ───────────────────────────────────────────────
+# CLI docs generation (usage 3.x)
+# ───────────────────────────────────────────────
+
+[tasks."docs:gen-spec"]
+description = "Output combined usage KDL spec from all #USAGE headers in scripts/mise-tasks/ scripts"
+run = "bash scripts/mise-tasks/docs/gen-spec"
+
+[tasks."docs:gen"]
+description = "Regenerate completions, man page, and CLI markdown docs from #USAGE headers"
+depends = ["docs:completions", "docs:man", "docs:markdown"]
+
+[tasks."docs:completions"]
+description = "Generate shell completions from #USAGE headers in scripts/mise-tasks/"
+run = """
+mkdir -p docs/cli/completions
+bash scripts/mise-tasks/docs/gen-spec | usage generate completion bash  nearest-neighbor-mise --file /dev/stdin > docs/cli/completions/_nearest-neighbor-mise.bash
+bash scripts/mise-tasks/docs/gen-spec | usage generate completion zsh   nearest-neighbor-mise --file /dev/stdin > docs/cli/completions/_nearest-neighbor-mise.zsh
+bash scripts/mise-tasks/docs/gen-spec | usage generate completion fish  nearest-neighbor-mise --file /dev/stdin > docs/cli/completions/_nearest-neighbor-mise.fish
+# usage-cli emits unused locals (cur/prev/words/cword/was_split/comp_args) by design — silence shellcheck SC2034
+sed -i.bak '1a\\
+# shellcheck disable=SC2034
+' docs/cli/completions/_nearest-neighbor-mise.bash && rm docs/cli/completions/_nearest-neighbor-mise.bash.bak
+echo "Completions written to docs/cli/completions/"
+"""
+
+[tasks."docs:man"]
+description = "Generate man page from #USAGE headers in scripts/mise-tasks/"
+run = """
+mkdir -p docs/cli/man
+bash scripts/mise-tasks/docs/gen-spec | usage generate manpage --file /dev/stdin --out-file docs/cli/man/nearest-neighbor-mise.1
+echo "Man page written to docs/cli/man/nearest-neighbor-mise.1"
+"""
+
+[tasks."docs:markdown"]
+description = "Generate per-task-group CLI reference markdown from #USAGE headers"
+run = """
+mkdir -p docs/cli
+bash scripts/mise-tasks/docs/gen-spec | usage generate markdown --file /dev/stdin --multi --out-dir docs/cli
+oxfmt docs/cli/ > /dev/null
+echo "CLI reference written to docs/cli/"
+"""

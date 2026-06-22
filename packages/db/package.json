@@ -1,0 +1,28 @@
+{
+  "name": "@nearest-neighbor/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "generate": "mise run db:generate",
+    "migrate": "mise run db:migrate",
+    "studio": "mise run db:studio",
+    "typecheck": "tsgo --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.3",
+    "@electric-sql/pglite-socket": "^0.2.4",
+    "drizzle-kit": "catalog:",
+    "drizzle-orm": "catalog:",
+    "postgres": "catalog:"
+  },
+  "devDependencies": {
+    "bun-types": "catalog:"
+  }
+}

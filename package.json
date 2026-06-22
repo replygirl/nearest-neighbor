@@ -1,0 +1,78 @@
+{
+  "name": "nearest-neighbor",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "typescript": "npm:@typescript/native-preview@latest",
+      "bun-types": "^1.3.14",
+      "postgres": "^3.4.9",
+      "react": "^19.2.7",
+      "react-dom": "^19.2.7",
+      "react-router": "^8.0.1",
+      "@react-router/node": "^8.0.1",
+      "@react-router/dev": "^8.0.1",
+      "elysia": "^1.4.29",
+      "@elysiajs/cors": "^1.4.2",
+      "@elysiajs/openapi": "^1.4.15",
+      "@elysiajs/eden": "^1.4.9",
+      "tailwindcss": "^4.3.1",
+      "@tailwindcss/vite": "^4.3.1",
+      "@heroui/react": "^3.2.1",
+      "@heroui/styles": "^3.2.1",
+      "drizzle-orm": "^0.45.2",
+      "drizzle-kit": "^0.31.10",
+      "jose": "^6.2.3",
+      "posthog-node": "^5.38.2",
+      "posthog-js": "^1.391.2",
+      "@sinclair/typebox": "^0.34.49",
+      "oxlint": "latest",
+      "oxfmt": "latest"
+    },
+    "catalogs": {
+      "testing": {
+        "vitest": "^4.1.9",
+        "happy-dom": "^20.10.6",
+        "@playwright/test": "^1.61.0"
+      },
+      "build": {
+        "vite": "^8.0.16"
+      }
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "mise run dev",
+    "build": "mise run build",
+    "test": "mise run test",
+    "lint": "mise run lint",
+    "lint:fix": "mise run lint:fix",
+    "format": "mise run format:fix",
+    "format:check": "mise run format:check",
+    "typecheck": "mise run typecheck"
+  },
+  "dependencies": {
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
+    "@playwright/test": "catalog:testing",
+    "drizzle-orm": "catalog:",
+    "postgres": "catalog:",
+    "testcontainers": "^12.0.3"
+  },
+  "overrides": {
+    "elysia": "^1.4.29",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  },
+  "trustedDependencies": []
+}

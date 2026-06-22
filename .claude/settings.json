@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enableAllProjectMcpServers": true,
+  "enabledPlugins": {
+    "commit-commands@claude-plugins-official": true,
+    "playground@claude-plugins-official": true
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mise *)",
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(actionlint *)",
+      "Bash(oxlint *)",
+      "Bash(oxfmt *)",
+      "Bash(taplo *)",
+      "Bash(shellcheck *)",
+      "Bash(tsgo *)",
+      "Bash(yq *)",
+      "Bash(yamllint *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git add)",
+      "Bash(git add *)",
+      "Bash(git commit)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git tag *)",
+      "Bash(gh *)",
+      "Bash(hk *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(jq *)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(awk *)",
+      "Bash(sed *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(chmod *)",
+      "Bash(which *)",
+      "Bash(type *)",
+      "Read(**)",
+      "Glob(**)",
+      "Grep(**)"
+    ],
+    "ask": [
+      "Bash(fly *)",
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git clean *)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(git branch -D *)",
+      "Bash(git stash drop *)",
+      "Bash(rm *)",
+      "Bash(docker *)",
+      "Bash(psql *)",
+      "Bash(curl *)",
+      "mcp__fly-replygirl__*",
+      "mcp__posthog-replygirl__*",
+      "mcp__github-replygirl__*"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git commit --no-verify *)",
+      "Bash(git commit -n *)",
+      "Bash(npm install -g *)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.env.local)",
+      "Read(**/secrets/**)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-edit-format.sh",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-bash-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
