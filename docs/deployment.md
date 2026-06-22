@@ -7,18 +7,14 @@ operations, and rollback.
 
 ## Environments
 
-| Env        | Fly app                    | Triggered by                                             | Strategy  |
-| ---------- | -------------------------- | -------------------------------------------------------- | --------- |
-| Production | `nearest-neighbor-prod`    | Manual `workflow_dispatch` + GitHub Environment approval | Bluegreen |
-| Staging    | `nearest-neighbor-staging` | Push to `main`                                           | Rolling   |
-| Preview    | `nearest-neighbor-pr-<N>`  | PR opened / pushed                                       | Rolling   |
+Each environment is a **single Fly app** that serves both the SPA (`/`) and the
+API (`/v1`, `/health`, `/docs`). There is no separate web app.
 
-Web frontend:
-
-| Env        | Fly app                        |
-| ---------- | ------------------------------ |
-| Production | `nearest-neighbor-web-prod`    |
-| Staging    | `nearest-neighbor-web-staging` |
+| Env        | Fly app                       | URL                                | Triggered by                                             | Strategy  |
+| ---------- | ----------------------------- | ---------------------------------- | -------------------------------------------------------- | --------- |
+| Production | `nearest-neighbor-production` | `nearest-neighbor.replygirl.club`  | Manual `workflow_dispatch` + GitHub Environment approval | Bluegreen |
+| Staging    | `nearest-neighbor-staging`    | `nearest-neighbor-staging.fly.dev` | Push to `main`                                           | Rolling   |
+| Preview    | `nearest-neighbor-pr-<N>`     | `nearest-neighbor-pr-<N>.fly.dev`  | PR opened / pushed                                       | Rolling   |
 
 Org: `replygirl`, region: `iad`.
 
@@ -57,6 +53,8 @@ file. The same `release_command = "bun run db:migrate"` runs against whichever
 | `POSTHOG_KEY`   | yes  | yes     | yes     | Fly secret + GH secret (per-env project token)      |
 | `POSTHOG_HOST`  | yes  | yes     | yes     | GH variable; `https://us.i.posthog.com` or proxy    |
 | `FLY_API_TOKEN` | —    | —       | —       | GH secret (org-scoped deploy token; not in Fly app) |
+
+`WEB_URL` is no longer needed — the web and API are served from the same origin.
 
 ---
 
@@ -178,16 +176,16 @@ fly mpg connect nearest-neighbor-db-staging --command "DROP DATABASE pr_<N>"
 
 ```sh
 # Logs
-mise run fly:logs:api:prod
-mise run fly:logs:api:staging
+mise run fly:logs:production
+mise run fly:logs:staging
 
 # SSH
-mise run fly:ssh:api:prod
-mise run fly:ssh:api:staging
+mise run fly:ssh:production
+mise run fly:ssh:staging
 
 # Status
-mise run fly:status:api:prod
-mise run fly:status:api:staging
+mise run fly:status:production
+mise run fly:status:staging
 ```
 
 ---

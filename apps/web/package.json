@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build",
-    "start": "bun run server.ts",
+    "start": "echo 'SPA is served by the API binary in production. Use mise run dev for local dev.'",
     "typecheck": "react-router typegen && tsgo --noEmit",
     "test": "vitest run --passWithNoTests"
   },

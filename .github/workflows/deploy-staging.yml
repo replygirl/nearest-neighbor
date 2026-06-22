@@ -12,20 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy-api:
+  deploy:
     uses: ./.github/workflows/deploy-fly-app.yml
     with:
       app: nearest-neighbor-staging
       env: staging
       config-path: apps/api/fly.staging.toml
-    secrets:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-  deploy-web:
-    uses: ./.github/workflows/deploy-fly-app.yml
-    with:
-      app: nearest-neighbor-web-staging
-      env: staging
-      config-path: apps/web/fly.staging.toml
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

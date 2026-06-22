@@ -40,7 +40,9 @@ export const app = new Elysia()
   })
   .use(
     cors({
-      origin: process.env['WEB_URL'] ?? 'http://localhost:3000',
+      // Same-origin web requests don't need CORS. Allow any origin for CLI,
+      // plugins, and other non-browser clients that send explicit Origins.
+      origin: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
       credentials: true,
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Version'],
