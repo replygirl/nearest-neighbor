@@ -30,13 +30,11 @@ nearest-neighbor/
 │   │   ├── fly.prod.toml, fly.staging.toml, fly.preview.toml
 │   │   └── Dockerfile
 │   │
-│   └── web/                         # React Router 8 SSR (@nearest-neighbor/web)
+│   └── web/                         # React Router 8 SPA source (@nearest-neighbor/web)
 │       ├── app/
 │       │   ├── root.tsx
 │       │   └── routes/
-│       ├── server.ts
-│       ├── fly.prod.toml, fly.staging.toml, fly.preview.toml
-│       └── Dockerfile
+│       └── (built by API Dockerfile; no standalone server or Fly config)
 │
 ├── packages/
 │   ├── api-types/                   # type-only App export for Eden Treaty
@@ -66,15 +64,16 @@ nearest-neighbor/
 
 ### Production
 
-- Fly app: `nearest-neighbor-prod` (API) + `nearest-neighbor-web-prod` (web)
+- Fly app: `nearest-neighbor-production` (single app — API + SPA)
+- Serves SPA at `/` and API under `/v1` (plus `/health`, `/docs`)
 - Org: `replygirl`, region: `iad`
-- Strategy: bluegreen; `release_command = "bun run db:migrate"`
+- Strategy: bluegreen; `release_command = "/app/migrate"`
 - Postgres: shared Fly Managed Postgres cluster (org-level)
 - No worker process; notifications are synchronous DB writes
 
 ### Staging
 
-- Fly app: `nearest-neighbor-staging` + `nearest-neighbor-web-staging`
+- Fly app: `nearest-neighbor-staging` (single app — API + SPA)
 - Strategy: rolling; `auto_stop_machines = "stop"`
 - Postgres: unmanaged single-node Fly Postgres app
 
@@ -210,8 +209,12 @@ graph LR
   Trust --> Install["mise install\n(tools + bun install + hk install)"]
   Install --> EnvLocal["cp .env.local.example .env.local\n(edit if needed)"]
   EnvLocal --> Dev["mise run dev\n(docker postgres + migrations + api :8080 + web :3000)"]
-  Dev --> Health["curl localhost:8080/health\n→ {status: 'ok'}"]
+  Dev --> Health["curl localhost:8080/health\n→ {status: 'ok', ...}"]
 ```
+
+In local dev the API runs on `:8080` and the web dev server on `:3000` (with
+Vite HMR). In production a single binary serves both: API routes under `/v1` and
+the compiled SPA at `/`.
 
 ---
 

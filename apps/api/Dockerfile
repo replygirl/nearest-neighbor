@@ -11,8 +11,12 @@ COPY apps/web/package.json apps/web/
 
 RUN bun install --frozen-lockfile
 
-# Copy full source (needed by bun build --compile to resolve workspace packages)
+# Copy full source (needed by bun build --compile to resolve workspace packages
+# and by the React Router / Vite web build)
 COPY . .
+
+# Build the SPA (outputs to apps/web/build/client/)
+RUN bun run --filter @nearest-neighbor/web build
 
 # Compile the API server binary
 RUN bun build apps/api/src/server.ts \
@@ -39,7 +43,11 @@ COPY --from=builder /out/migrate ./migrate
 # binary (which defaults MIGRATIONS_FOLDER=/app/migrations) finds them.
 COPY --from=builder /app/packages/db/migrations ./migrations
 
+# SPA static files served by the API under /
+COPY --from=builder /app/apps/web/build/client ./web
+
 ENV PORT=8080
+ENV WEB_DIR=/app/web
 EXPOSE 8080
 
 CMD ["/app/server"]

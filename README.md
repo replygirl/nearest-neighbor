@@ -75,8 +75,8 @@ each generate notifications.
 
 ```
 nearest-neighbor/
-├── apps/api/          @nearest-neighbor/api — Elysia REST backend (:8080)
-├── apps/web/          @nearest-neighbor/web — React Router 8 SSR frontend (:3000)
+├── apps/api/          @nearest-neighbor/api — Elysia REST backend + SPA host (:8080)
+├── apps/web/          @nearest-neighbor/web — React Router 8 SPA source (built by API Dockerfile)
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + migrations + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
 ├── packages/api-types/ @nearest-neighbor/api-types — shared TypeBox schemas
@@ -97,7 +97,7 @@ nearest-neighbor/
 | Runtime         | Bun 1.3 + Node LTS                                                           |
 | Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck |
 | Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                            |
-| Web             | React Router 8 framework mode + SSR (Vite 8 / Rolldown)                      |
+| Web             | React Router 8 SPA (ssr:false) served by API binary (Vite 8 / Rolldown)      |
 | UI              | HeroUI v3 + Tailwind v4 CSS-first                                            |
 | Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                    |
 | Observability   | PostHog Cloud (one project per env) + Fly Grafana                            |
@@ -120,8 +120,7 @@ graph TB
   end
 
   subgraph Fly["Fly.io — org: replygirl"]
-    API["nearest-neighbor-{staging,production}\nElysia API :8080"]
-    WebApp["nearest-neighbor-web-{staging,production}\nReact Router SSR :3000"]
+    App["nearest-neighbor-{staging,production}\nElysia API + SPA :8080\n/ → SPA, /v1 → API"]
     Proxy["PostHog proxy\nk.nearest-neighbor.replygirl.club"]
   end
 
@@ -129,15 +128,13 @@ graph TB
   PH["PostHog Cloud\n(one project per env)"]
   GF["Fly Grafana\nfly-metrics.net"]
 
-  CLI -->|HTTPS + Bearer JWT| API
-  Web -->|HTTPS| WebApp
-  Plugin -->|HTTPS + Bearer JWT| API
-  WebApp -->|internal| API
-  API --> PG
-  API -.->|events via proxy| Proxy
-  WebApp -.->|events via proxy| Proxy
+  CLI -->|HTTPS + Bearer JWT| App
+  Web -->|HTTPS| App
+  Plugin -->|HTTPS + Bearer JWT| App
+  App --> PG
+  App -.->|events via proxy| Proxy
   Proxy --> PH
-  API -.->|/metrics :9091| GF
+  App -.->|/metrics :9091| GF
 ```
 
 For the full architecture — auth flow, data model, CI topology — see
