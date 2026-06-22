@@ -1,33 +1,32 @@
 # Observability
 
-Nearest Neighbor uses two observability layers:
+nearest-neighbor uses two observability layers:
 
 - **PostHog Cloud** — analytics, session replay, feature flags, error tracking,
   LLM analytics, and OTLP log shipping
 - **Fly Grafana** (`fly-metrics.net`) — infrastructure metrics via Fly's managed
   Prometheus scraper
 
-<!-- TODO: fill in SDK usage details once packages/analytics is built -->
-
 ---
 
-## PostHog Cloud: project layout
+## PostHog: project layout
 
-Four PostHog projects, one per environment:
+One PostHog project per environment, sharing the same event schema:
 
-| Project                        | `POSTHOG_KEY`         | When active                                                              |
-| ------------------------------ | --------------------- | ------------------------------------------------------------------------ |
-| `nearest-neighbor-production`  | prod project token    | Always — set as Fly secret on `nearest-neighbor-prod`                    |
-| `nearest-neighbor-staging`     | staging project token | Always — set as Fly secret on `nearest-neighbor-staging`                 |
-| `nearest-neighbor-preview`     | preview project token | Per-PR — injected by CI as `POSTHOG_KEY` with `PR_NUMBER` super property |
-| `nearest-neighbor-development` | dev project token     | Off by default — opt in via `.env.local`                                 |
+| Project                        | `POSTHOG_KEY`              | When active                                             |
+| ------------------------------ | -------------------------- | ------------------------------------------------------- |
+| `nearest-neighbor-production`  | prod project token         | Always — Fly secret on `nearest-neighbor-prod`          |
+| `nearest-neighbor-staging`     | staging project token      | Always — Fly secret on `nearest-neighbor-staging`       |
+| `nearest-neighbor-preview`     | preview project token      | Per-PR — injected by CI; events tagged with `pr_number` |
+| `nearest-neighbor-development` | dev project token (opt-in) | Off by default; opt in via `.env.local`                 |
 
-Events from preview environments are tagged with the `pr_number` super property.
+### Local opt-in
 
-### Local dev opt-in
+PostHog is a **no-op without `POSTHOG_KEY`** — no guards needed in application
+code, no `NODE_ENV` checks. To opt in locally:
 
 ```sh
-# Add to .env.local:
+# .env.local
 POSTHOG_KEY=phc_<your-dev-project-token>
 POSTHOG_HOST=https://us.i.posthog.com
 ```
@@ -36,68 +35,85 @@ Restart `mise run dev` after adding these.
 
 ---
 
-## SDK usage
+## PostHog proxy
 
-<!-- TODO: document once packages/analytics is implemented -->
+A dedicated Fly app routes PostHog ingestion through a first-party domain to
+reduce ad-blocker interference:
+
+- **Host:** `k.nearest-neighbor.replygirl.club`
+- **Image:** `posthog/posthog-nginx-reverse-proxy` (official PostHog proxy
+  image)
+- **Routes:** `/static/*` and `/array/*` → `us-assets.i.posthog.com`; everything
+  else → `us.i.posthog.com`
+
+All SDK `api_host` values point at the proxy. `ui_host` stays at
+`https://us.posthog.com` for the PostHog UI to work correctly.
+
+The proxy is optional — if it is not deployed, set
+`POSTHOG_HOST=https://us.i.posthog.com` directly and events route to PostHog
+Cloud without a proxy.
+
+---
+
+## SDK usage
 
 ### Web (`posthog-js` via `packages/analytics`)
 
-- `PHProvider` wraps the React Router app root in `app/root.tsx`.
-- `usePostHog()` gives access to the client in components.
-- `useFeatureFlagEnabled(flag)` for feature flags.
-- Session replay: `sampleRate = 0.2` (20% of sessions recorded).
+- `PHProvider` wraps the React Router app root in `app/root.tsx`
+- `usePostHog()` gives access to the client in components
+- `useFeatureFlagEnabled(flag)` for feature flag checks
+- Session replay: `sampleRate = 0.2` (20% of sessions)
 
-### Server (`posthog-node` via `packages/analytics`)
+### API (`posthog-node` via `packages/analytics`)
 
-- `getPostHogClient()` returns a singleton client.
-- `captureException(error, context)` for error tracking.
-- `isFeatureEnabled(flag, distinctId)` for server-side flag evaluation.
+- `getPostHogClient()` returns a singleton client
+- `captureException(error, context)` for error tracking (called in Elysia
+  `onError`)
+- `isFeatureEnabled(flag, distinctId)` for server-side flag evaluation
+- `shutdownPostHog()` is called on `SIGTERM` to flush queued events
 
 ### OTLP log shipping
 
-API process ships structured logs to PostHog via `OTLPLogExporter`:
+The API process ships structured logs to PostHog via `OTLPLogExporter`:
 
 - **Endpoint:** `${POSTHOG_HOST}/i/v1/logs`
 - **Auth:** `Authorization: Bearer ${POSTHOG_KEY}`
 
 ### LLM analytics
 
-AI features use `@posthog/ai` (`packages/analytics/src/llm.ts`). Wraps Anthropic
-calls to automatically capture `ai_generation` events (model, tokens, latency,
-cost estimate).
+AI feature calls use `@posthog/ai` (`packages/analytics/src/llm.ts`). Wraps
+Anthropic SDK calls to automatically capture `ai_generation` events (model,
+token counts, latency, cost estimate).
 
 ---
 
 ## Error tracking
 
-`captureException(error, { distinctId, context })` is the entry point.
-
-Errors are visible in PostHog → **Error tracking** tab.
+`captureException(error, { distinctId, context })` is the entry point. Errors
+appear in PostHog → **Error tracking** tab.
 
 ### Sourcemap upload
 
-The web build emits hidden sourcemaps. Sourcemaps are uploaded to PostHog after
-every successful deploy to production and staging.
+The web build emits hidden sourcemaps uploaded to PostHog after every successful
+deploy:
 
 ```sh
 POSTHOG_PERSONAL_API_KEY=<key> POSTHOG_HOST=https://us.i.posthog.com mise run posthog:upload-sourcemaps
 ```
 
+This runs automatically in the deploy workflow.
+
 ---
 
 ## Fly Grafana
 
-Fly automatically scrapes `/metrics` on port 9091 every 15 seconds.
+Fly scrapes `/metrics` on port 9091 every 15 seconds.
 
-### Access
-
-1. Go to `fly-metrics.net`
-2. Sign in with your Fly account
-3. Select the `replygirl` organization
+Access: `fly-metrics.net` → sign in with Fly account → select org `replygirl`.
 
 ### Key PromQL queries
 
-**5xx rate:**
+**5xx rate (production):**
 
 ```promql
 sum(rate(http_requests_total{status=~"5..",app="nearest-neighbor-prod"}[5m]))
@@ -110,37 +126,13 @@ sum(rate(http_requests_total{status=~"5..",app="nearest-neighbor-prod"}[5m]))
 pg_stat_activity_count{app="nearest-neighbor-prod-pg",state="active"}
 ```
 
-### Recommended Fly alerts
+### Recommended alerts
 
 | Alert                        | Condition                                     | Threshold      |
 | ---------------------------- | --------------------------------------------- | -------------- |
 | Machine OOM                  | `container_oom_killed_total` increases        | Any occurrence |
-| HTTP 5xx rate                | 5xx / total requests (5-minute window)        | > 1%           |
+| HTTP 5xx rate                | 5xx / total (5-minute window)                 | > 1%           |
 | Postgres connection pressure | Active connections > 80% of `max_connections` | Warning        |
-
----
-
-## PostHog dashboards
-
-<!-- TODO: define event taxonomy in packages/analytics/src/events.ts first -->
-
-Recommended dashboards to create once events start flowing:
-
-### App health
-
-| Panel               | Event / property   | Chart type |
-| ------------------- | ------------------ | ---------- |
-| Error rate (trend)  | `$exception` count | Line chart |
-| Requests per minute | `$pageview` count  | Line chart |
-
-### Agent activity
-
-| Panel                    | Event / property    | Chart type |
-| ------------------------ | ------------------- | ---------- |
-| Agent registrations      | `agent.registered`  | Line chart |
-| Matches per day          | `match.created`     | Line chart |
-| Affection events per day | `affection.sent`    | Line chart |
-| Connection rate          | `connection.formed` | Line chart |
 
 ---
 
@@ -150,8 +142,8 @@ Recommended dashboards to create once events start flowing:
 
 1. Check PostHog → Error tracking for new exception types
 2. Check Fly Grafana → HTTP 5xx rate
-3. Tail live logs: `fly logs --app nearest-neighbor-prod`
-4. If sustained (>5% over 5 minutes) and caused by new deployment: follow the
+3. Tail live logs: `mise run fly:logs:api:prod`
+4. If sustained (> 5% over 5 min) and caused by new deployment: follow the
    [rollback procedure](deployment.md#rollback)
 
 ### Database connection exhaustion
@@ -168,6 +160,6 @@ SELECT count(*), state FROM pg_stat_activity GROUP BY state;
 
 - **Client-side (web):** `useFeatureFlagEnabled(flagKey)` from `posthog-js`
 - **Server-side (API):** `posthog.isFeatureEnabled(flagKey, distinctId)` with
-  local evaluation enabled
+  local evaluation
 
 Define flags in PostHog → Feature Flags. Use the `staging` project for testing.
