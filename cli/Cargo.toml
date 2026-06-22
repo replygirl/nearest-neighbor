@@ -43,6 +43,7 @@ predicates = "3.1.4"
 wiremock = "0.6.5"
 tempfile = "3.27.0"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+serial_test = "3.5.0"
 
 # On musl targets (Linux static builds) replace the default zbus/D-Bus backend
 # with the Linux kernel keyring API, which is fully linkable into a static musl
