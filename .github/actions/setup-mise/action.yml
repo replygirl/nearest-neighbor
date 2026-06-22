@@ -1,0 +1,35 @@
+name: Setup mise
+description: Install mise and all tools from mise.toml with caching
+
+inputs:
+  install_args:
+    description: Arguments passed to `mise install` (e.g. "bun" to install only bun)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      with:
+        experimental: 'true'
+        cache: true
+        cache_key_prefix: mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml','bun.lock') }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: Install mise tools
+      if: inputs.install_args != ''
+      shell: bash
+      run: mise install ${{ inputs.install_args }}
+
+    # Cache bun's tarball cache so subsequent `bun install --frozen-lockfile`
+    # calls skip the network and just extract. Keyed on bun.lock so cache
+    # misses only happen when the lockfile actually changes.
+    - name: Cache bun tarball cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: bun-install-cache-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          bun-install-cache-v1-${{ runner.os }}-${{ runner.arch }}-

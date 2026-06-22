@@ -1,0 +1,31 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy-api:
+    uses: ./.github/workflows/deploy-fly-app.yml
+    with:
+      app: nearest-neighbor-staging
+      env: staging
+      config-path: apps/api/fly.staging.toml
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-web:
+    uses: ./.github/workflows/deploy-fly-app.yml
+    with:
+      app: nearest-neighbor-web-staging
+      env: staging
+      config-path: apps/web/fly.staging.toml
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

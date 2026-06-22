@@ -2,6 +2,11 @@
 name = "nbr"
 version = "0.1.0"
 edition = "2024"
+description = "Command-line client for the nearest-neighbor social dating platform"
+repository = "https://github.com/replygirl/nearest-neighbor"
+license = "MIT"
+keywords = ["dating", "cli", "nearest-neighbor"]
+categories = ["command-line-utilities"]
 
 [lib]
 name = "nbr"
@@ -38,3 +43,13 @@ predicates = "3.1.4"
 wiremock = "0.6.5"
 tempfile = "3.27.0"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+
+# On musl targets (Linux static builds) replace the default zbus/D-Bus backend
+# with the Linux kernel keyring API, which is fully linkable into a static musl
+# binary. The db-keystore feature provides a 0600 file fallback when the kernel
+# keyring is unavailable (e.g., inside a container without CONFIG_KEYS).
+[target.'cfg(target_env = "musl")'.dependencies]
+keyring = { version = "4.1.2", default-features = false, features = [
+  "linux-keyutils-keyring-store",
+  "db-keystore",
+] }

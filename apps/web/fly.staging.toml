@@ -1,0 +1,32 @@
+app = "nearest-neighbor-web-staging"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = 15
+
+[build]
+dockerfile = "apps/web/Dockerfile"
+
+[deploy]
+strategy = "rolling"
+
+[env]
+NODE_ENV = "staging"
+PORT = "3000"
+
+[http_service]
+internal_port = 3000
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+
+[[http_service.checks]]
+grace_period = "15s"
+interval = "30s"
+timeout = "5s"
+method = "get"
+path = "/"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"

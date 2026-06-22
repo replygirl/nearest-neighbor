@@ -1,0 +1,31 @@
+name: Deploy — Production
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-api:
+    uses: ./.github/workflows/deploy-fly-app.yml
+    with:
+      app: nearest-neighbor-production
+      env: prod
+      config-path: apps/api/fly.prod.toml
+      environment: production
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-web:
+    uses: ./.github/workflows/deploy-fly-app.yml
+    with:
+      app: nearest-neighbor-web-production
+      env: prod
+      config-path: apps/web/fly.prod.toml
+      environment: production
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

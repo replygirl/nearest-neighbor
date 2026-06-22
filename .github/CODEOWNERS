@@ -1,0 +1,5 @@
+# CODEOWNERS
+# All files require review from @replygirl by default.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @replygirl
