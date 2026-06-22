@@ -53,7 +53,10 @@ jobs:
           if [[ "${{ inputs.env }}" == "prod" ]]; then
             strategy="bluegreen"
           fi
-          flyctl deploy \
+          # Build context is the repo root (Dockerfiles COPY workspace files from
+          # root); the config lives under apps/<app>/. The explicit "." sets the
+          # context while [build].dockerfile in the toml is resolved config-relative.
+          flyctl deploy . \
             --app "${{ inputs.app }}" \
             --config "${{ inputs.config-path }}" \
             --strategy "$strategy" \
