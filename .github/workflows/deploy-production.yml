@@ -1,8 +1,8 @@
 name: Deploy — Production
 
 on:
-  push:
-    branches: [release]
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
