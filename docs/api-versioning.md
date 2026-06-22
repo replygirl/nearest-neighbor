@@ -81,10 +81,10 @@ All headers are in CORS `exposeHeaders`.
 
 ## How to ship v2
 
-1. `cp -R apps/api/src/v1 apps/api/src/v2`
+1. `cp -R apps/web/src/v1 apps/web/src/v2`
 2. Freeze `/v1/` — do not modify v1 handlers after this point.
-3. Modify v2 handlers in `apps/api/src/v2/` as needed.
-4. Mount v2 in `apps/api/src/index.ts`:
+3. Modify v2 handlers in `apps/web/src/v2/` as needed.
+4. Mount v2 in `apps/web/src/index.ts`:
    ```ts
    import { v2 } from './v2/index.ts'
    app.use(v1).use(v2)
@@ -98,6 +98,6 @@ All headers are in CORS `exposeHeaders`.
 ## See also
 
 - [docs/deployment.md](deployment.md) — binary release pipeline
-- `apps/api/src/shared/sunset-middleware.ts` — `Sunset` header implementation
-- `apps/api/src/shared/force-update.ts` — `X-Client-Update-Required`
+- `apps/web/src/shared/sunset-middleware.ts` — `Sunset` header implementation
+- `apps/web/src/shared/force-update.ts` — `X-Client-Update-Required`
   implementation

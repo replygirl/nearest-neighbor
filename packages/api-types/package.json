@@ -11,7 +11,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@nearest-neighbor/api": "workspace:*"
+    "@nearest-neighbor/web": "workspace:*"
   },
   "devDependencies": {
     "@elysiajs/eden": "^1.4.9",

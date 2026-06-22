@@ -22,7 +22,7 @@ out/
 
 # Rust build artifacts
 target/
-cli/target/
+apps/cli/target/
 **/*.rs.bk
 Cargo.lock.bak
 

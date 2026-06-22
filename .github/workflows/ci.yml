@@ -36,9 +36,7 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
             rust:
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - '**/*.rs'
+              - 'apps/cli/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
             shell:
@@ -95,14 +93,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-mise
-      - name: Build
-        run: cargo build --workspace
-      - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
-      - name: Tests
-        run: cargo test --workspace
       - name: Format check
-        run: cargo fmt --check
+        run: mise run //apps/cli:fmt:check
+      - name: Clippy
+        run: mise run //apps/cli:clippy
+      - name: Tests
+        env:
+          NBR_NO_KEYRING: '1'
+        run: mise run //apps/cli:test
 
   ci-shell:
     needs: detect-changes

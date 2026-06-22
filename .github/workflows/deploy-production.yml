@@ -15,7 +15,7 @@ jobs:
     with:
       app: nearest-neighbor-production
       env: prod
-      config-path: apps/api/fly.production.toml
+      config-path: apps/web/fly.production.toml
       environment: production
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

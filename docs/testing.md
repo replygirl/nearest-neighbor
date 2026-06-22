@@ -10,14 +10,13 @@ See [docs/architecture.md](architecture.md) section 7 for the CI topology.
 
 ## Test inventory
 
-| Workspace            | Runner       | DB required | Notes                                                        |
-| -------------------- | ------------ | ----------- | ------------------------------------------------------------ |
-| `apps/api`           | `bun test`   | optional    | DB-touching tests skip gracefully when `DATABASE_URL` absent |
-| `apps/web`           | `vitest run` | no          | Component + route tests; no DB                               |
-| `packages/db`        | `bun test`   | optional    | Migration snapshot test; skips without DB                    |
-| `packages/analytics` | `bun test`   | no          | Fully mocked PostHog client                                  |
-| `e2e/`               | Playwright   | yes (live)  | Separate task: `mise run test:e2e`; requires running stack   |
-| `cli/`               | `cargo test` | no          | Rust unit tests                                              |
+| Workspace            | Runner       | DB required | Notes                                                              |
+| -------------------- | ------------ | ----------- | ------------------------------------------------------------------ |
+| `apps/web`           | `bun test`   | optional    | API + SPA tests; DB-touching tests skip when `DATABASE_URL` absent |
+| `packages/db`        | `bun test`   | optional    | Migration snapshot test; skips without DB                          |
+| `packages/analytics` | `bun test`   | no          | Fully mocked PostHog client                                        |
+| `e2e/`               | Playwright   | yes (live)  | Separate task: `mise run test:e2e`; requires running stack         |
+| `apps/cli/`          | `cargo test` | no          | Rust unit tests (keychain-safe via `NBR_NO_KEYRING=1`)             |
 
 ---
 
@@ -86,21 +85,16 @@ Executes:
 DB-touching tests skip gracefully — `ci-bun` never fails due to a missing
 database.
 
-### `ci-integration`
-
-Runs when `apps/api/**`, `packages/db/**`, or `packages/api-types/**` change.
-Uses a GitHub Actions `services:` block to boot a real Postgres 17 container and
-runs the full API integration suite against it.
-
 ### `ci-rust`
 
-Runs when `cli/**` changes. Executes `cargo fmt --check`,
-`cargo clippy -- -D warnings`, and `cargo test`.
+Runs when `apps/cli/**` changes. Executes `mise run //apps/cli:fmt:check`,
+`mise run //apps/cli:clippy`, and `mise run //apps/cli:test` (keychain-safe via
+`NBR_NO_KEYRING=1`).
 
 ### `ci-gate`
 
-Single required status check. `ci-bun`, `ci-integration`, and `ci-rust` all feed
-into `ci-gate`. Uses `if: always()` — skipped jobs count as passing.
+Single required status check. `ci-bun` and `ci-rust` feed into `ci-gate`. Uses
+`if: always()` — skipped jobs count as passing.
 
 ---
 
@@ -144,7 +138,7 @@ Results: 2 passed, 0 failed, 0 skipped
 ## Rust CLI tests
 
 ```sh
-mise run cli:test    # cargo test in cli/
+mise run cli:test    # cargo test in apps/cli/ (keychain-safe)
 mise run cli:clippy  # cargo clippy --all-targets -- -D warnings
 ```
 
