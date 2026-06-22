@@ -1,0 +1,218 @@
+# Contributing to nearest-neighbor
+
+Contributions are welcome. This is a solo side project — the maintainer makes
+**no commitments** to review timelines, merge decisions, or long-term
+maintenance of external contributions. Open a PR knowing it may sit for a while
+or be closed without explanation. That is not a judgment on your work.
+
+License: MIT, inbound = outbound. No CLA.
+
+---
+
+## Dev setup
+
+### Prerequisites
+
+```sh
+curl https://mise.run | sh
+eval "$(mise activate zsh)"   # or bash; add to ~/.zshrc
+```
+
+Docker must be running (used for Postgres in local dev).
+
+### Clone and install
+
+```sh
+gh repo clone replygirl/nearest-neighbor
+cd nearest-neighbor
+mise trust && mise install
+```
+
+`mise install` fetches all tool versions (Bun, Node, Rust, oxlint, oxfmt, hk,
+taplo, shellcheck, actionlint, gh), runs `bun install` across workspaces, and
+installs git hooks via hk.
+
+### Start the stack
+
+```sh
+mise run dev
+```
+
+Starts Postgres in Docker, runs pending migrations, then launches the API
+(`localhost:8080`) and web app (`localhost:3000`) with hot reload. Press Ctrl+C
+to stop the servers; Docker services keep running. Use `mise run dev:down` to
+stop them.
+
+---
+
+## Mise task workflow
+
+All build, lint, format, and test operations run via mise tasks. Never invoke
+tools directly.
+
+| Task                 | Command                  |
+| -------------------- | ------------------------ |
+| Start all services   | `mise run dev`           |
+| Lint                 | `mise run lint`          |
+| Lint (fix)           | `mise run lint:fix`      |
+| Format (check)       | `mise run format`        |
+| Format (fix)         | `mise run format:fix`    |
+| Typecheck            | `mise run typecheck`     |
+| Run tests            | `mise run test`          |
+| Run tests + coverage | `mise run test:coverage` |
+| Full CI gate         | `mise run check`         |
+| DB migrations        | `mise run db:migrate`    |
+| Install hooks        | `mise run hooks:install` |
+| Build Rust CLI       | `mise run cli:build`     |
+| CLI tests            | `mise run cli:test`      |
+
+Run `mise tasks` for the full list. Run `mise run check` before every commit.
+
+---
+
+## Commit format
+
+[Conventional Commits](https://www.conventionalcommits.org/), enforced by
+commitlint on every `git commit-msg`.
+
+```
+<type>(<scope>): <short description, ≤ 72 chars, lowercase>
+
+[optional body, wrapped at 100 chars]
+
+[optional footer]
+```
+
+**Types:** `feat` `fix` `chore` `docs` `style` `refactor` `test` `perf` `ci`
+`build` `revert`
+
+**Scopes** (enforced; omitting scope is always fine):
+
+| Category      | Scopes                                                           |
+| ------------- | ---------------------------------------------------------------- |
+| Apps          | `api` `web`                                                      |
+| Packages      | `db` `analytics` `api-types`                                     |
+| Tooling       | `cli` `claude-plugin` `codex-plugin`                             |
+| Cross-cutting | `infra` `ci` `docs` `dev` `agents` `hooks` `deps` `test` `chore` |
+
+Examples:
+
+```
+feat(api): add swipe endpoint
+fix(db): correct ordered-pair constraint on relationships
+docs: add first-hours walkthrough
+refactor(cli): extract auth token storage to keyring module
+```
+
+---
+
+## Git hooks (hk)
+
+Hooks are managed by [hk (jdx/hk)](https://hk.jdx.dev/) and installed
+automatically by `mise install`.
+
+**Never use `--no-verify`.** If a hook fails, diagnose and fix the root cause.
+
+| Hook              | When                             | What it runs                                                           |
+| ----------------- | -------------------------------- | ---------------------------------------------------------------------- |
+| `pre-commit`      | every `git commit`               | oxfmt, oxlint, taplo, shellcheck, actionlint (auto-fixes staged files) |
+| `commit-msg`      | every `git commit`               | commitlint — type, scope, subject length                               |
+| `pre-push (fast)` | every `git push`                 | all linters (check-only)                                               |
+| `pre-push (slow)` | pushing to `main` or `release/*` | linters + tsgo typecheck + bun test                                    |
+| `post-merge`      | after `git pull` / merge         | migration freshness warning (non-blocking)                             |
+
+To run the full slow gate manually before pushing:
+
+```sh
+HK_PROFILE=slow git push
+# or dry-run without pushing:
+mise run hooks:check:slow
+```
+
+---
+
+## OpenSpec change workflow
+
+Substantive changes to API contracts, DB schema, or architecture require an
+OpenSpec proposal before implementation.
+
+1. `mise run openspec:new` — scaffold a change folder in
+   `openspec/changes/<slug>/`
+2. Author `proposal.md`, `blocking-changes.md`, `specs.md`, `design.md`,
+   `tasks.md`
+3. `mise run openspec:validate` — must pass before any code changes
+4. Implement against the approved spec; mark tasks complete as you go
+5. `mise run openspec:apply` then `mise run openspec:archive` to finalize
+
+Do not modify public API contracts without a passing spec. Small bug fixes and
+isolated refactors that do not touch contracts can skip OpenSpec.
+
+---
+
+## Code style
+
+Enforced by oxlint + oxfmt on every commit. No manual configuration needed.
+
+| Rule            | Value                                     |
+| --------------- | ----------------------------------------- |
+| Semicolons      | none                                      |
+| Quotes          | single (`'`), JSX attributes use double   |
+| Print width     | 100                                       |
+| Indent          | 2 spaces                                  |
+| Trailing commas | all                                       |
+| Line endings    | LF                                        |
+| Type imports    | `import type` (`consistent-type-imports`) |
+
+Run `mise run format:fix` after editing to auto-format before committing.
+
+---
+
+## Running tests
+
+```sh
+mise run test           # unit + integration across all workspaces
+mise run test:coverage  # same, with coverage gate (95% lines, 80% branches, 95% functions)
+mise run test:e2e       # Playwright E2E (requires running stack: mise run dev)
+mise run cli:test       # Rust cargo tests
+```
+
+DB-touching API tests skip gracefully when `DATABASE_URL` is not set —
+`mise run test` works without Docker. For integration tests with a live DB:
+
+```sh
+docker compose -f docker-compose.dev.yml up -d postgres
+export DATABASE_URL=postgres://nearest-neighbor:nearest-neighbor@localhost:5432/nearest-neighbor
+mise run test
+```
+
+See [docs/testing.md](docs/testing.md) for the full strategy.
+
+---
+
+## PR etiquette
+
+- One concern per PR. A PR that adds a feature and refactors something unrelated
+  is harder to review and harder to revert.
+- Write a description: what does this change, why, how was it tested?
+- `mise run check` must pass locally before opening a PR. The CI gate
+  (`ci-gate`) must be green before merge.
+- The maintainer may close PRs without merging for any reason — product
+  direction, scope, timing, or just personal preference. This is not a
+  reflection on code quality.
+- Squash-merge onto `main`. Keep the squash subject in conventional commit
+  format.
+
+---
+
+## Local services
+
+`mise run dev` starts these automatically:
+
+| Service  | URL              | Purpose               |
+| -------- | ---------------- | --------------------- |
+| API      | `localhost:8080` | Elysia backend        |
+| Web      | `localhost:3000` | React Router frontend |
+| Postgres | `localhost:5432` | Local database        |
+
+OpenAPI docs: `localhost:8080/docs` (public routes) and
+`localhost:8080/admin/docs` (all routes).
