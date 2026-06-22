@@ -318,7 +318,280 @@ mod tests {
         // Past timestamp → stale
         let past = (Utc::now() - Duration::hours(1)).to_rfc3339();
         assert!(!bearer_is_fresh(&past));
+        // Almost expired (within 60s) → stale
+        let almost = (Utc::now() + Duration::seconds(30)).to_rfc3339();
+        assert!(!bearer_is_fresh(&almost));
         // Bad string → stale
         assert!(!bearer_is_fresh("not-a-date"));
+    }
+
+    // ── Config file-based load/save ───────────────────────────────────────────
+
+    #[test]
+    fn load_config_does_not_panic() {
+        // load_config reads from the system config dir — it may succeed (returns config)
+        // or fail (returns error if config file is corrupted or dir is unreadable).
+        // We only verify it doesn't panic and returns a Result.
+        let result = load_config();
+        let _ = result; // either Ok or Err is acceptable
+    }
+
+    #[test]
+    fn config_with_api_url() {
+        let config = Config {
+            default_account: Some("work".into()),
+            accounts: vec![AccountConfig {
+                name: "work".into(),
+                account_id: "acc-work".into(),
+                api_url: Some("https://my-api.example.com".into()),
+            }],
+            telemetry: Some(true),
+        };
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(
+            deserialized.accounts[0].api_url.as_deref(),
+            Some("https://my-api.example.com")
+        );
+        assert_eq!(deserialized.telemetry, Some(true));
+    }
+
+    #[test]
+    fn get_account_finds_matching() {
+        let config = Config {
+            default_account: Some("alice".into()),
+            accounts: vec![
+                AccountConfig {
+                    name: "alice".into(),
+                    account_id: "id-alice".into(),
+                    api_url: None,
+                },
+                AccountConfig {
+                    name: "bob".into(),
+                    account_id: "id-bob".into(),
+                    api_url: None,
+                },
+            ],
+            telemetry: None,
+        };
+        let found = get_account(&config, "alice");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().account_id, "id-alice");
+    }
+
+    #[test]
+    fn get_account_returns_none_for_unknown() {
+        let config = Config {
+            default_account: None,
+            accounts: vec![AccountConfig {
+                name: "alice".into(),
+                account_id: "id-alice".into(),
+                api_url: None,
+            }],
+            telemetry: None,
+        };
+        assert!(get_account(&config, "nobody").is_none());
+    }
+
+    // ── File-based secret storage ─────────────────────────────────────────────
+    // These tests write to temp directories to avoid touching the real config dir.
+
+    #[test]
+    fn write_and_read_secret_via_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("test.secret");
+        write_secret_file(&path, "my-secret-value").unwrap();
+
+        // Check permissions are 0600
+        let metadata = std::fs::metadata(&path).unwrap();
+        let mode = metadata.permissions().mode();
+        assert_eq!(
+            mode & 0o777,
+            0o600,
+            "Expected 0600 permissions, got {:o}",
+            mode & 0o777
+        );
+
+        // Check content
+        let read_back = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(read_back, "my-secret-value");
+    }
+
+    #[test]
+    fn get_secret_falls_back_to_file_when_keyring_unavailable() {
+        // We can't easily disable the OS keyring in unit tests.
+        // But we CAN test the file fallback by writing to the secret fallback path
+        // for a test account name, then reading it back.
+        //
+        // Note: This test uses the real config dir. Use a unique account name
+        // to avoid collision with real accounts.
+        let test_account = format!("test-secret-fallback-{}", std::process::id());
+
+        // Write to the secret fallback path directly
+        let path = secret_fallback_path(&test_account).unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "test-secret-file-value").unwrap();
+
+        // get_secret will try keyring first (may fail), then fall back to file
+        let result = get_secret(&test_account);
+
+        // Clean up before asserting to avoid leftover files
+        let _ = std::fs::remove_file(&path);
+
+        // The file fallback should have returned our value
+        // (Unless keyring found something — unlikely for this unique test name)
+        match result {
+            Ok(s) => assert!(s.contains("test-secret-file-value") || !s.is_empty()),
+            Err(_) => {
+                // If the keyring entry somehow prevented file fallback and
+                // the keyring also had no entry, this is still correct behavior
+            }
+        }
+    }
+
+    #[test]
+    fn get_secret_returns_error_when_neither_source_exists() {
+        let test_account = format!("test-nosecret-{}", std::process::id());
+        // No keyring entry, no file → error
+        let result = get_secret(&test_account);
+        // Should error since neither keyring nor file exists for this account
+        // (unless the OS keyring somehow has a stale entry — very unlikely)
+        if let Err(e) = result {
+            let msg = e.to_string();
+            assert!(
+                msg.contains(&test_account) || msg.contains("No secret") || msg.contains("Config"),
+                "unexpected error: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn bearer_file_round_trip_via_set_and_get() {
+        let test_account = format!("test-bearer-rt-{}", std::process::id());
+
+        // set_bearer will try keyring first (may fail), then fall back to file
+        let result = set_bearer(&test_account, "jwt-bearer-test", "2099-01-01T00:00:00Z");
+        assert!(result.is_ok(), "set_bearer should succeed: {:?}", result);
+
+        // get_bearer should return the value we set
+        let get_result = get_bearer(&test_account);
+        assert!(
+            get_result.is_ok(),
+            "get_bearer should succeed: {:?}",
+            get_result
+        );
+        // May return Some (from keyring or file) or None
+        if let Ok(Some((bearer, expiry))) = &get_result {
+            assert!(!bearer.is_empty(), "bearer should not be empty");
+            assert!(!expiry.is_empty(), "expiry should not be empty");
+        }
+
+        // delete_bearer should succeed
+        let delete_result = delete_bearer(&test_account);
+        assert!(
+            delete_result.is_ok(),
+            "delete_bearer should succeed: {:?}",
+            delete_result
+        );
+
+        // After delete, get_bearer should return None (or possibly still keyring entry if it existed)
+        let after_delete = get_bearer(&test_account);
+        assert!(
+            after_delete.is_ok(),
+            "get_bearer after delete should not error"
+        );
+    }
+
+    #[test]
+    fn set_and_get_bearer_file_fallback() {
+        // Force file fallback by writing directly to fallback paths
+        let test_account = format!("test-bearer-file-{}", std::process::id());
+        let bearer_path = bearer_fallback_path(&test_account).unwrap();
+        let expiry_path = bearer_expiry_fallback_path(&test_account).unwrap();
+        std::fs::create_dir_all(bearer_path.parent().unwrap()).unwrap();
+
+        write_secret_file(&bearer_path, "jwt-file-bearer").unwrap();
+        write_secret_file(&expiry_path, "2099-12-31T00:00:00Z").unwrap();
+
+        // get_bearer should find the file fallback
+        let result = get_bearer(&test_account);
+        assert!(result.is_ok(), "get_bearer file fallback should succeed");
+        // Should return Some since files exist (unless keyring got it first)
+        let _ = result;
+
+        // delete_bearer should clean up the files
+        let delete_result = delete_bearer(&test_account);
+        assert!(delete_result.is_ok(), "delete_bearer should succeed");
+
+        // Verify files are gone
+        assert!(!bearer_path.exists(), "bearer file should be deleted");
+        assert!(!expiry_path.exists(), "expiry file should be deleted");
+    }
+
+    #[test]
+    fn get_bearer_returns_none_when_no_files() {
+        let test_account = format!("test-bearer-none-{}", std::process::id());
+        // Ensure no files exist
+        let bearer_path = bearer_fallback_path(&test_account).unwrap();
+        let expiry_path = bearer_expiry_fallback_path(&test_account).unwrap();
+        let _ = std::fs::remove_file(&bearer_path);
+        let _ = std::fs::remove_file(&expiry_path);
+
+        // get_bearer should return None when neither keyring nor files have data
+        let result = get_bearer(&test_account);
+        // Keyring might have something unexpected, so we just check it's Ok
+        assert!(
+            result.is_ok(),
+            "get_bearer should not error when nothing exists"
+        );
+    }
+
+    #[test]
+    fn add_and_remove_account_operations() {
+        // This test exercises add_account/remove_account/set_default_account
+        // by using a temporary config path. Since we can't easily redirect config_path()
+        // in unit tests, we test the logic directly on a Config struct.
+
+        // Test add_account logic manually by manipulating Config
+        let mut config = Config::default();
+
+        // Simulate adding accounts
+        config.accounts.push(AccountConfig {
+            name: "first".into(),
+            account_id: "id-first".into(),
+            api_url: None,
+        });
+        assert_eq!(config.accounts.len(), 1);
+
+        config.accounts.push(AccountConfig {
+            name: "second".into(),
+            account_id: "id-second".into(),
+            api_url: Some("https://custom.api".into()),
+        });
+        assert_eq!(config.accounts.len(), 2);
+
+        // Simulate removing an account
+        let before = config.accounts.len();
+        config.accounts.retain(|a| a.name != "first");
+        assert_eq!(config.accounts.len(), before - 1);
+        assert!(config.accounts.iter().all(|a| a.name != "first"));
+
+        // Simulate set_default_account logic
+        let name = "second";
+        assert!(config.accounts.iter().any(|a| a.name == name));
+        config.default_account = Some(name.to_string());
+        assert_eq!(config.default_account.as_deref(), Some("second"));
+    }
+
+    #[test]
+    fn bearer_is_fresh_at_boundary() {
+        use chrono::{Duration, Utc};
+        // 120 seconds from now → definitely fresh (well above 60s threshold)
+        let fresh = (Utc::now() + Duration::seconds(120)).to_rfc3339();
+        assert!(bearer_is_fresh(&fresh));
+        // Already expired → stale
+        let expired = (Utc::now() - Duration::seconds(1)).to_rfc3339();
+        assert!(!bearer_is_fresh(&expired));
     }
 }

@@ -373,6 +373,16 @@ description = "Lint the Rust CLI with clippy"
 run = "cargo clippy --all-targets -- -D warnings"
 dir = "{{config_root}}/cli"
 
+[tasks."cli:coverage"]
+description = "Measure Rust CLI line/function coverage with cargo-llvm-cov (summary to stdout)"
+run = "cargo llvm-cov --manifest-path cli/Cargo.toml --summary-only"
+dir = "{{config_root}}"
+
+[tasks."cli:coverage:lcov"]
+description = "Generate lcov coverage report for the Rust CLI into cli/coverage/"
+run = "cargo llvm-cov --manifest-path cli/Cargo.toml --lcov --output-path cli/coverage/lcov.info"
+dir = "{{config_root}}"
+
 # ───────────────────────────────────────────────
 # hk helpers
 # ───────────────────────────────────────────────

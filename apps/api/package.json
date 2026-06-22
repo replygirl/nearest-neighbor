@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
