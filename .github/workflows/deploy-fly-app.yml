@@ -60,8 +60,7 @@ jobs:
             --app "${{ inputs.app }}" \
             --config "${{ inputs.config-path }}" \
             --strategy "$strategy" \
-            --remote-only \
-            --region "${{ inputs.region }}"
+            --remote-only
           echo "url=https://${{ inputs.app }}.fly.dev" >> "$GITHUB_OUTPUT"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
