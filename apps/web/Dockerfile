@@ -6,7 +6,6 @@ COPY package.json bun.lock ./
 COPY packages/analytics/package.json packages/analytics/
 COPY packages/api-types/package.json packages/api-types/
 COPY packages/db/package.json packages/db/
-COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 
 RUN bun install --frozen-lockfile
@@ -29,7 +28,7 @@ ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
 RUN bun run --filter @nearest-neighbor/web build
 
 # Compile the API server binary
-RUN bun build apps/api/src/server.ts \
+RUN bun build apps/web/src/server.ts \
   --compile \
   --target bun \
   --outfile /out/server
@@ -37,7 +36,7 @@ RUN bun build apps/api/src/server.ts \
 # Compile a standalone migrate binary for the Fly release_command.
 # This entry point resolves migrations from /app/migrations (fixed path in
 # the runtime image) so the distroless container needs no shell or bun.
-RUN bun build apps/api/src/migrate.ts \
+RUN bun build apps/web/src/migrate.ts \
   --compile \
   --target bun \
   --outfile /out/migrate

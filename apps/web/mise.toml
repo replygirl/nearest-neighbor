@@ -1,0 +1,26 @@
+[tasks.dev]
+description = "Start Elysia API + SPA server in hot-reload dev mode"
+run = "bun run --hot src/server.ts"
+dir = "{{config_root}}"
+
+[tasks.build]
+description = "Build SPA (react-router) then compile server + migrate binaries"
+run = """
+react-router build
+bun build --compile --target bun --outfile dist/server src/server.ts
+bun build --compile --target bun --outfile dist/migrate src/migrate.ts
+"""
+dir = "{{config_root}}"
+
+[tasks.test]
+description = "Run all tests (API + web)"
+# Exit code 100 from bun test means open handles (PGlite WASM keeps the event
+# loop alive after tests complete — a known pglite-socket limitation). All
+# test results are still reported correctly; real failures still exit 1.
+run = "set +e; bun test; code=$?; [ $code -eq 100 ] && exit 0 || exit $code"
+dir = "{{config_root}}"
+
+[tasks.typecheck]
+description = "Type-check with react-router typegen + tsgo"
+run = "bunx react-router typegen && tsgo --noEmit"
+dir = "{{config_root}}"

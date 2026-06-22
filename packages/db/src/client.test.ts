@@ -9,7 +9,7 @@
  *
  * NOTE: We cannot exercise the lazy postgres proxy (getDb / db) inside this
  * package's unit tests because doing so would require a live Postgres server.
- * Those code paths are exercised by apps/api integration tests that use the
+ * Those code paths are exercised by apps/web integration tests that use the
  * pglite-socket harness.  We verify them here only through the public reset /
  * close helpers.
  */

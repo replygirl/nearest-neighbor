@@ -210,8 +210,8 @@ The repo is one-level deep: `apps/*` for deployable applications, `packages/*`
 for shared libraries. No workspace member is nested more than one level under
 either root.
 
-- `apps/api` — Elysia backend (web process group)
-- `apps/web` — React Router framework mode + SSR
+- `apps/web` — Elysia backend (src/) + React Router framework mode + SSR (app/)
+- `apps/cli` — Rust CLI (nbr), standalone Cargo workspace
 - `packages/db` — Drizzle schema + client + migrations
 - `packages/analytics` — PostHog web/node/OTLP/LLM
 - `packages/api-types` — type-only App export for Eden Treaty

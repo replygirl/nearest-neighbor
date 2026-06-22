@@ -1,4 +1,4 @@
-// Global test teardown — loaded by apps/api/bunfig.toml [test].preload.
+// Global test teardown — loaded by apps/web/bunfig.toml [test].preload.
 //
 // afterAll in a preload file fires once, after the last test file in the run,
 // which is the right place to close long-lived resources (postgres.js pool,

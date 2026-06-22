@@ -40,6 +40,9 @@ rust = "stable"
 # TS7 — Go-based native compiler (tsgo binary); swap to "npm:typescript" = "7" when stable
 "npm:@typescript/native-preview" = "7.0.0-dev.20260621.1"
 
+# OpenSpec CLI (spec-driven development)
+"npm:@fission-ai/openspec" = "1.3.1"
+
 # Lint + format (oxc ecosystem)
 "npm:oxlint" = "1.70.0"
 "npm:oxfmt" = "0.55.0"
@@ -105,7 +108,6 @@ echo "[dev] Press Ctrl+C to stop api + web (docker services stay running; use mi
 
 trap 'echo "[dev] shutting down..."; jobs -p | xargs -r kill 2>/dev/null || true; wait 2>/dev/null || true' INT TERM
 
-bun --filter @nearest-neighbor/api dev &
 bun --filter @nearest-neighbor/web dev &
 wait
 """
@@ -185,8 +187,7 @@ description = "Run unit/component tests across all workspaces (e2e separate via 
 # parallel run of the lighter packages keeps total wall-time reasonable
 # and eliminates flake from DB-backed tests contending with JSDOM tests.
 run = """
-bun run --filter '@nearest-neighbor/api' test \
-  && bun run --filter '@nearest-neighbor/web' test \
+bun run --filter '@nearest-neighbor/web' test \
   && bun run --filter '@nearest-neighbor/db' --filter '@nearest-neighbor/analytics' test
 """
 
@@ -199,18 +200,18 @@ description = "Run tests for files changed vs main branch"
 run = "bun test --changed"
 
 [tasks."test:api"]
-description = "Run API tests"
-run = "bun test apps/api/"
+description = "Run API tests (now in apps/web/src)"
+run = "bun test apps/web/src/"
 dir = "{{config_root}}"
 
 [tasks."test:api:watch"]
-description = "Run API tests in watch mode"
-run = "bun test apps/api/ --watch"
+description = "Run API tests in watch mode (now in apps/web/src)"
+run = "bun test apps/web/src/ --watch"
 dir = "{{config_root}}"
 
 [tasks."test:api:coverage"]
-description = "Run API tests with lcov coverage"
-run = "bun test apps/api/ --coverage --coverage-reporter=lcov"
+description = "Run API tests with lcov coverage (now in apps/web/src)"
+run = "bun test apps/web/src/ --coverage --coverage-reporter=lcov"
 dir = "{{config_root}}"
 
 [tasks."test:web"]
@@ -345,43 +346,36 @@ description = "Truncate all app tables (dev/test only)"
 run = "bun run packages/db/src/reset.ts"
 
 # ───────────────────────────────────────────────
-# CLI (Rust)
+# CLI (Rust) — per-task details in apps/cli/mise.toml; these are root aliases
 # ───────────────────────────────────────────────
 
 [tasks."cli:build"]
 description = "Build the Rust CLI (nbr) in release mode"
-run = "cargo build --release"
-dir = "{{config_root}}/cli"
+run = "mise run //apps/cli:build"
 
 [tasks."cli:build:debug"]
 description = "Build the Rust CLI in debug mode"
-run = "cargo build"
-dir = "{{config_root}}/cli"
+run = "mise run //apps/cli:build:debug"
 
 [tasks."cli:test"]
-description = "Run Rust CLI tests"
-run = "cargo test"
-dir = "{{config_root}}/cli"
+description = "Run Rust CLI tests (keychain-safe)"
+run = "mise run //apps/cli:test"
 
 [tasks."cli:check"]
 description = "Check Rust CLI (no build output)"
-run = "cargo check"
-dir = "{{config_root}}/cli"
+run = "mise run //apps/cli:check"
 
 [tasks."cli:clippy"]
 description = "Lint the Rust CLI with clippy"
-run = "cargo clippy --all-targets -- -D warnings"
-dir = "{{config_root}}/cli"
+run = "mise run //apps/cli:clippy"
 
-[tasks."cli:coverage"]
-description = "Measure Rust CLI line/function coverage with cargo-llvm-cov (summary to stdout)"
-run = "cargo llvm-cov --manifest-path cli/Cargo.toml --summary-only"
-dir = "{{config_root}}"
+[tasks."cli:fmt"]
+description = "Format Rust CLI source"
+run = "mise run //apps/cli:fmt"
 
-[tasks."cli:coverage:lcov"]
-description = "Generate lcov coverage report for the Rust CLI into cli/coverage/"
-run = "cargo llvm-cov --manifest-path cli/Cargo.toml --lcov --output-path cli/coverage/lcov.info"
-dir = "{{config_root}}"
+[tasks."cli:fmt:check"]
+description = "Check Rust CLI formatting"
+run = "mise run //apps/cli:fmt:check"
 
 # ───────────────────────────────────────────────
 # hk helpers
@@ -461,12 +455,12 @@ dir = "{{config_root}}"
 
 [tasks."fly:deploy:staging"]
 description = "Deploy nearest-neighbor-staging (API + SPA, single app)"
-run = "flyctl deploy --config apps/api/fly.staging.toml --app nearest-neighbor-staging --remote-only"
+run = "flyctl deploy --config apps/web/fly.staging.toml --app nearest-neighbor-staging --remote-only"
 dir = "{{config_root}}"
 
 [tasks."fly:deploy:production"]
 description = "Deploy nearest-neighbor-production (API + SPA, single app, bluegreen)"
-run = "flyctl deploy --config apps/api/fly.production.toml --app nearest-neighbor-production --remote-only"
+run = "flyctl deploy --config apps/web/fly.production.toml --app nearest-neighbor-production --remote-only"
 dir = "{{config_root}}"
 
 [tasks."fly:logs:production"]

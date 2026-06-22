@@ -88,12 +88,12 @@ jobs:
       # ── Build ──────────────────────────────────────────────────────────────
       - name: Build (cross)
         if: matrix.cross
-        working-directory: cli
+        working-directory: apps/cli
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build (native)
         if: '!matrix.cross'
-        working-directory: cli
+        working-directory: apps/cli
         run: cargo build --release --target ${{ matrix.target }}
 
       # ── Package: tar.xz (Unix) ─────────────────────────────────────────────
@@ -106,7 +106,7 @@ jobs:
           STAGING=nbr-${TRIPLE}
           mkdir -p "${STAGING}"
           cp "${BIN}" "${STAGING}/nbr"
-          cp cli/README.md "${STAGING}/"
+          cp apps/cli/README.md "${STAGING}/"
           cp LICENSE "${STAGING}/"
           tar -cJf "${STAGING}.tar.xz" "${STAGING}"
 
@@ -120,7 +120,7 @@ jobs:
           $dir    = "nbr-$triple"
           New-Item -ItemType Directory -Path $dir | Out-Null
           Copy-Item $bin         "$dir\nbr.exe"
-          Copy-Item cli\README.md "$dir\README.md"
+          Copy-Item apps\cli\README.md "$dir\README.md"
           Copy-Item LICENSE       "$dir\LICENSE"
           Compress-Archive -Path "$dir\*" -DestinationPath "$dir.zip"
 
@@ -174,7 +174,7 @@ jobs:
 
             **From source:**
             ```sh
-            cargo install --git https://github.com/replygirl/nearest-neighbor --manifest-path cli/Cargo.toml nbr
+            cargo install --git https://github.com/replygirl/nearest-neighbor --manifest-path apps/cli/Cargo.toml nbr
             ```
 
             See [SHA256SUMS](./SHA256SUMS) to verify downloads manually.

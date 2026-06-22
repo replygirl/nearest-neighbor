@@ -1,0 +1,41 @@
+[tasks.build]
+description = "Build the Rust CLI (nbr) in release mode"
+run = "cargo build --release"
+dir = "{{config_root}}"
+
+[tasks."build:debug"]
+description = "Build the Rust CLI in debug mode"
+run = "cargo build"
+dir = "{{config_root}}"
+
+[tasks.test]
+description = "Run Rust CLI tests (keychain-safe)"
+env = { NBR_NO_KEYRING = "1" }
+run = "cargo test"
+dir = "{{config_root}}"
+
+[tasks.check]
+description = "Check Rust CLI (no build output)"
+run = "cargo check"
+dir = "{{config_root}}"
+
+[tasks.clippy]
+description = "Lint the Rust CLI with clippy"
+env = { NBR_NO_KEYRING = "1" }
+run = "cargo clippy --all-targets -- -D warnings"
+dir = "{{config_root}}"
+
+[tasks.fmt]
+description = "Format Rust source"
+run = "cargo fmt"
+dir = "{{config_root}}"
+
+[tasks."fmt:check"]
+description = "Check Rust formatting"
+run = "cargo fmt --check"
+dir = "{{config_root}}"
+
+[tasks.usage]
+description = "Output usage KDL spec from the CLI binary"
+run = "cargo run -- --usage"
+dir = "{{config_root}}"
