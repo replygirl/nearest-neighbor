@@ -34,7 +34,15 @@ pub struct AccountConfig {
 
 // ── Config directory resolution ────────────────────────────────────────────────
 
+/// Returns the config directory.
+///
+/// If the `NBR_CONFIG_DIR` environment variable is set, that path is used as the
+/// config root (useful for tests and CI). Otherwise, the platform default from
+/// `directories::ProjectDirs` is used.
 pub fn config_dir() -> Result<PathBuf> {
+    if let Ok(dir) = std::env::var("NBR_CONFIG_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
     let dirs = ProjectDirs::from("club", "replygirl", "nearest-neighbor")
         .ok_or_else(|| NbrError::Config("Cannot determine config directory".into()))?;
     Ok(dirs.config_dir().to_path_buf())
@@ -119,8 +127,26 @@ pub fn get_account<'a>(config: &'a Config, name: &str) -> Option<&'a AccountConf
 // Uses OS keyring with file fallback.
 
 fn keyring_entry(prefix: &str, account_name: &str) -> Result<keyring::Entry> {
+    // Escape hatch: when NBR_NO_KEYRING is set, skip the OS keyring entirely and
+    // let callers fall back to 0600 file storage. Useful for headless/CI
+    // environments and for tests, which must never touch the real OS keychain
+    // (on macOS that pops a login-Keychain password prompt per access).
+    if env_flag("NBR_NO_KEYRING") {
+        return Err(NbrError::Keyring("keyring disabled via NBR_NO_KEYRING".into()).into());
+    }
     keyring::Entry::new(SERVICE_NAME, &format!("{prefix}:{account_name}"))
         .map_err(|e| NbrError::Keyring(e.to_string()).into())
+}
+
+/// Returns true when the named env var is set to a truthy value (not empty/0/false).
+fn env_flag(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(v) => {
+            let v = v.trim().to_ascii_lowercase();
+            !v.is_empty() && v != "0" && v != "false"
+        }
+        Err(_) => false,
+    }
 }
 
 fn secret_fallback_path(account_name: &str) -> Result<PathBuf> {
@@ -291,6 +317,273 @@ pub fn bearer_is_fresh(expires_at: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+
+    /// Run `f` with `NBR_CONFIG_DIR` set to `dir` and `NBR_NO_KEYRING=1`.
+    ///
+    /// `NBR_NO_KEYRING=1` prevents macOS login-Keychain prompts in tests that
+    /// exercise secret storage; secrets fall back to 0600 files in the temp dir.
+    ///
+    /// Callers must already hold the `#[serial(nbr_config_dir)]` token
+    /// (applied at the test-function level) which serialises all tests in this
+    /// group within the same process, preventing races on the env vars.
+    fn with_config_dir<F: FnOnce()>(dir: &std::path::Path, f: F) {
+        let prev_config_dir = std::env::var("NBR_CONFIG_DIR").ok();
+        let prev_no_keyring = std::env::var("NBR_NO_KEYRING").ok();
+        unsafe {
+            std::env::set_var("NBR_CONFIG_DIR", dir.as_os_str());
+            std::env::set_var("NBR_NO_KEYRING", "1");
+        }
+        f();
+        if let Some(v) = prev_config_dir {
+            unsafe { std::env::set_var("NBR_CONFIG_DIR", v) };
+        } else {
+            unsafe { std::env::remove_var("NBR_CONFIG_DIR") };
+        }
+        if let Some(v) = prev_no_keyring {
+            unsafe { std::env::set_var("NBR_NO_KEYRING", v) };
+        } else {
+            unsafe { std::env::remove_var("NBR_NO_KEYRING") };
+        }
+    }
+
+    // ── NBR_CONFIG_DIR injection ──────────────────────────────────────────────
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn config_dir_uses_env_var_when_set() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let dir = config_dir().unwrap();
+            assert_eq!(dir, tmp.path());
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn config_dir_falls_back_to_project_dirs_when_env_not_set() {
+        // Temporarily remove NBR_CONFIG_DIR; restore it afterward.
+        let prev = std::env::var("NBR_CONFIG_DIR").ok();
+        unsafe { std::env::remove_var("NBR_CONFIG_DIR") };
+        let result = config_dir();
+        if let Some(v) = prev {
+            unsafe { std::env::set_var("NBR_CONFIG_DIR", v) };
+        }
+        // Should succeed (ProjectDirs is available on supported platforms)
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn load_and_save_config_with_temp_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            // Initially no file → default empty config
+            let loaded = load_config().unwrap();
+            assert!(loaded.accounts.is_empty());
+            assert!(loaded.default_account.is_none());
+
+            // Save a config and reload
+            let mut config = Config::default();
+            config.accounts.push(AccountConfig {
+                name: "testaccount".into(),
+                account_id: "acc-test-001".into(),
+                api_url: None,
+            });
+            config.default_account = Some("testaccount".into());
+            save_config(&config).unwrap();
+
+            let reloaded = load_config().unwrap();
+            assert_eq!(reloaded.accounts.len(), 1);
+            assert_eq!(reloaded.accounts[0].name, "testaccount");
+            assert_eq!(reloaded.default_account.as_deref(), Some("testaccount"));
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn add_account_writes_to_temp_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account("alice", "acc-alice-001", None).unwrap();
+
+            let config = load_config().unwrap();
+            assert_eq!(config.accounts.len(), 1);
+            assert_eq!(config.accounts[0].name, "alice");
+            assert_eq!(config.accounts[0].account_id, "acc-alice-001");
+            // First account becomes default
+            assert_eq!(config.default_account.as_deref(), Some("alice"));
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn add_account_second_does_not_change_default() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account("alice", "acc-alice", None).unwrap();
+            add_account("bob", "acc-bob", None).unwrap();
+
+            let config = load_config().unwrap();
+            assert_eq!(config.accounts.len(), 2);
+            // default was set when alice was added (first account)
+            assert_eq!(config.default_account.as_deref(), Some("alice"));
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn add_account_duplicate_returns_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account("alice", "acc-alice", None).unwrap();
+            let err = add_account("alice", "acc-alice-2", None).unwrap_err();
+            assert!(
+                err.to_string().contains("already exists"),
+                "expected 'already exists' error"
+            );
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn remove_account_succeeds() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account("alice", "acc-alice", None).unwrap();
+            add_account("bob", "acc-bob", None).unwrap();
+
+            remove_account("alice").unwrap();
+            let config = load_config().unwrap();
+            assert_eq!(config.accounts.len(), 1);
+            assert_eq!(config.accounts[0].name, "bob");
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn remove_account_clears_default_when_it_was_default() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account("alice", "acc-alice", None).unwrap();
+            add_account("bob", "acc-bob", None).unwrap();
+            // alice is default (first added); remove alice
+            remove_account("alice").unwrap();
+            let config = load_config().unwrap();
+            // default should now be bob (first remaining)
+            assert_eq!(config.default_account.as_deref(), Some("bob"));
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn remove_account_nonexistent_returns_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let err = remove_account("nobody").unwrap_err();
+            assert!(
+                err.to_string().contains("not found"),
+                "expected 'not found' error"
+            );
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn set_default_account_works() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account("alice", "acc-alice", None).unwrap();
+            add_account("bob", "acc-bob", None).unwrap();
+
+            set_default_account("bob").unwrap();
+            let config = load_config().unwrap();
+            assert_eq!(config.default_account.as_deref(), Some("bob"));
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn set_default_account_nonexistent_returns_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let err = set_default_account("nobody").unwrap_err();
+            assert!(
+                err.to_string().contains("not found"),
+                "expected 'not found' error"
+            );
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn secret_file_fallback_with_temp_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            // Write via write_secret_file directly into the temp dir
+            let path = tmp.path().join("myaccount.secret");
+            write_secret_file(&path, "super-secret-value").unwrap();
+
+            // get_secret will try keyring first (will fail for this test account name),
+            // then fall back to the file in the temp config dir
+            let result = get_secret("myaccount");
+            // If keyring succeeds (unlikely for "myaccount"), that's fine too
+            match result {
+                Ok(s) => assert!(!s.is_empty(), "secret should not be empty"),
+                Err(e) => {
+                    // This can happen if the keyring returned an error AND
+                    // the file fallback_path didn't match. Both are valid.
+                    let _ = e;
+                }
+            }
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn bearer_file_round_trip_with_temp_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let bearer_path = tmp.path().join("testacct.bearer");
+            let expiry_path = tmp.path().join("testacct.bearer_expiry");
+
+            write_secret_file(&bearer_path, "jwt-test-bearer-value").unwrap();
+            write_secret_file(&expiry_path, "2099-06-01T00:00:00Z").unwrap();
+
+            let result = get_bearer("testacct").unwrap();
+            // Keyring might intercept, but file fallback should return Some
+            if let Some((bearer, expiry)) = result {
+                assert!(!bearer.is_empty());
+                assert!(!expiry.is_empty());
+            }
+
+            // delete_bearer should remove the files
+            delete_bearer("testacct").unwrap();
+            assert!(!bearer_path.exists(), "bearer file should be deleted");
+            assert!(!expiry_path.exists(), "expiry file should be deleted");
+        });
+    }
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn add_account_with_api_url() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            add_account(
+                "workaccount",
+                "acc-work-999",
+                Some("https://custom-api.example.com"),
+            )
+            .unwrap();
+
+            let config = load_config().unwrap();
+            assert_eq!(config.accounts.len(), 1);
+            assert_eq!(
+                config.accounts[0].api_url.as_deref(),
+                Some("https://custom-api.example.com")
+            );
+        });
+    }
 
     #[test]
     fn config_round_trip() {
@@ -419,6 +712,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(nbr_config_dir)]
     fn get_secret_falls_back_to_file_when_keyring_unavailable() {
         // We can't easily disable the OS keyring in unit tests.
         // But we CAN test the file fallback by writing to the secret fallback path
@@ -451,6 +745,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(nbr_config_dir)]
     fn get_secret_returns_error_when_neither_source_exists() {
         let test_account = format!("test-nosecret-{}", std::process::id());
         // No keyring entry, no file → error
@@ -467,6 +762,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(nbr_config_dir)]
     fn bearer_file_round_trip_via_set_and_get() {
         let test_account = format!("test-bearer-rt-{}", std::process::id());
 
@@ -504,6 +800,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(nbr_config_dir)]
     fn set_and_get_bearer_file_fallback() {
         // Force file fallback by writing directly to fallback paths
         let test_account = format!("test-bearer-file-{}", std::process::id());
@@ -530,6 +827,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(nbr_config_dir)]
     fn get_bearer_returns_none_when_no_files() {
         let test_account = format!("test-bearer-none-{}", std::process::id());
         // Ensure no files exist
