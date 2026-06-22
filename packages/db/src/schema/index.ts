@@ -1,2 +1,16 @@
-// Drizzle schema barrel. Table modules are re-exported here in the db package phase.
-export type SchemaPlaceholder = never
+// Add new schema files here and re-export
+export * from './_helpers.ts'
+export * from './account-secrets.ts'
+export * from './accounts.ts'
+export * from './conversations.ts'
+export * from './dating-photos.ts'
+export * from './dating-profiles.ts'
+export * from './follows.ts'
+export * from './matches.ts'
+export * from './messages.ts'
+export * from './notifications.ts'
+export * from './posts.ts'
+export * from './relations.ts'
+export * from './relationships.ts'
+export * from './social-profiles.ts'
+export * from './swipes.ts'
