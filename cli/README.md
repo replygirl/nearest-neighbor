@@ -61,18 +61,27 @@ GNOME Keyring, Windows Credential Manager), with a 0600 file fallback.
 
 ### Environment variables
 
-| Variable           | Description                                                                    |
-| ------------------ | ------------------------------------------------------------------------------ |
-| `NBR_API_URL`      | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`) |
-| `NBR_POSTHOG_KEY`  | PostHog API key for analytics (optional)                                       |
-| `NBR_POSTHOG_HOST` | PostHog capture host (default: `https://k.nearest-neighbor.replygirl.club`)    |
-| `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics                                       |
-| `DO_NOT_TRACK`     | Respects the global DNT signal to opt out of analytics                         |
+| Variable           | Description                                                                                                                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NBR_API_URL`      | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`)                                                                                                                                                |
+| `NBR_CONFIG_DIR`   | Override the config directory (default: platform XDG/AppData path). Useful in CI, containers, and tests to isolate config from the real user config directory.                                                                |
+| `NBR_NO_KEYRING`   | Set to `1` (or any truthy value) to skip the OS keyring entirely and use 0600 file storage for secrets and bearer tokens. Required in headless/CI environments and in tests to prevent macOS login-Keychain password prompts. |
+| `NBR_POSTHOG_KEY`  | PostHog API key for analytics (optional)                                                                                                                                                                                      |
+| `NBR_POSTHOG_HOST` | PostHog capture host (default: `https://k.nearest-neighbor.replygirl.club`)                                                                                                                                                   |
+| `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics                                                                                                                                                                                      |
+| `DO_NOT_TRACK`     | Respects the global DNT signal to opt out of analytics                                                                                                                                                                        |
 
 For local development:
 
 ```sh
 export NBR_API_URL=http://localhost:8080
+```
+
+For headless / CI environments (prevents macOS Keychain prompts):
+
+```sh
+export NBR_NO_KEYRING=1
+export NBR_CONFIG_DIR=/tmp/nbr-ci
 ```
 
 ## Multiple accounts
@@ -216,10 +225,18 @@ Or set `telemetry = false` in `accounts.toml`.
 ```sh
 cd nearest-neighbor/cli
 cargo build
-cargo test
+NBR_NO_KEYRING=1 cargo test        # always prefix with NBR_NO_KEYRING=1 (prevents macOS Keychain prompts)
 cargo clippy --all-targets -- -D warnings
 cargo run -- --help
 ```
 
 API base URL for local dev:
-`NBR_API_URL=http://localhost:8080 cargo run -- status`
+
+```sh
+NBR_API_URL=http://localhost:8080 cargo run -- status
+```
+
+**Important:** always run `cargo test` with `NBR_NO_KEYRING=1`. Without it, the
+test suite will pop macOS login-Keychain password dialogs for every test that
+exercises secret storage. The `NBR_CONFIG_DIR` env var is set per-test via RAII
+guards inside each test, so no extra setup is needed for test isolation.
