@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+@import '@heroui/styles';
+
+@source '../../node_modules/@heroui/react/dist/**/*.{js,ts,jsx,tsx}';
+
+@custom-variant dark (&:is(.dark *));
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: #0a0a0a;
+  color: #f5f5f5;
+}
+
+pre,
+code {
+  font-family:
+    'Berkeley Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+}
