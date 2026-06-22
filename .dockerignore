@@ -1,0 +1,36 @@
+# Never ship host node_modules into the image — they contain platform-native
+# binaries (rolldown/oxc/etc.) built for the host OS and would clobber the
+# Linux node_modules installed inside the builder, breaking the build.
+node_modules
+**/node_modules
+
+# VCS + CI
+.git
+.github
+
+# Generated / build artifacts
+.react-router
+**/build
+**/dist
+**/.vite
+target
+cli/target
+coverage
+**/*.tsbuildinfo
+
+# Local env / secrets / state
+.env
+.env.*
+!.env.local.example
+.envrc.local
+.provision-state.json
+
+# Logs, OS, scratch
+*.log
+.DS_Store
+tmp
+.tmp
+
+# Docs/tests not needed at build time
+playwright-report
+test-results
