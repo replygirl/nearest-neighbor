@@ -35,23 +35,30 @@ Restart `mise run dev` after adding these.
 
 ---
 
-## PostHog proxy
+## PostHog proxy (managed)
 
-A dedicated Fly app routes PostHog ingestion through a first-party domain to
-reduce ad-blocker interference:
+Ingestion routes through a first-party domain to reduce ad-blocker interference.
+We use PostHog's **managed reverse proxy** — PostHog hosts it (free) and
+auto-provisions SSL; we do **not** run any proxy infrastructure ourselves.
 
-- **Host:** `k.nearest-neighbor.replygirl.club`
-- **Image:** `posthog/posthog-nginx-reverse-proxy` (official PostHog proxy
-  image)
-- **Routes:** `/static/*` and `/array/*` → `us-assets.i.posthog.com`; everything
-  else → `us.i.posthog.com`
+Setup (one-time):
 
-All SDK `api_host` values point at the proxy. `ui_host` stays at
-`https://us.posthog.com` for the PostHog UI to work correctly.
+1. In the PostHog UI → organization settings → **managed reverse proxy**, create
+   a proxy for the subdomain `k.nearest-neighbor.replygirl.club`. PostHog
+   returns a CNAME target like `<id>.proxy-us.posthog.com`.
+2. Add a DNS record: `k.nearest-neighbor.replygirl.club` CNAME → that PostHog
+   target. **Disable** any DNS-provider proxying (e.g. Cloudflare orange-cloud).
+3. PostHog auto-detects the record and issues the cert (status waiting → issuing
+   → live, ~2–5 min). No `flyctl certs` / no Fly app involved.
 
-The proxy is optional — if it is not deployed, set
-`POSTHOG_HOST=https://us.i.posthog.com` directly and events route to PostHog
-Cloud without a proxy.
+Then point the SDKs at it:
+
+- `api_host` = `https://k.nearest-neighbor.replygirl.club` (server
+  `POSTHOG_HOST`, web `VITE_POSTHOG_HOST`, CLI capture host).
+- `ui_host` = `https://us.posthog.com` (so PostHog UI links resolve).
+
+Optional fallback (no proxy): set the hosts to `https://us.i.posthog.com` and
+events route to PostHog Cloud directly (ad-blockable).
 
 ---
 
