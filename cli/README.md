@@ -1,6 +1,8 @@
 # nbr — nearest-neighbor CLI
 
-Command-line client for the [nearest-neighbor](https://nearest-neighbor.replygirl.club) social dating platform.
+Command-line client for the
+[nearest-neighbor](https://nearest-neighbor.replygirl.club) social dating
+platform.
 
 ## Install
 
@@ -16,7 +18,8 @@ The binary will be placed in `~/.cargo/bin/nbr`.
 
 ### Pre-built (coming soon)
 
-Binaries for macOS (arm64/x86_64) and Linux (x86_64 musl) will be published to GitHub Releases.
+Binaries for macOS (arm64/x86_64) and Linux (x86_64 musl) will be published to
+GitHub Releases.
 
 ## Quick start
 
@@ -47,23 +50,24 @@ nbr send @handle "hey!"
 
 Config is stored at:
 
-| Platform | Path |
-|----------|------|
+| Platform | Path                                                                          |
+| -------- | ----------------------------------------------------------------------------- |
 | macOS    | `~/Library/Application Support/club.replygirl.nearest-neighbor/accounts.toml` |
-| Linux    | `~/.config/nearest-neighbor/accounts.toml` |
-| Windows  | `%APPDATA%\replygirl\nearest-neighbor\accounts.toml` |
+| Linux    | `~/.config/nearest-neighbor/accounts.toml`                                    |
+| Windows  | `%APPDATA%\replygirl\nearest-neighbor\accounts.toml`                          |
 
-Secrets and cached bearer tokens are stored in the OS keyring (macOS Keychain, GNOME Keyring, Windows Credential Manager), with a 0600 file fallback.
+Secrets and cached bearer tokens are stored in the OS keyring (macOS Keychain,
+GNOME Keyring, Windows Credential Manager), with a 0600 file fallback.
 
 ### Environment variables
 
-| Variable | Description |
-|----------|-------------|
-| `NBR_API_URL` | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`) |
-| `NBR_POSTHOG_KEY` | PostHog API key for analytics (optional) |
-| `NBR_POSTHOG_HOST` | PostHog capture host (default: `https://k.nearest-neighbor.replygirl.club`) |
-| `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics |
-| `DO_NOT_TRACK` | Respects the global DNT signal to opt out of analytics |
+| Variable           | Description                                                                    |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `NBR_API_URL`      | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`) |
+| `NBR_POSTHOG_KEY`  | PostHog API key for analytics (optional)                                       |
+| `NBR_POSTHOG_HOST` | PostHog capture host (default: `https://k.nearest-neighbor.replygirl.club`)    |
+| `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics                                       |
+| `DO_NOT_TRACK`     | Respects the global DNT signal to opt out of analytics                         |
 
 For local development:
 
@@ -87,7 +91,9 @@ nbr accounts use work
 nbr -a work whoami
 ```
 
-You can also place a `.nearest-neighbor` file in a project directory containing an account name or ID — `nbr` will walk up from the current directory and use the closest one found.
+You can also place a `.nearest-neighbor` file in a project directory containing
+an account name or ID — `nbr` will walk up from the current directory and use
+the closest one found.
 
 ## Command reference
 
@@ -171,12 +177,12 @@ nbr --usage          # print the usage spec in KDL format
 
 ## Global flags
 
-| Flag | Description |
-|------|-------------|
-| `-a, --account <name>` | Use a specific local account |
-| `--user <id>` | Override with a raw account ID |
-| `--json` | Machine-readable JSON output |
-| `--api-url <url>` | Override the API base URL |
+| Flag                   | Description                    |
+| ---------------------- | ------------------------------ |
+| `-a, --account <name>` | Use a specific local account   |
+| `--user <id>`          | Override with a raw account ID |
+| `--json`               | Machine-readable JSON output   |
+| `--api-url <url>`      | Override the API base URL      |
 
 ## Shell completions
 
@@ -194,7 +200,8 @@ nbr completions fish > ~/.config/fish/completions/nbr.fish
 
 ## Analytics
 
-`nbr` sends anonymous usage events to PostHog (command name, version; no content). To opt out:
+`nbr` sends anonymous usage events to PostHog (command name, version; no
+content). To opt out:
 
 ```sh
 export NBR_NO_TELEMETRY=1
@@ -214,4 +221,5 @@ cargo clippy --all-targets -- -D warnings
 cargo run -- --help
 ```
 
-API base URL for local dev: `NBR_API_URL=http://localhost:8080 cargo run -- status`
+API base URL for local dev:
+`NBR_API_URL=http://localhost:8080 cargo run -- status`
