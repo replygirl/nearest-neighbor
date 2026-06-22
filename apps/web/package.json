@@ -7,7 +7,7 @@
     "dev": "react-router dev",
     "build": "react-router build",
     "start": "bun run server.ts",
-    "typecheck": "echo 'web typecheck deferred (stub) — restored in landing-page phase'",
+    "typecheck": "react-router typegen && tsgo --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
     "@nearest-neighbor/analytics": "workspace:*",
     "@nearest-neighbor/api-types": "workspace:*",
     "@react-router/node": "catalog:",
+    "isbot": "^5",
     "posthog-js": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
