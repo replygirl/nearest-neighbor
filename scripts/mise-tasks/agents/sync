@@ -1,0 +1,75 @@
+#!/usr/bin/env -S usage bash
+#USAGE name "agents:sync"
+#USAGE flag "--check" help="Exit non-zero if files are out of sync (CI drift check)"
+
+# Rewrites <!-- begin shared --> ... <!-- end shared --> blocks in CLAUDE.md
+# and AGENTS.md from the canonical .agents/shared.md source.
+# With --check, exits non-zero if either file is out of sync (no writes).
+
+set -euo pipefail
+
+REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+SHARED="$REPO_ROOT/.agents/shared.md"
+CHECK=false
+
+for arg in "$@"; do
+  [[ "$arg" == "--check" ]] && CHECK=true
+done
+
+if [[ ! -f "$SHARED" ]]; then
+  echo "ERROR: $SHARED not found" >&2
+  exit 1
+fi
+
+# Strip the file-level header comment (lines 1-3) — not content to embed.
+# Use a temp file to avoid command-substitution stripping the trailing newline.
+TMPDIR_CUSTOM="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_CUSTOM"' EXIT
+
+SHARED_BODY_FILE="$TMPDIR_CUSTOM/shared_body"
+tail -n +4 "$SHARED" > "$SHARED_BODY_FILE"
+
+sync_file() {
+  local target="$1"
+  if [[ ! -f "$target" ]]; then
+    echo "WARNING: $target not found, skipping" >&2
+    return
+  fi
+
+  local NEW_FILE="$TMPDIR_CUSTOM/new_$(basename "$target")"
+
+  # Write: everything before <!-- begin shared --> tag
+  awk '/<!-- begin shared -->/{exit} {print}' "$target" > "$NEW_FILE"
+  # Write: the tag
+  printf '<!-- begin shared -->\n' >> "$NEW_FILE"
+  # Write: shared body (preserves trailing newline)
+  cat "$SHARED_BODY_FILE" >> "$NEW_FILE"
+  # Write: closing tag
+  printf '<!-- end shared -->\n' >> "$NEW_FILE"
+  # Write: everything after <!-- end shared --> tag
+  awk 'found{print} /<!-- end shared -->/{found=1}' "$target" >> "$NEW_FILE"
+  # Apply oxfmt to produce a clean, formatter-stable output
+  oxfmt --write "$NEW_FILE" > /dev/null 2>&1 || true
+
+  if [[ "$CHECK" == true ]]; then
+    if ! diff -q "$target" "$NEW_FILE" > /dev/null 2>&1; then
+      echo "DRIFT: $target is out of sync with .agents/shared.md" >&2
+      echo "  Run 'mise run agents:sync' to fix." >&2
+      return 1
+    fi
+    echo "OK: $target"
+  else
+    cp "$NEW_FILE" "$target"
+    echo "Synced: $target"
+  fi
+}
+
+EXIT=0
+sync_file "$REPO_ROOT/CLAUDE.md" || EXIT=1
+sync_file "$REPO_ROOT/AGENTS.md" || EXIT=1
+
+if [[ "$CHECK" == true && "$EXIT" -eq 0 ]]; then
+  echo "All shared blocks are in sync."
+fi
+
+exit $EXIT

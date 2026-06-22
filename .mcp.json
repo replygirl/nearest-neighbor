@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "fly-replygirl": {
+      "type": "stdio",
+      "command": "flyctl",
+      "args": ["mcp-server"],
+      "env": {
+        "FLY_API_TOKEN": "${FLY_API_TOKEN}"
+      }
+    },
+    "posthog-replygirl": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["-y", "@posthog/mcp-server"],
+      "env": {
+        "POSTHOG_API_KEY": "${POSTHOG_API_KEY}"
+      }
+    },
+    "github-replygirl": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      }
+    },
+    "heroui-react": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["-y", "@heroui/react-mcp@latest"]
+    }
+  }
+}

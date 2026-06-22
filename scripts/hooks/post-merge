@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# post-merge — non-blocking environment-freshness checks after git merge/pull
+# Installed by: mise run hooks:install
+# Does NOT block the merge (always exits 0).
+
+set -euo pipefail
+
+# ── Migration freshness warning ──────────────────────────────────────────────
+# Warn if packages/db/migrations/ changed in this merge so the developer
+# knows to run 'mise run db:migrate' before starting the server.
+if git diff --name-only HEAD~1..HEAD 2>/dev/null | grep -q 'packages/db/migrations/'; then
+  echo "WARNING: DB migrations changed in this merge." >&2
+  echo "         Run 'mise run db:migrate:check' to verify your local DB is up to date." >&2
+  echo "         Run 'mise run db:migrate' to apply pending migrations." >&2
+fi
+
+# ── OpenSpec cache warm ──────────────────────────────────────────────────────
+# Run 'openspec list' to verify the spec tree is parseable after the merge.
+# Warns (does not block) if the command fails.
+if command -v openspec >/dev/null 2>&1; then
+  openspec list >/dev/null 2>&1 || {
+    echo "WARNING: 'openspec list' failed — spec files may be corrupt or have parse errors." >&2
+    echo "         Run 'mise run openspec:validate' to investigate." >&2
+  }
+fi
+
+exit 0

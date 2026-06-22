@@ -1,0 +1,38 @@
+#!/usr/bin/env -S usage bash
+#USAGE name "docs:gen-spec"
+
+# Assembles a combined usage KDL spec from all #USAGE headers in scripts/mise-tasks/* scripts.
+# Outputs a single spec with each task as a cmd block.
+# Piped to usage g completion/markdown/man for combined doc generation.
+
+set -euo pipefail
+
+REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+
+echo 'name "nearest-neighbor-mise"'
+
+while IFS= read -r -d '' script; do
+  # Extract #USAGE lines from the script (skip shebang)
+  NAME=""
+  FLAGS=()
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^#USAGE[[:space:]]+name[[:space:]]+\"([^\"]+)\" ]]; then
+      NAME="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^#USAGE[[:space:]]+flag[[:space:]]+(.+) ]]; then
+      FLAGS+=("  flag ${BASH_REMATCH[1]}")
+    fi
+  done < "$script"
+
+  if [[ -n "$NAME" ]]; then
+    if [[ "${#FLAGS[@]}" -gt 0 ]]; then
+      echo "cmd \"$NAME\" {"
+      for f in "${FLAGS[@]}"; do
+        echo "$f"
+      done
+      echo "}"
+    else
+      echo "cmd \"$NAME\""
+    fi
+  fi
+done < <(find "$REPO_ROOT/scripts/mise-tasks" -type f -print0 | sort -z)

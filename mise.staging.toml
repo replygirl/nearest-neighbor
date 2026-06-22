@@ -1,0 +1,9 @@
+# Loaded when MISE_ENV=staging (e.g. `mise -E staging run deploy`)
+# Overrides env vars from mise.toml for the staging environment.
+
+[env]
+NODE_ENV = "staging"
+FLY_APP = "nearest-neighbor-staging"
+LOG_LEVEL = "info"
+# PostHog is active in staging — set POSTHOG_KEY in CI secrets
+# DATABASE_URL comes from Fly secrets / CI env

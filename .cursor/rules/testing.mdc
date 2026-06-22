@@ -1,0 +1,14 @@
+---
+description: "Testing conventions: 95% coverage, isolation, co-location"
+globs: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "tests/**/*", "e2e/**/*"]
+alwaysApply: false
+---
+
+- Minimum 95% coverage on new code — configured in `bunfig.toml`
+- Tests must run in isolation — no shared mutable state between test cases
+- Integration tests use real Postgres (transaction-wrapped, auto-rollback) — never mock the DB
+- Mock only at system boundaries: external APIs, PostHog events
+- Test files colocated with source: `src/auth/login.ts` → `src/auth/login.test.ts`
+- E2E tests live in `e2e/` — Playwright for web
+- `describe` blocks: noun (what's being tested); `it`/`test` blocks: verb phrase
+- Do not write tests that game coverage metrics — test real behavior

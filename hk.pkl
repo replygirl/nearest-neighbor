@@ -1,0 +1,154 @@
+amends "package://github.com/jdx/hk/releases/download/v1.41.0/hk@1.41.0#/Config.pkl"
+
+// NOTE: Builtins import omitted — pklr (experimental backend, HK_PKL_BACKEND=pklr)
+// has deserialization issues with Builtins._type fields. All steps are defined
+// explicitly below, which is equivalent and more portable.
+//
+// NOTE: Multiline check strings (#"""..."""#) inside commit-msg steps cause pklr
+// deserialization failures. Complex multi-step logic is delegated to scripts in
+// scripts/hooks/ for pklr compatibility.
+
+local tsGlobs    = List("**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts")
+local tomlGlobs  = List("**/*.toml")
+local shellGlobs = List("**/*.sh", "**/*.bash")
+local rustGlobs  = List("**/*.rs")
+local ciGlobs    = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
+
+local agentGlobs   = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
+
+local agentSteps = new Mapping<String, Step> {
+
+  ["agents:check"] {
+    glob  = agentGlobs
+    check = "mise run agents:check"
+  }
+
+}
+
+local linters = new Mapping<String, Step> {
+
+  ["oxfmt"] {
+    glob   = tsGlobs
+    check  = "oxfmt --check {{files}}"
+    fix    = "oxfmt {{files}}"
+    batch  = true
+    prefix = "mise exec --"
+  }
+
+  ["oxlint"] {
+    glob   = tsGlobs
+    check  = "oxlint {{files}}"
+    fix    = "oxlint --fix {{files}}"
+    batch  = true
+    prefix = "mise exec --"
+  }
+
+  ["taplo"] {
+    glob   = tomlGlobs
+    check  = "taplo format --check {{files}}"
+    fix    = "taplo format {{files}}"
+    batch  = true
+    prefix = "mise exec --"
+  }
+
+  ["shellcheck"] {
+    glob    = shellGlobs
+    exclude = List("docs/cli/completions/**", "docs/cli/man/**")
+    check   = "shellcheck {{files}}"
+    batch   = true
+    prefix  = "mise exec --"
+  }
+
+  ["actionlint"] {
+    glob   = ciGlobs
+    check  = "actionlint {{files}}"
+    batch  = true
+    prefix = "mise exec --"
+  }
+
+  ["cargo-fmt"] {
+    glob  = rustGlobs
+    check = "cargo fmt -- --check"
+    fix   = "cargo fmt"
+  }
+
+}
+
+local slowSteps = new Mapping<String, Step> {
+
+  ["cargo-clippy"] {
+    glob     = rustGlobs
+    check    = "cargo clippy --all-targets -- -D warnings"
+    profiles = List("slow")
+  }
+
+  ["typecheck"] {
+    glob      = tsGlobs
+    check     = "tsgo --noEmit"
+    profiles  = List("slow")
+    exclusive = true
+  }
+
+  ["test"] {
+    check     = "bun test --changed"
+    profiles  = List("slow")
+    exclusive = true
+  }
+
+  // secrets-scan: block push if common secret patterns found in the diff being pushed
+  // Patterns: PEM private keys, GitHub PATs, AWS credentials, Stripe keys
+  // Logic delegated to scripts/hooks/check-secrets for pklr compatibility
+  ["secrets-scan"] {
+    check    = "bash scripts/hooks/check-secrets"
+    profiles = List("slow")
+  }
+
+}
+
+hooks {
+
+  // pre-commit: fix=true runs autofixers on staged files
+  // Stash strategy: patch-file avoids git index lock errors
+  ["pre-commit"] {
+    fix   = true
+    stash = "patch-file"
+    steps = new {
+      ...linters
+      ...agentSteps
+    }
+  }
+
+  // pre-push: check-only; slow profile adds typecheck + tests + secrets-scan
+  // Fast (default): lint only
+  // Slow (HK_PROFILE=slow): full suite
+  // Branch-aware gating: .git/hooks/pre-push is scripts/hooks/pre-push-gate
+  // which auto-upgrades to HK_PROFILE=slow on main (production deploys via workflow_dispatch).
+  ["pre-push"] {
+    steps = new {
+      ...linters
+      ...slowSteps
+    }
+  }
+
+  // commit-msg: conventional commits enforcement + scope validation
+  // Valid types: feat fix chore docs style refactor test perf ci build revert
+  // Valid scopes (must match an app, package, or infra area — or be omitted):
+  //   apps:     api | web
+  //   packages: db | analytics | api-types
+  //   tooling:  cli | claude-plugin | codex-plugin
+  //   infra, ci, docs, dev, agents, hooks, deps, test, chore
+  // Logic delegated to scripts/hooks/check-commit-msg for pklr compatibility
+  ["commit-msg"] {
+    steps {
+      ["conventional"] {
+        check = #"bash scripts/hooks/check-commit-msg "{{commit_msg_file}}""#
+      }
+    }
+  }
+
+  // NOTE: post-merge hook is NOT managed by hk (hk 1.41.0 only supports
+  // pre-commit, commit-msg, pre-push, prepare-commit-msg).
+  // The post-merge hook lives at scripts/hooks/post-merge and is installed
+  // by `mise run hooks:install` alongside the hk-managed hooks.
+
+}

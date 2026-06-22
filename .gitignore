@@ -1,0 +1,102 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+.next/
+.bun/
+out/
+.output/
+
+# Rust build artifacts
+target/
+cli/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Plugin build artifacts
+plugins/*/dist/
+plugins/*/build/
+plugins/*/.claude/
+plugins/*/.codex/
+
+# Cache
+.cache/
+.turbo/
+.nx/
+.parcel-cache/
+.vite/
+
+# Test / coverage
+coverage/
+.vitest-cache/
+.nyc_output/
+.playwright/
+playwright-report/
+test-results/
+
+# Editor / IDE (selective — workspace settings ARE checked in)
+.idea/
+.vscode/.history/
+*.swp
+*.swo
+*~
+
+# Mise local overrides (do NOT commit machine-specific overrides)
+mise.local.toml
+*.local.toml
+
+# hk local overrides (per-developer hook customizations)
+hk.local.pkl
+
+# Env / secrets (do NOT commit)
+.env
+.env.local
+.env.*.local
+.envrc.local
+
+# Temporary / scratch
+tmp/
+.tmp/
+
+# Claude Code (local overrides only — project settings ARE checked in)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+CLAUDE.local.md
+
+# Per-developer agent overrides
+AGENTS.local.md
+
+# HeroUI docs (seeded by heroui-cli; auto-generated)
+.heroui-docs/
+
+# Docker-compose data mounts
+data/
+
+# Placeholder gitkeep files tracked via git
+# (do NOT add .gitkeep to gitignore)
+
+# Bun pack output
+*.tgz
+
+# React Router auto-generated types
+.react-router/
+
+# Bootstrap provisioning state (contains infra identifiers — never commit)
+scripts/bootstrap/.provision-state.json
+.provision-state.json
+
+# TypeScript build info
+*.tsbuildinfo

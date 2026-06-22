@@ -1,0 +1,12 @@
+---
+description: "JS/TS style: no semicolons, single quotes, oxlint + oxfmt enforced"
+alwaysApply: true
+---
+
+- No semicolons in TypeScript/JavaScript
+- Single quotes for strings; JSX attributes use double quotes
+- `printWidth: 100`, `tabWidth: 2`, trailing commas everywhere
+- Formatting via `mise run format:fix`; linting via `mise run lint`
+- `no-explicit-any: warn` — use `unknown` for untyped input, then narrow
+- `consistent-type-imports: error` — use `import type` for type-only imports
+- `import/no-cycle: error` — no circular dependencies

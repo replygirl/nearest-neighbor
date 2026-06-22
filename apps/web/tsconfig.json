@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["bun-types"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowArbitraryExtensions": true,
+    "allowImportingTsExtensions": true,
+    "noUncheckedIndexedAccess": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDirs": [".", "./.react-router/types"],
+    "paths": {
+      "~/*": ["./app/*"]
+    }
+  },
+  "include": [
+    "app/**/*",
+    ".react-router/types/**/*",
+    "server.ts",
+    "vite.config.ts",
+    "react-router.config.ts",
+    "test/**/*"
+  ],
+  "exclude": ["app/**/__tests__/**", "app/routes/__tests__/**"]
+}
