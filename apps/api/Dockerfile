@@ -15,6 +15,16 @@ RUN bun install --frozen-lockfile
 # and by the React Router / Vite web build)
 COPY . .
 
+# Landing-page (posthog-js) analytics keys are baked into the SPA bundle at
+# build time by Vite, so they must be present BEFORE `react-router build`. These
+# are the PUBLIC posthog project key (phc_...) + host — safe to pass as build
+# args. Supplied via `flyctl deploy --build-arg` (see deploy-fly-app.yml).
+# Empty by default → posthog-js is a silent no-op.
+ARG VITE_POSTHOG_KEY=""
+ARG VITE_POSTHOG_HOST=""
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
+ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+
 # Build the SPA (outputs to apps/web/build/client/)
 RUN bun run --filter @nearest-neighbor/web build
 
