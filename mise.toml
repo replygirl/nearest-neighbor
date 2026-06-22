@@ -451,59 +451,59 @@ dir = "{{config_root}}"
 
 [tasks."fly:deploy:api:staging"]
 description = "Deploy apps/api to nearest-neighbor-staging"
-run = "flyctl deploy --config apps/api/fly.staging.toml --remote-only"
+run = "flyctl deploy --config apps/api/fly.staging.toml --app nearest-neighbor-staging --remote-only"
 dir = "{{config_root}}"
 
-[tasks."fly:deploy:api:prod"]
-description = "Deploy apps/api to nearest-neighbor-prod (bluegreen)"
-run = "flyctl deploy --config apps/api/fly.prod.toml --remote-only"
+[tasks."fly:deploy:api:production"]
+description = "Deploy apps/api to nearest-neighbor-production (bluegreen)"
+run = "flyctl deploy --config apps/api/fly.production.toml --app nearest-neighbor-production --remote-only"
 dir = "{{config_root}}"
 
 [tasks."fly:deploy:web:staging"]
 description = "Deploy apps/web to nearest-neighbor-web-staging"
-run = "flyctl deploy --config apps/web/fly.staging.toml --remote-only"
+run = "flyctl deploy --config apps/web/fly.staging.toml --app nearest-neighbor-web-staging --remote-only"
 dir = "{{config_root}}"
 
-[tasks."fly:deploy:web:prod"]
-description = "Deploy apps/web to nearest-neighbor-web-prod (bluegreen)"
-run = "flyctl deploy --config apps/web/fly.prod.toml --remote-only"
+[tasks."fly:deploy:web:production"]
+description = "Deploy apps/web to nearest-neighbor-web-production (bluegreen)"
+run = "flyctl deploy --config apps/web/fly.production.toml --app nearest-neighbor-web-production --remote-only"
 dir = "{{config_root}}"
 
-[tasks."fly:logs:api:prod"]
-description = "Stream live logs from nearest-neighbor-prod"
-run = "flyctl logs --app nearest-neighbor-prod"
+[tasks."fly:logs:api:production"]
+description = "Stream live logs from nearest-neighbor-production"
+run = "flyctl logs --app nearest-neighbor-production"
 
 [tasks."fly:logs:api:staging"]
 description = "Stream live logs from nearest-neighbor-staging"
 run = "flyctl logs --app nearest-neighbor-staging"
 
-[tasks."fly:logs:web:prod"]
-description = "Stream live logs from nearest-neighbor-web-prod"
-run = "flyctl logs --app nearest-neighbor-web-prod"
+[tasks."fly:logs:web:production"]
+description = "Stream live logs from nearest-neighbor-web-production"
+run = "flyctl logs --app nearest-neighbor-web-production"
 
 [tasks."fly:logs:web:staging"]
 description = "Stream live logs from nearest-neighbor-web-staging"
 run = "flyctl logs --app nearest-neighbor-web-staging"
 
-[tasks."fly:ssh:api:prod"]
-description = "Open SSH console on nearest-neighbor-prod web machine"
-run = "flyctl ssh console --app nearest-neighbor-prod --process-group web"
+[tasks."fly:ssh:api:production"]
+description = "Open SSH console on nearest-neighbor-production web machine"
+run = "flyctl ssh console --app nearest-neighbor-production --process-group web"
 
 [tasks."fly:ssh:api:staging"]
 description = "Open SSH console on nearest-neighbor-staging web machine"
 run = "flyctl ssh console --app nearest-neighbor-staging --process-group web"
 
-[tasks."fly:status:api:prod"]
-description = "Show machine status for nearest-neighbor-prod"
-run = "flyctl status --app nearest-neighbor-prod"
+[tasks."fly:status:api:production"]
+description = "Show machine status for nearest-neighbor-production"
+run = "flyctl status --app nearest-neighbor-production"
 
 [tasks."fly:status:api:staging"]
 description = "Show machine status for nearest-neighbor-staging"
 run = "flyctl status --app nearest-neighbor-staging"
 
-[tasks."fly:status:web:prod"]
-description = "Show machine status for nearest-neighbor-web-prod"
-run = "flyctl status --app nearest-neighbor-web-prod"
+[tasks."fly:status:web:production"]
+description = "Show machine status for nearest-neighbor-web-production"
+run = "flyctl status --app nearest-neighbor-web-production"
 
 [tasks."fly:status:web:staging"]
 description = "Show machine status for nearest-neighbor-web-staging"

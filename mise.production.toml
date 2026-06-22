@@ -3,7 +3,7 @@
 
 [env]
 NODE_ENV = "production"
-FLY_APP = "nearest-neighbor-prod"
+FLY_APP = "nearest-neighbor-production"
 LOG_LEVEL = "warn"
 # PostHog is active in production — set POSTHOG_KEY in CI secrets
 # DATABASE_URL comes from Fly secrets / CI env
