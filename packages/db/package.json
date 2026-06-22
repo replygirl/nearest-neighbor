@@ -13,7 +13,8 @@
     "migrate": "mise run db:migrate",
     "studio": "mise run db:studio",
     "typecheck": "tsgo --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.4.5",
