@@ -1,0 +1,35 @@
+# PostHog reverse-proxy for nearest-neighbor
+# Custom domain: k.nearest-neighbor.replygirl.club
+# RG must:
+#   1. flyctl certs add k.nearest-neighbor.replygirl.club --app nearest-neighbor-proxy
+#   2. Add DNS CNAME: k.nearest-neighbor.replygirl.club -> nearest-neighbor-proxy.fly.dev
+
+app = "nearest-neighbor-proxy"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = 10
+
+[build]
+dockerfile = "proxy/Dockerfile"
+[build.args]
+SERVER_NAME = "k.nearest-neighbor.replygirl.club"
+PORT = "8080"
+POSTHOG_CLOUD_REGION = "us"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+
+[[http_service.checks]]
+grace_period = "5s"
+interval = "30s"
+timeout = "5s"
+method = "GET"
+path = "/health"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"

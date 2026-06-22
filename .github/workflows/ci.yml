@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      bun: ${{ steps.filter.outputs.bun }}
+      rust: ${{ steps.filter.outputs.rust }}
+      shell: ${{ steps.filter.outputs.shell }}
+      actions: ${{ steps.filter.outputs.actions }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        with:
+          filters: |
+            bun:
+              - 'apps/**/*.{ts,tsx,js,jsx,mjs,cjs}'
+              - 'packages/**/*.{ts,tsx,js,jsx,mjs,cjs}'
+              - 'package.json'
+              - 'bun.lock'
+              - 'mise.toml'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            rust:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '**/*.rs'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            shell:
+              - 'scripts/**/*.sh'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            actions:
+              # Workflow files and composite actions. Captures the case where a
+              # PR only edits a workflow other than ci.yml (or only a composite
+              # action) — those wouldn't match any surface filter above, but
+              # ci-actions-lint still validates the YAML so a broken workflow
+              # can't merge with all gated jobs skipped.
+              - '.github/workflows/**'
+              - '.github/actions/**'
+
+  ci-bun:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.bun == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nearest_neighbor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nearest_neighbor_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      - run: mise run lint
+      - run: mise run format:check
+      - run: mise run typecheck
+      - run: mise run test
+      # TODO: coverage gate is non-blocking until the test suite reaches 95%
+      # threshold. Remove continue-on-error once coverage is stable.
+      - name: Coverage (informational)
+        run: mise run test:coverage
+        continue-on-error: true
+
+  ci-rust:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-mise
+      - name: Build
+        run: cargo build --workspace
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --workspace
+      - name: Format check
+        run: cargo fmt --check
+
+  ci-shell:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-mise
+      - name: Shellcheck
+        run: |
+          files=$(find scripts -name '*.sh' 2>/dev/null || true)
+          if [ -n "$files" ]; then
+            echo "$files" | xargs shellcheck
+          else
+            echo "No shell files found — skipping shellcheck"
+          fi
+
+  ci-actions-lint:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.actions == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-mise
+      - name: Lint workflow YAML
+        # actionlint with no args auto-discovers every workflow under
+        # .github/workflows/ regardless of extension or nesting depth.
+        run: mise exec -- actionlint
+      - name: Validate composite-action YAML syntax
+        # actionlint is not designed for composite-action manifests (different
+        # schema, triggers spurious "missing jobs/on" errors). Fall back to a
+        # parse-only check so a syntax-broken composite still blocks the gate.
+        run: |
+          shopt -s nullglob
+          files=(.github/actions/*/action.yml .github/actions/*/action.yaml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No composite actions to validate."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            ruby -ryaml -e "YAML.safe_load(File.read(ARGV[0]))" "$f" \
+              || { echo "::error file=$f::YAML parse failure"; exit 1; }
+            echo "ok: $f"
+          done
+
+  ci-gate:
+    if: always()
+    needs: [detect-changes, ci-bun, ci-rust, ci-shell, ci-actions-lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check upstream job results
+        env:
+          DETECT: ${{ needs.detect-changes.result }}
+        run: |
+          # Detect-changes failure (e.g. paths-filter outage) would skip every
+          # gated job; treating skipped-as-success there silently green-lights
+          # the PR. Require detect-changes to have actually succeeded before
+          # accepting any skips downstream.
+          if [[ "$DETECT" != "success" ]]; then
+            echo "detect-changes did not succeed: $DETECT — gate fails"
+            exit 1
+          fi
+          results=(
+            "${{ needs.ci-bun.result }}"
+            "${{ needs.ci-rust.result }}"
+            "${{ needs.ci-shell.result }}"
+            "${{ needs.ci-actions-lint.result }}"
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "Job result '$r' — gate fails"
+              exit 1
+            fi
+          done
+          echo "All jobs passed or skipped — gate passes"

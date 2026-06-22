@@ -1,0 +1,187 @@
+# CLI release pipeline for the `nbr` binary.
+#
+# Triggered by tags matching cli-v* (e.g. cli-v0.1.0).
+# Builds five target triples in a matrix, packages each as
+#   nbr-<triple>.tar.xz  (Unix)
+#   nbr-<triple>.zip     (Windows)
+# Generates SHA256SUMS, creates a GitHub Release, and uploads all assets.
+#
+# To cut a release:
+#   git tag cli-v0.1.0 && git push origin cli-v0.1.0
+#
+# Rustls is used for TLS so musl builds need no OpenSSL.
+
+name: CLI Release
+
+on:
+  push:
+    tags:
+      - 'cli-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── macOS ──────────────────────────────────────────────────────────
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            archive: tar.xz
+            cross: false
+
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel # Intel runner
+            archive: tar.xz
+            cross: false
+
+          # ── Linux musl (static, no OpenSSL, no dbus) ──────────────────────
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04
+            archive: tar.xz
+            cross: true # use cross-rs for aarch64 cross-compile
+
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+            archive: tar.xz
+            cross: false
+
+          # ── Windows ───────────────────────────────────────────────────────
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            archive: zip
+            cross: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ─────────────────────────────────────────────────────
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # ── musl libc + linker (native x86_64-musl only) ───────────────────────
+      - name: Install musl tools (x86_64-musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl' && !matrix.cross
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+
+      # ── cross-rs for aarch64-musl ──────────────────────────────────────────
+      - name: Install cross
+        if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      # ── Cargo cache ────────────────────────────────────────────────────────
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # ── Build ──────────────────────────────────────────────────────────────
+      - name: Build (cross)
+        if: matrix.cross
+        working-directory: cli
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (native)
+        if: '!matrix.cross'
+        working-directory: cli
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # ── Package: tar.xz (Unix) ─────────────────────────────────────────────
+      - name: Package tar.xz
+        if: matrix.archive == 'tar.xz'
+        shell: bash
+        run: |
+          TRIPLE=${{ matrix.target }}
+          BIN=target/${TRIPLE}/release/nbr
+          STAGING=nbr-${TRIPLE}
+          mkdir -p "${STAGING}"
+          cp "${BIN}" "${STAGING}/nbr"
+          cp cli/README.md "${STAGING}/"
+          cp LICENSE "${STAGING}/"
+          tar -cJf "${STAGING}.tar.xz" "${STAGING}"
+
+      # ── Package: zip (Windows) ────────────────────────────────────────────
+      - name: Package zip
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $triple = "${{ matrix.target }}"
+          $bin    = "target\$triple\release\nbr.exe"
+          $dir    = "nbr-$triple"
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          Copy-Item $bin         "$dir\nbr.exe"
+          Copy-Item cli\README.md "$dir\README.md"
+          Copy-Item LICENSE       "$dir\LICENSE"
+          Compress-Archive -Path "$dir\*" -DestinationPath "$dir.zip"
+
+      # ── Upload artifact for the checksum + release jobs ───────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nbr-${{ matrix.target }}
+          path: nbr-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  # ── Collect all artifacts, compute checksums, create GitHub Release ────────
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Flatten dist/ (remove per-artifact sub-dirs)
+        run: |
+          find dist/ -mindepth 2 -type f -exec mv {} dist/ \;
+          rmdir dist/nbr-* 2>/dev/null || true
+          ls -lh dist/
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum nbr-*.tar.xz nbr-*.zip > SHA256SUMS
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#cli-}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'nbr ${{ steps.version.outputs.version }}'
+          body: |
+            ## Install
+
+            **macOS / Linux — one-liner:**
+            ```sh
+            curl -fsSL https://nearest-neighbor.replygirl.club/install.sh | sh
+            ```
+
+            **From source:**
+            ```sh
+            cargo install --git https://github.com/replygirl/nearest-neighbor --manifest-path cli/Cargo.toml nbr
+            ```
+
+            See [SHA256SUMS](./SHA256SUMS) to verify downloads manually.
+          files: |
+            dist/nbr-*.tar.xz
+            dist/nbr-*.zip
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
