@@ -1,0 +1,22 @@
+[install]
+# pnpm-style: each package has its own node_modules with symlinks; prevents phantom deps
+linker = "isolated"
+
+[install.lockfile]
+# Always write the text bun.lock (v1.2+ default); never bun.lockb
+save = true
+
+[run]
+# Use Bun Shell for package.json scripts — cross-platform, injection-safe
+shell = "bun"
+silent = false
+
+[test]
+# Coverage is off by default; enable per-run with --coverage or via mise run test:coverage
+coverage = false
+coverageThreshold = { line = 0.95, function = 0.95, branch = 0.80, statement = 0.95 }
+coverageSkipTestFiles = true
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+
+telemetry = false

@@ -1,0 +1,15 @@
+---
+description: "Elysia backend patterns: TypeBox schemas, Eden Treaty, api-types package"
+globs: "apps/api/**/*.ts"
+alwaysApply: false
+---
+
+- Use `Elysia.t` (TypeBox) for all schema validation — never Zod
+- Shared schemas live in `packages/api-types` — import from `@nearest-neighbor/api-types`
+- Eden Treaty provides end-to-end typed clients: `import type { App }` only, no generated code
+- CORS registered before auth handler mount — order matters
+- `GET /health` returning `{ status: 'ok' }` required for Fly bluegreen
+- Listen on `0.0.0.0:${PORT}` (default 8080)
+- Module layout: `apps/api/src/modules/<feature>/{index.ts,service.ts,model.ts}`
+- Notifications: write synchronously to DB `notifications` table — no queue or background jobs
+- No file storage: ASCII art photos are `text` columns in Postgres

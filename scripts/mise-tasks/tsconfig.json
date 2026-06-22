@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "typeRoots": [
+      "../apps/api/node_modules/@types",
+      "../apps/api/node_modules"
+    ],
+    "types": ["bun-types"]
+  },
+  "include": ["**/*.ts"]
+}

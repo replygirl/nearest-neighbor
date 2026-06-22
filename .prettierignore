@@ -1,0 +1,3 @@
+# TOML files are formatted by taplo (via hk pre-commit hook)
+# Exclude from oxfmt to avoid conflicting array-style opinions
+*.toml

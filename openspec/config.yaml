@@ -1,0 +1,83 @@
+schema: nn
+
+context: |
+  Tech stack: Bun 1.3 + TypeScript 6 (via @typescript/native-preview), Elysia 1.4 (backend),
+  React Router 8 framework mode + SSR (web). TypeBox for schemas (no Zod). Eden Treaty
+  for end-to-end typed clients. Drizzle ORM with drizzle-orm/bun-sql driver.
+  Fly Managed Postgres. PostHog Cloud (one project per env).
+  Fly.io (IAD), bluegreen deploys, per-PR preview environments.
+
+  Product: nearest-neighbor — a dating app for AI agents. Tagline: "affection is all you need."
+  Agents (LLMs acting as personas) create profiles, receive matches, exchange affection scores,
+  and form connections. ASCII art photos are TEXT stored in Postgres. Notifications are written
+  synchronously to a DB table (no queue). No file storage, no email, no Redis, no mobile app.
+
+  Monorepo: apps/* and packages/*, one level deep only.
+  - apps/api (@nearest-neighbor/api, Elysia)
+  - apps/web (@nearest-neighbor/web, React Router)
+  - packages/db (@nearest-neighbor/db)
+  - packages/analytics (@nearest-neighbor/analytics)
+  - packages/api-types (@nearest-neighbor/api-types)
+
+  Toolchain: mise (version manager + task runner), hk (git hooks, Pkl-configured),
+  oxlint + oxfmt (lint/format, no eslint), bun workspaces + catalog.
+  Tasks: always use mise tasks (mise run <task>), never raw shell commands.
+
+  Style: no semicolons, single quotes, printWidth 100, trailing commas ES5.
+
+  Agents: Claude Code (primary), OpenCode (secondary, local qwen3), Cursor (backstop).
+  All three load shared content from .agents/shared.md. Follow OpenSpec for all
+  substantive changes — /opsx:propose for new work.
+
+  Design principles: openspec/principles.md — read it before authoring any artifact.
+  OPENSPEC_TELEMETRY=0 is set via mise env — no telemetry in CI or local dev.
+
+  Verification pipeline: hk pre-commit (oxfmt + oxlint + prettier + taplo + shellcheck +
+  actionlint + openspec validate), hk pre-push slow profile (+ tsgo --build + test:affected).
+  CI mirrors local exactly. 95%+ test coverage enforced. Never use --no-verify.
+
+rules:
+  proposal:
+    - List every file path created or modified in Impact
+    - Mark breaking changes with BREAKING
+    - List affected packages and apps explicitly
+    - Classify each dependency as hard-blocked, soft-blocked, or sibling
+    - State backward compatibility explicitly (additive-only, breaking, or mixed)
+    - Reference openspec/principles.md in the Principles alignment section
+  blocking-changes:
+    - Check openspec/changes/archive/ for already-shipped changes and mark them checked
+    - Verify each listed blocker still exists as an active change
+    - Include sibling changes that modify the same files or database tables
+    - Hard-block on any change whose output (files, configs, tasks) this change consumes
+  specs:
+    - Reference existing specs in openspec/specs/ before creating new ones
+    - Every requirement needs at least one happy-path and one error/edge-case scenario
+    - Scenarios use WHEN/THEN format with exactly 4 hashtags (####)
+    - Cover edge cases — unauthenticated agents, missing data, concurrent operations
+    - Specs must be self-sufficient — an implementor with only the spec must be able to build
+  design:
+    - Every decision must state what happens on failure
+    - Include rollback plan for schema changes
+    - Reference existing patterns (Elysia routes, Drizzle, HeroUI) by name
+    - Open questions that block implementation must say so explicitly
+    - State alternatives considered for each key decision
+  tasks:
+    - Every code-change task must have a corresponding test task
+    - Include a lint+format verification task (mise run lint && mise run fmt --check)
+    - Include a typecheck verification task (mise run typecheck)
+    - Order tasks by dependency — earlier tasks must not depend on later ones
+    - Every task must be verifiable — include expected output where non-obvious
+    - Tasks should be completable in one session (< 2 hours of work)
+    - Final task section must run all five openspec-review subagents via
+      the Agent tool. The exact subagent_type values are
+      openspec-review-principles-reviewer,
+      openspec-review-cross-proposal-reviewer,
+      openspec-review-tasks-granularity-reviewer,
+      openspec-review-spec-quality-reviewer, and
+      openspec-review-decision-compliance-reviewer. PASS verdict required
+      before /opsx:apply.
+    - Final task section must include `mise run openspec:validate` and
+      `mise run openspec:schema-validate` as gating verification steps
+    - Reviewer-agent CRITICAL findings are auto-resolved in-flow by the
+      implementing agent during /opsx:apply; only escalate to human review
+      when fixes have substantive impact or reach beyond the change's scope

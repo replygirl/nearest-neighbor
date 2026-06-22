@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: nearest-neighbor-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: nearest-neighbor
+      POSTGRES_PASSWORD: nearest-neighbor
+      POSTGRES_DB: nearest-neighbor
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nearest-neighbor']
+      interval: 5s
+      timeout: 3s
+      retries: 5
