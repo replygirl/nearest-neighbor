@@ -4,8 +4,8 @@
 # Usage:
 #   curl -fsSL https://nearest-neighbor.replygirl.club/install.sh | sh
 #
-# Installs the latest cli-v* release of `nbr` to ~/.local/bin (or
-# $CARGO_HOME/bin if that directory exists and is on $PATH).
+# Installs the latest v<n>.<n>.<n> platform release of `nbr` to ~/.local/bin
+# (or $CARGO_HOME/bin if that directory exists and is on $PATH).
 #
 # Supports:
 #   macOS   aarch64 (Apple Silicon) / x86_64 (Intel)
@@ -62,24 +62,24 @@ esac
 # ── Resolve version ──────────────────────────────────────────────────────────
 
 if [ -n "${NBR_VERSION:-}" ]; then
-  tag="cli-v${NBR_VERSION}"
+  tag="v${NBR_VERSION}"
   echo "Installing ${BINARY} ${NBR_VERSION} (pinned)..."
 else
-  echo "Fetching latest cli-v* release..."
-  # Filter only cli-v* tags from the releases list (tag-namespaced repo).
-  tag="$(curl -fsSL "${GITHUB_API}/repos/${REPO}/releases" \
-    | grep -o '"tag_name": *"cli-v[^"]*"' \
+  echo "Fetching latest platform release..."
+  # The full platform ships under a single v<n>.<n>.<n> tag.
+  tag="$(curl -fsSL "${GITHUB_API}/repos/${REPO}/releases/latest" \
+    | grep -o '"tag_name": *"v[^"]*"' \
     | head -1 \
-    | grep -o 'cli-v[^"]*')"
+    | grep -o 'v[^"]*')"
   if [ -z "${tag}" ]; then
     echo "error: could not determine latest release tag" >&2
     exit 1
   fi
-  version="${tag#cli-v}"
+  version="${tag#v}"
   echo "Latest: ${tag} (${version})"
 fi
 
-version="${tag#cli-v}"
+version="${tag#v}"
 
 # ── Resolve install directory ────────────────────────────────────────────────
 
