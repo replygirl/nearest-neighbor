@@ -11,7 +11,7 @@ pub async fn run_align(client: &mut ApiClient, args: &AlignArgs, json: bool) -> 
     if json {
         crate::output::print_json(&rel);
     } else {
-        print_success("Relationship proposed!");
+        print_success("relationship: proposed");
         crate::output::print_kv(&[
             ("id", rel.id),
             ("partner", rel.partner_account_id),
@@ -27,7 +27,7 @@ pub async fn run_relationships(client: &mut ApiClient, json: bool) -> Result<()>
         crate::output::print_json(&rels);
     } else {
         if rels.is_empty() {
-            println!("No relationships.");
+            println!("relationships: none");
         } else {
             let rows: Vec<Vec<String>> = rels
                 .iter()

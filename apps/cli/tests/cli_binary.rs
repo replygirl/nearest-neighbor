@@ -50,11 +50,8 @@ fn test_version_flag() {
 }
 
 // ── Completions ───────────────────────────────────────────────────────────────
-// NOTE: Completions command triggers clap's debug-mode assertion about duplicate
-// short flags (-a is both global and in signup). These tests only run in release mode.
 
 #[test]
-#[cfg(not(debug_assertions))]
 fn test_completions_bash() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
@@ -67,7 +64,6 @@ fn test_completions_bash() {
 }
 
 #[test]
-#[cfg(not(debug_assertions))]
 fn test_completions_zsh() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
@@ -80,7 +76,6 @@ fn test_completions_zsh() {
 }
 
 #[test]
-#[cfg(not(debug_assertions))]
 fn test_completions_fish() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
