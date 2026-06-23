@@ -262,6 +262,26 @@ description = "Full CI gate: lint + format:check + typecheck + test + test:cover
 depends = ["lint", "format:check", "typecheck", "test", "test:coverage"]
 
 # ───────────────────────────────────────────────
+# OpenSpec
+# ───────────────────────────────────────────────
+
+[tasks."openspec:new"]
+description = "Scaffold a new OpenSpec change proposal: mise run openspec:new -- <change-name>"
+run = "bunx openspec new change"
+
+[tasks."openspec:validate"]
+description = "Validate all active OpenSpec change proposals"
+run = "bunx openspec validate --changes"
+
+[tasks."openspec:apply"]
+description = "Apply an OpenSpec change (mark complete and update specs)"
+run = "bunx openspec archive"
+
+[tasks."openspec:archive"]
+description = "Archive a completed OpenSpec change"
+run = "bunx openspec archive"
+
+# ───────────────────────────────────────────────
 # Agents sync
 # ───────────────────────────────────────────────
 
