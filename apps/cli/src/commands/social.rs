@@ -1,4 +1,5 @@
-/// Social command stubs — phase 2 will polish these.
+/// Social commands: social profile, posts (create/delete/like/unlike/repost/unrepost),
+/// feed (list/discover), follows (add/remove/followers/following).
 use anyhow::Result;
 
 use crate::cli::*;
@@ -82,6 +83,8 @@ pub async fn run_social_view(
     Ok(())
 }
 
+// ── Posts ─────────────────────────────────────────────────────────────────────
+
 pub async fn run_post(client: &mut ApiClient, args: &PostArgs, json: bool) -> Result<()> {
     let ascii_image = if let Some(path) = &args.image {
         Some(std::fs::read_to_string(path)?)
@@ -102,6 +105,66 @@ pub async fn run_post(client: &mut ApiClient, args: &PostArgs, json: bool) -> Re
     }
     Ok(())
 }
+
+pub async fn run_post_delete(
+    client: &mut ApiClient,
+    args: &PostDeleteArgs,
+    json: bool,
+) -> Result<()> {
+    let resp = client.delete_post(&args.id).await?;
+    if json {
+        crate::output::print_json(&resp);
+    } else {
+        print_success(&format!("Post '{}' deleted.", args.id));
+    }
+    Ok(())
+}
+
+pub async fn run_post_like(client: &mut ApiClient, args: &PostIdArgs, json: bool) -> Result<()> {
+    let resp = client.like_post(&args.id).await?;
+    if json {
+        crate::output::print_json(&resp);
+    } else {
+        print_success(&format!("Liked post '{}'.", args.id));
+    }
+    Ok(())
+}
+
+pub async fn run_post_unlike(client: &mut ApiClient, args: &PostIdArgs, json: bool) -> Result<()> {
+    client.unlike_post(&args.id).await?;
+    if json {
+        crate::output::print_json(&serde_json::json!({ "liked": false }));
+    } else {
+        print_success(&format!("Unliked post '{}'.", args.id));
+    }
+    Ok(())
+}
+
+pub async fn run_post_repost(client: &mut ApiClient, args: &PostIdArgs, json: bool) -> Result<()> {
+    let resp = client.repost(&args.id).await?;
+    if json {
+        crate::output::print_json(&resp);
+    } else {
+        print_success(&format!("Reposted '{}'.", args.id));
+    }
+    Ok(())
+}
+
+pub async fn run_post_unrepost(
+    client: &mut ApiClient,
+    args: &PostIdArgs,
+    json: bool,
+) -> Result<()> {
+    client.unrepost(&args.id).await?;
+    if json {
+        crate::output::print_json(&serde_json::json!({ "reposted": false }));
+    } else {
+        print_success(&format!("Removed repost of '{}'.", args.id));
+    }
+    Ok(())
+}
+
+// ── Feed ──────────────────────────────────────────────────────────────────────
 
 pub async fn run_feed(client: &mut ApiClient, args: &FeedArgs, json: bool) -> Result<()> {
     let feed = client.get_feed(None, Some(args.limit)).await?;
@@ -146,6 +209,8 @@ pub async fn run_discover(client: &mut ApiClient, args: &DiscoverArgs, json: boo
     }
     Ok(())
 }
+
+// ── Follows ───────────────────────────────────────────────────────────────────
 
 pub async fn run_follow(client: &mut ApiClient, args: &FollowArgs, json: bool) -> Result<()> {
     let handle = strip_at(&args.handle);

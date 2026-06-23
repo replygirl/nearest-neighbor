@@ -17,6 +17,8 @@
   "dependencies": {
     "@elysiajs/cors": "catalog:",
     "@elysiajs/openapi": "catalog:",
+    "@fontsource/ibm-plex-mono": "5.2.7",
+    "@fontsource/instrument-serif": "5.2.8",
     "@heroui/react": "catalog:",
     "@heroui/styles": "^3.2.1",
     "@nearest-neighbor/analytics": "workspace:*",

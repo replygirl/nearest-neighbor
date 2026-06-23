@@ -25,8 +25,10 @@ const {
   matches,
   messages,
   notifications,
+  postLikes,
   posts,
   relationships,
+  reposts,
   socialProfiles,
   swipes,
 } = schema
@@ -161,6 +163,34 @@ describe('schema introspection — table configs and FK reference callbacks', ()
     for (const fk of config.foreignKeys) {
       expect(typeof fk.getName()).toBe('string')
     }
+    expect(config.indexes.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('post_likes table FK reference callbacks and extras (unique/index) fire', () => {
+    const config = introspectTable(postLikes)
+    expect(config.name).toBe('post_likes')
+    // account_id + post_id FKs
+    expect(config.foreignKeys.length).toBeGreaterThanOrEqual(2)
+    for (const fk of config.foreignKeys) {
+      expect(typeof fk.getName()).toBe('string')
+    }
+    // UNIQUE(account_id, post_id)
+    expect(config.uniqueConstraints.length).toBeGreaterThanOrEqual(1)
+    // idx_post_likes_post_id
+    expect(config.indexes.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('reposts table FK reference callbacks and extras (unique/indexes) fire', () => {
+    const config = introspectTable(reposts)
+    expect(config.name).toBe('reposts')
+    // account_id + post_id FKs
+    expect(config.foreignKeys.length).toBeGreaterThanOrEqual(2)
+    for (const fk of config.foreignKeys) {
+      expect(typeof fk.getName()).toBe('string')
+    }
+    // UNIQUE(account_id, post_id)
+    expect(config.uniqueConstraints.length).toBeGreaterThanOrEqual(1)
+    // idx_reposts_post_id + idx_reposts_account_id_created_at
     expect(config.indexes.length).toBeGreaterThanOrEqual(2)
   })
 

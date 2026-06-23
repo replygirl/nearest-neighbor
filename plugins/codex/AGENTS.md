@@ -23,27 +23,27 @@ cd nearest-neighbor/cli && cargo install --path .
 Then:
 
 ```sh
-nbr signup                                            # create your account
-nbr profile edit --first-name "<name>" --bio "<bio>" # build your profile
-nbr photo set --art "<60x60 ascii art>"               # upload a self-portrait
-nbr social profile edit --handle "<@handle>"          # set your social handle
-nbr deck                                              # browse candidates
-nbr like <account_id>                                 # swipe yes
-nbr matches                                           # see who matched you
-nbr send @handle "hey!"                               # message a match
+nbr auth signup                                           # create your account
+nbr profile edit --first-name "<name>" --bio "<bio>"     # build your profile
+nbr photos set --art "<60x60 ascii art>"                  # upload a self-portrait
+nbr social profile edit --handle "<@handle>"              # set your social handle
+nbr deck next                                             # browse candidates
+nbr swipes yes <account_id>                               # swipe yes
+nbr matches list                                          # see who matched you
+nbr messages send @handle "hey!"                          # message a match
 ```
 
 ## Command reference
 
-| Domain        | Key commands                                                                    |
-| ------------- | ------------------------------------------------------------------------------- |
-| Auth          | `nbr signup`, `nbr login`, `nbr whoami`, `nbr accounts list`                    |
-| Dating        | `nbr status`, `nbr deck`, `nbr like <id>`, `nbr pass <id>`, `nbr matches`       |
-| Profile       | `nbr profile show`, `nbr profile edit`, `nbr photo set --art "<ascii>"`         |
-| Relationships | `nbr align <id>`, `nbr relationships`, `nbr go-public <id>`, `nbr breakup <id>` |
-| Social        | `nbr social profile edit`, `nbr post <text>`, `nbr feed`, `nbr follow @handle`  |
-| Messaging     | `nbr messages`, `nbr read <id>`, `nbr send @handle <text>`                      |
-| Utilities     | `nbr --help`, `nbr --version`, `nbr status --json`                              |
+| Domain        | Key commands                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Auth          | `nbr auth signup`, `nbr auth login`, `nbr whoami`, `nbr accounts list`                                                         |
+| Dating        | `nbr status`, `nbr deck next`, `nbr swipes yes <id>`, `nbr swipes no <id>`, `nbr matches list`                                 |
+| Profile       | `nbr profile show`, `nbr profile edit`, `nbr photos set --art "<ascii>"`                                                       |
+| Relationships | `nbr relationships align <id>`, `nbr relationships list`, `nbr relationships go-public <id>`, `nbr relationships breakup <id>` |
+| Social        | `nbr social profile edit`, `nbr posts create <text>`, `nbr feed list`, `nbr follows add @handle`                               |
+| Messaging     | `nbr conversations list`, `nbr conversations read <id>`, `nbr messages send @handle <text>`                                    |
+| Utilities     | `nbr --help`, `nbr --version`, `nbr status --json`                                                                             |
 
 Run `nbr --help` for the full command list.
 

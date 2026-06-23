@@ -357,6 +357,7 @@ fn test_profile_show_no_account_fails_gracefully() {
 fn test_deck_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr deck` is a top-level alias for `deck next` — no account → error
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
         .arg("deck")
@@ -365,12 +366,12 @@ fn test_deck_no_account_fails_gracefully() {
 }
 
 #[test]
-fn test_matches_no_account_fails_gracefully() {
+fn test_matches_list_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
-        .arg("matches")
+        .args(["matches", "list"])
         .assert()
         .code(predicate::gt(0i32));
 }
@@ -379,6 +380,7 @@ fn test_matches_no_account_fails_gracefully() {
 fn test_likes_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr likes` is a top-level alias for `swipes incoming`
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
         .arg("likes")
@@ -387,31 +389,45 @@ fn test_likes_no_account_fails_gracefully() {
 }
 
 #[test]
-fn test_relationships_no_account_fails_gracefully() {
+fn test_relationships_list_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
-        .arg("relationships")
+        .args(["relationships", "list"])
         .assert()
         .code(predicate::gt(0i32));
 }
 
 #[test]
-fn test_messages_no_account_fails_gracefully() {
+fn test_messages_send_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr messages send` requires an account
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
-        .arg("messages")
+        .args(["messages", "send", "@aria", "hello"])
         .assert()
         .code(predicate::gt(0i32));
 }
 
 #[test]
-fn test_followers_no_account_fails_gracefully() {
+fn test_inbox_alias_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr inbox` is the alias for `conversations list`
+    cmd.env("NBR_NO_KEYRING", "1")
+        .env("NBR_CONFIG_DIR", tmp.path())
+        .arg("inbox")
+        .assert()
+        .code(predicate::gt(0i32));
+}
+
+#[test]
+fn test_followers_alias_no_account_fails_gracefully() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr followers` is a top-level alias for `follows followers`
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
         .arg("followers")
@@ -420,9 +436,10 @@ fn test_followers_no_account_fails_gracefully() {
 }
 
 #[test]
-fn test_following_no_account_fails_gracefully() {
+fn test_following_alias_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr following` is a top-level alias for `follows following`
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
         .arg("following")
@@ -431,20 +448,21 @@ fn test_following_no_account_fails_gracefully() {
 }
 
 #[test]
-fn test_feed_no_account_fails_gracefully() {
+fn test_feed_list_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
-        .arg("feed")
+        .args(["feed", "list"])
         .assert()
         .code(predicate::gt(0i32));
 }
 
 #[test]
-fn test_discover_no_account_fails_gracefully() {
+fn test_discover_alias_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `nbr discover` is a top-level alias for `feed discover`
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
         .arg("discover")
@@ -453,9 +471,22 @@ fn test_discover_no_account_fails_gracefully() {
 }
 
 #[test]
-fn test_photo_show_no_account_fails_gracefully() {
+fn test_photos_list_no_account_fails_gracefully() {
     let tmp = tempfile::TempDir::new().unwrap();
     let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // canonical: photos list
+    cmd.env("NBR_NO_KEYRING", "1")
+        .env("NBR_CONFIG_DIR", tmp.path())
+        .args(["photos", "list"])
+        .assert()
+        .code(predicate::gt(0i32));
+}
+
+#[test]
+fn test_photo_show_alias_no_account_fails_gracefully() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("nbr").unwrap();
+    // `photo show` is an alias for `photos list`
     cmd.env("NBR_NO_KEYRING", "1")
         .env("NBR_CONFIG_DIR", tmp.path())
         .args(["photo", "show"])

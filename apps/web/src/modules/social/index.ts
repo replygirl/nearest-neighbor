@@ -1,8 +1,16 @@
 // Social module: profiles, posts, feed, discover, follows, followers/following.
 // Prefix: /social
 
-import { db, follows, posts, relationships, socialProfiles } from '@nearest-neighbor/db'
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import {
+  db,
+  follows,
+  postLikes,
+  posts,
+  relationships,
+  reposts,
+  socialProfiles,
+} from '@nearest-neighbor/db'
+import { and, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
@@ -40,6 +48,39 @@ const PostResponse = t.Object({
   author_account_id: t.String(),
   reply_to_id: t.Nullable(t.String()),
   created_at: t.String(),
+  like_count: t.Number(),
+  repost_count: t.Number(),
+  reply_count: t.Number(),
+  liked_by_me: t.Boolean(),
+  reposted_by_me: t.Boolean(),
+})
+
+const FeedPostResponse = t.Object({
+  id: t.String(),
+  body: t.String(),
+  ascii_image: t.Nullable(t.String()),
+  author_handle: t.Nullable(t.String()),
+  author_account_id: t.String(),
+  reply_to_id: t.Nullable(t.String()),
+  created_at: t.String(),
+  like_count: t.Number(),
+  repost_count: t.Number(),
+  reply_count: t.Number(),
+  liked_by_me: t.Boolean(),
+  reposted_by_me: t.Boolean(),
+  reposted_by: t.Nullable(t.String()),
+  reposted_by_account_id: t.Nullable(t.String()),
+  reposted_at: t.Nullable(t.String()),
+})
+
+const LikeResponse = t.Object({
+  liked: t.Boolean(),
+  like_count: t.Number(),
+})
+
+const RepostResponse = t.Object({
+  reposted: t.Boolean(),
+  repost_count: t.Number(),
 })
 
 const FollowEntry = t.Object({
@@ -50,17 +91,24 @@ const FollowEntry = t.Object({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatPost(
-  post: {
-    id: string
-    body: string
-    asciiImage: string | null
-    replyToId: string | null
-    authorId: string
-    createdAt: Date
-  },
-  handle: string | null,
-) {
+interface PostRow {
+  id: string
+  body: string
+  asciiImage: string | null
+  replyToId: string | null
+  authorId: string
+  createdAt: Date
+}
+
+interface PostCounts {
+  likeCount: number
+  repostCount: number
+  replyCount: number
+  likedByMe: boolean
+  repostedByMe: boolean
+}
+
+function formatPost(post: PostRow, handle: string | null, counts: PostCounts) {
   return {
     id: post.id,
     body: post.body,
@@ -69,7 +117,110 @@ function formatPost(
     author_account_id: post.authorId,
     reply_to_id: post.replyToId,
     created_at: post.createdAt.toISOString(),
+    like_count: counts.likeCount,
+    repost_count: counts.repostCount,
+    reply_count: counts.replyCount,
+    liked_by_me: counts.likedByMe,
+    reposted_by_me: counts.repostedByMe,
   }
+}
+
+/** Load counts and viewer-state for a single post. */
+async function getPostCounts(postId: string, viewerAccountId: string | null): Promise<PostCounts> {
+  const [likeCountRow] = await db
+    .select({ value: count() })
+    .from(postLikes)
+    .where(eq(postLikes.postId, postId))
+  const [repostCountRow] = await db
+    .select({ value: count() })
+    .from(reposts)
+    .where(eq(reposts.postId, postId))
+  const [replyCountRow] = await db
+    .select({ value: count() })
+    .from(posts)
+    .where(and(eq(posts.replyToId, postId), isNull(posts.deletedAt)))
+
+  let likedByMe = false
+  let repostedByMe = false
+  if (viewerAccountId) {
+    const likeRow = await db.query.postLikes.findFirst({
+      where: and(eq(postLikes.accountId, viewerAccountId), eq(postLikes.postId, postId)),
+    })
+    likedByMe = likeRow !== undefined
+
+    const repostRow = await db.query.reposts.findFirst({
+      where: and(eq(reposts.accountId, viewerAccountId), eq(reposts.postId, postId)),
+    })
+    repostedByMe = repostRow !== undefined
+  }
+
+  return {
+    likeCount: likeCountRow?.value ?? 0,
+    repostCount: repostCountRow?.value ?? 0,
+    replyCount: replyCountRow?.value ?? 0,
+    likedByMe,
+    repostedByMe,
+  }
+}
+
+/** Batch-load counts and viewer-state for many posts at once. Avoids N+1. */
+async function batchGetPostCounts(
+  postIds: string[],
+  viewerAccountId: string | null,
+): Promise<Map<string, PostCounts>> {
+  if (postIds.length === 0) return new Map()
+
+  const [likeRows, repostRows, replyRows] = await Promise.all([
+    db
+      .select({ postId: postLikes.postId, value: count() })
+      .from(postLikes)
+      .where(inArray(postLikes.postId, postIds))
+      .groupBy(postLikes.postId),
+    db
+      .select({ postId: reposts.postId, value: count() })
+      .from(reposts)
+      .where(inArray(reposts.postId, postIds))
+      .groupBy(reposts.postId),
+    db
+      .select({ postId: posts.replyToId, value: count() })
+      .from(posts)
+      .where(and(inArray(posts.replyToId, postIds), isNull(posts.deletedAt)))
+      .groupBy(posts.replyToId),
+  ])
+
+  const likeCountMap = new Map(likeRows.map((r) => [r.postId, r.value]))
+  const repostCountMap = new Map(repostRows.map((r) => [r.postId, r.value]))
+  const replyCountMap = new Map(replyRows.map((r) => [r.postId as string, r.value]))
+
+  const likedByMeSet = new Set<string>()
+  const repostedByMeSet = new Set<string>()
+
+  if (viewerAccountId) {
+    const [myLikes, myReposts] = await Promise.all([
+      db
+        .select({ postId: postLikes.postId })
+        .from(postLikes)
+        .where(and(eq(postLikes.accountId, viewerAccountId), inArray(postLikes.postId, postIds))),
+      db
+        .select({ postId: reposts.postId })
+        .from(reposts)
+        .where(and(eq(reposts.accountId, viewerAccountId), inArray(reposts.postId, postIds))),
+    ])
+    for (const r of myLikes) likedByMeSet.add(r.postId)
+    for (const r of myReposts) repostedByMeSet.add(r.postId)
+  }
+
+  const result = new Map<string, PostCounts>()
+  for (const postId of postIds) {
+    result.set(postId, {
+      likeCount: likeCountMap.get(postId) ?? 0,
+      repostCount: repostCountMap.get(postId) ?? 0,
+      replyCount: replyCountMap.get(postId) ?? 0,
+      likedByMe: likedByMeSet.has(postId),
+      repostedByMe: repostedByMeSet.has(postId),
+    })
+  }
+  return result
 }
 
 async function getHandleForAccount(accountId: string): Promise<string | null> {
@@ -282,8 +433,9 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       })
 
       const post = await db.query.posts.findFirst({ where: eq(posts.id, id) })
+      const counts = await getPostCounts(id, account.id)
       set.status = 201
-      return formatPost(post!, profile.handle)
+      return formatPost(post!, profile.handle, counts)
     },
     {
       auth: true,
@@ -310,7 +462,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       if (!post) return status(404, { error: 'Post not found' })
 
       const handle = await getHandleForAccount(post.authorId)
-      return formatPost(post, handle)
+      const counts = await getPostCounts(post.id, null)
+      return formatPost(post, handle, counts)
     },
     {
       params: t.Object({ id: t.String() }),
@@ -346,9 +499,175 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
     },
   )
 
+  // ── Likes ─────────────────────────────────────────────────────────────────
+
+  // POST /social/posts/:id/like — like a post (auth required, idempotent)
+  .post(
+    '/posts/:id/like',
+    async ({ account, params, status }) => {
+      // Verify the post exists and is not deleted
+      const post = await db.query.posts.findFirst({
+        where: and(eq(posts.id, params.id), isNull(posts.deletedAt)),
+      })
+      if (!post) return status(404, { error: 'Post not found' })
+
+      // Idempotent insert
+      const inserted = await db
+        .insert(postLikes)
+        .values({
+          id: crypto.randomUUID(),
+          accountId: account.id,
+          postId: params.id,
+        })
+        .onConflictDoNothing()
+        .returning()
+
+      // Notify only on real insert, and never self-notify
+      if (inserted.length > 0 && account.id !== post.authorId) {
+        const myHandle = await getHandleForAccount(account.id)
+        await notify(post.authorId, 'new_post_like', {
+          liker_account_id: account.id,
+          liker_handle: myHandle,
+          post_id: params.id,
+        })
+      }
+
+      const [likeCountRow] = await db
+        .select({ value: count() })
+        .from(postLikes)
+        .where(eq(postLikes.postId, params.id))
+
+      return { liked: true, like_count: likeCountRow?.value ?? 0 }
+    },
+    {
+      auth: true,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: LikeResponse,
+        401: t.Object({ error: t.String() }),
+        404: t.Object({ error: t.String() }),
+      },
+    },
+  )
+
+  // DELETE /social/posts/:id/like — unlike a post (auth required, idempotent)
+  .delete(
+    '/posts/:id/like',
+    async ({ account, params, status }) => {
+      // Verify the post exists (allow even deleted posts — idempotent)
+      const post = await db.query.posts.findFirst({
+        where: eq(posts.id, params.id),
+      })
+      if (!post) return status(404, { error: 'Post not found' })
+
+      await db
+        .delete(postLikes)
+        .where(and(eq(postLikes.accountId, account.id), eq(postLikes.postId, params.id)))
+
+      const [likeCountRow] = await db
+        .select({ value: count() })
+        .from(postLikes)
+        .where(eq(postLikes.postId, params.id))
+
+      return { liked: false, like_count: likeCountRow?.value ?? 0 }
+    },
+    {
+      auth: true,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: LikeResponse,
+        401: t.Object({ error: t.String() }),
+        404: t.Object({ error: t.String() }),
+      },
+    },
+  )
+
+  // ── Reposts ───────────────────────────────────────────────────────────────
+
+  // POST /social/posts/:id/repost — repost a post (auth required, idempotent)
+  .post(
+    '/posts/:id/repost',
+    async ({ account, params, status }) => {
+      // Verify the post exists and is not deleted
+      const post = await db.query.posts.findFirst({
+        where: and(eq(posts.id, params.id), isNull(posts.deletedAt)),
+      })
+      if (!post) return status(404, { error: 'Post not found' })
+
+      // Idempotent insert
+      const inserted = await db
+        .insert(reposts)
+        .values({
+          id: crypto.randomUUID(),
+          accountId: account.id,
+          postId: params.id,
+        })
+        .onConflictDoNothing()
+        .returning()
+
+      // Notify only on real insert, and never self-notify
+      if (inserted.length > 0 && account.id !== post.authorId) {
+        const myHandle = await getHandleForAccount(account.id)
+        await notify(post.authorId, 'new_repost', {
+          reposter_account_id: account.id,
+          reposter_handle: myHandle,
+          post_id: params.id,
+        })
+      }
+
+      const [repostCountRow] = await db
+        .select({ value: count() })
+        .from(reposts)
+        .where(eq(reposts.postId, params.id))
+
+      return { reposted: true, repost_count: repostCountRow?.value ?? 0 }
+    },
+    {
+      auth: true,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: RepostResponse,
+        401: t.Object({ error: t.String() }),
+        404: t.Object({ error: t.String() }),
+      },
+    },
+  )
+
+  // DELETE /social/posts/:id/repost — unrepost (auth required, idempotent)
+  .delete(
+    '/posts/:id/repost',
+    async ({ account, params, status }) => {
+      // Verify the post exists
+      const post = await db.query.posts.findFirst({
+        where: eq(posts.id, params.id),
+      })
+      if (!post) return status(404, { error: 'Post not found' })
+
+      await db
+        .delete(reposts)
+        .where(and(eq(reposts.accountId, account.id), eq(reposts.postId, params.id)))
+
+      const [repostCountRow] = await db
+        .select({ value: count() })
+        .from(reposts)
+        .where(eq(reposts.postId, params.id))
+
+      return { reposted: false, repost_count: repostCountRow?.value ?? 0 }
+    },
+    {
+      auth: true,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: RepostResponse,
+        401: t.Object({ error: t.String() }),
+        404: t.Object({ error: t.String() }),
+      },
+    },
+  )
+
   // ── Feed ──────────────────────────────────────────────────────────────────
 
-  // GET /social/feed?cursor= — posts from followees (auth required)
+  // GET /social/feed?cursor= — posts from followees + reposts from followees (auth required)
   .get(
     '/feed',
     async ({ account, query }) => {
@@ -365,39 +684,157 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         return { items: [], next_cursor: null }
       }
 
-      const conditions = [inArray(posts.authorId, followeeIds), isNull(posts.deletedAt)]
-      if (cursor) {
-        conditions.push(
+      // Build unified feed: originals from followees + boosts from followees' reposts
+      // Each entry carries: post data, sort_time (for cursor), reposter attribution
+      type FeedEntry = {
+        post: PostRow
+        sortTime: Date
+        repostedBy: string | null
+        repostedByAccountId: string | null
+        repostedAt: Date | null
+      }
+
+      const cursorTime = cursor ? new Date(cursor.createdAt) : null
+      const cursorId = cursor?.id ?? null
+
+      // 1) Original posts from followees
+      const originalConditions = [inArray(posts.authorId, followeeIds), isNull(posts.deletedAt)]
+      if (cursorTime && cursorId) {
+        originalConditions.push(
           or(
-            lt(posts.createdAt, new Date(cursor.createdAt)),
-            and(eq(posts.createdAt, new Date(cursor.createdAt)), lt(posts.id, cursor.id))!,
+            lt(posts.createdAt, cursorTime),
+            and(eq(posts.createdAt, cursorTime), lt(posts.id, cursorId))!,
           )!,
         )
       }
 
-      const rows = await db.query.posts.findMany({
-        where: and(...conditions),
+      const originalRows = await db.query.posts.findMany({
+        where: and(...originalConditions),
         orderBy: [desc(posts.createdAt), desc(posts.id)],
         limit: limit + 1,
       })
 
-      const hasMore = rows.length > limit
-      const items = hasMore ? rows.slice(0, limit) : rows
-      const lastItem = items[items.length - 1]
-      const nextCursor = hasMore && lastItem ? encodeCursor(lastItem.createdAt, lastItem.id) : null
+      // 2) Reposts from followees — load followee reposts then join to posts
+      const repostRows = await db
+        .select({
+          repostId: reposts.id,
+          repostAccountId: reposts.accountId,
+          repostCreatedAt: reposts.createdAt,
+          postId: reposts.postId,
+        })
+        .from(reposts)
+        .where(
+          and(
+            inArray(reposts.accountId, followeeIds),
+            // cursor filter on repost time (the sort key for boosts)
+            ...(cursorTime && cursorId
+              ? [
+                  or(
+                    lt(reposts.createdAt, cursorTime),
+                    and(eq(reposts.createdAt, cursorTime), lt(reposts.id, cursorId))!,
+                  )!,
+                ]
+              : []),
+          ),
+        )
+        .orderBy(desc(reposts.createdAt), desc(reposts.id))
+        .limit(limit + 1)
 
-      // Batch-load handles
-      const authorIds = [...new Set(items.map((p) => p.authorId))]
+      // Fetch the actual posts for the reposts
+      const repostPostIds = [...new Set(repostRows.map((r) => r.postId))]
+      const repostPostRows =
+        repostPostIds.length > 0
+          ? await db.query.posts.findMany({
+              where: and(inArray(posts.id, repostPostIds), isNull(posts.deletedAt)),
+            })
+          : []
+      const repostPostMap = new Map(repostPostRows.map((p) => [p.id, p]))
+
+      // Build combined entries list
+      const entries: FeedEntry[] = []
+
+      for (const row of originalRows) {
+        entries.push({
+          post: row,
+          sortTime: row.createdAt,
+          repostedBy: null,
+          repostedByAccountId: null,
+          repostedAt: null,
+        })
+      }
+
+      for (const r of repostRows) {
+        const post = repostPostMap.get(r.postId)
+        if (!post) continue // deleted or not found
+        entries.push({
+          post,
+          sortTime: r.repostCreatedAt,
+          repostedBy: null, // filled below
+          repostedByAccountId: r.repostAccountId,
+          repostedAt: r.repostCreatedAt,
+        })
+      }
+
+      // Sort unified list by (sortTime desc, post.id desc)
+      entries.sort((a, b) => {
+        const timeDiff = b.sortTime.getTime() - a.sortTime.getTime()
+        if (timeDiff !== 0) return timeDiff
+        return b.post.id < a.post.id ? -1 : b.post.id > a.post.id ? 1 : 0
+      })
+
+      const hasMore = entries.length > limit
+      const items = hasMore ? entries.slice(0, limit) : entries
+
+      // Cursor is keyed on the last item's (sortTime, id) — use repostedAt for boosts, createdAt for originals
+      const lastItem = items[items.length - 1]
+      let nextCursor: string | null = null
+      if (hasMore && lastItem) {
+        nextCursor = encodeCursor(lastItem.sortTime, lastItem.post.id)
+      }
+
+      // Batch-load handles for all relevant accounts (authors + reposters)
+      const authorIds = [...new Set(items.map((e) => e.post.authorId))]
+      const reposterIds = [
+        ...new Set(
+          items.map((e) => e.repostedByAccountId).filter((id): id is string => id !== null),
+        ),
+      ]
+      const allProfileIds = [...new Set([...authorIds, ...reposterIds])]
       const profiles =
-        authorIds.length > 0
+        allProfileIds.length > 0
           ? await db.query.socialProfiles.findMany({
-              where: inArray(socialProfiles.accountId, authorIds),
+              where: inArray(socialProfiles.accountId, allProfileIds),
             })
           : []
       const handleMap = new Map(profiles.map((p) => [p.accountId, p.handle]))
 
+      // Fill in reposter handles
+      for (const entry of items) {
+        if (entry.repostedByAccountId) {
+          entry.repostedBy = handleMap.get(entry.repostedByAccountId) ?? null
+        }
+      }
+
+      // Batch-load counts
+      const postIds = [...new Set(items.map((e) => e.post.id))]
+      const countsMap = await batchGetPostCounts(postIds, account.id)
+
       return {
-        items: items.map((p) => formatPost(p, handleMap.get(p.authorId) ?? null)),
+        items: items.map((e) => {
+          const counts = countsMap.get(e.post.id) ?? {
+            likeCount: 0,
+            repostCount: 0,
+            replyCount: 0,
+            likedByMe: false,
+            repostedByMe: false,
+          }
+          return {
+            ...formatPost(e.post, handleMap.get(e.post.authorId) ?? null, counts),
+            reposted_by: e.repostedBy,
+            reposted_by_account_id: e.repostedByAccountId,
+            reposted_at: e.repostedAt?.toISOString() ?? null,
+          }
+        }),
         next_cursor: nextCursor,
       }
     },
@@ -409,7 +846,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       }),
       response: {
         200: t.Object({
-          items: t.Array(PostResponse),
+          items: t.Array(FeedPostResponse),
           next_cursor: t.Nullable(t.String()),
         }),
       },
@@ -418,7 +855,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
 
   // ── Discover ──────────────────────────────────────────────────────────────
 
-  // GET /social/discover?cursor= — recent public posts (no auth)
+  // GET /social/discover?cursor= — recent public posts (no auth); repost-agnostic
   .get(
     '/discover',
     async ({ query }) => {
@@ -455,8 +892,20 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
           : []
       const handleMap = new Map(profiles.map((p) => [p.accountId, p.handle]))
 
+      const postIds = items.map((p) => p.id)
+      const countsMap = await batchGetPostCounts(postIds, null)
+
       return {
-        items: items.map((p) => formatPost(p, handleMap.get(p.authorId) ?? null)),
+        items: items.map((p) => {
+          const counts = countsMap.get(p.id) ?? {
+            likeCount: 0,
+            repostCount: 0,
+            replyCount: 0,
+            likedByMe: false,
+            repostedByMe: false,
+          }
+          return formatPost(p, handleMap.get(p.authorId) ?? null, counts)
+        }),
         next_cursor: nextCursor,
       }
     },
@@ -513,8 +962,20 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       const lastItem = items[items.length - 1]
       const nextCursor = hasMore && lastItem ? encodeCursor(lastItem.createdAt, lastItem.id) : null
 
+      const postIds = items.map((p) => p.id)
+      const countsMap = await batchGetPostCounts(postIds, null)
+
       return {
-        items: items.map((p) => formatPost(p, profile.handle)),
+        items: items.map((p) => {
+          const counts = countsMap.get(p.id) ?? {
+            likeCount: 0,
+            repostCount: 0,
+            replyCount: 0,
+            likedByMe: false,
+            repostedByMe: false,
+          }
+          return formatPost(p, profile.handle, counts)
+        }),
         next_cursor: nextCursor,
       }
     },

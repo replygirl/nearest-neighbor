@@ -17,7 +17,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { PGlite } from '@electric-sql/pglite'
-import { eq, isNotNull, isNull } from 'drizzle-orm'
+import { eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 
 import { withSoftDelete } from './_helpers.ts'
@@ -33,8 +33,10 @@ const {
   matches,
   messages,
   notifications,
+  postLikes,
   posts,
   relationships,
+  reposts,
   socialProfiles,
   swipes,
 } = schema
@@ -787,6 +789,8 @@ describe('notifications table', () => {
       'relationship_public',
       'breakup',
       'unmatch',
+      'new_post_like',
+      'new_repost',
     ] as const
 
     await db.insert(notifications).values(
@@ -894,6 +898,140 @@ describe('posts table', () => {
     const ids = livePosts.map((p) => p.id)
     expect(ids).toContain(liveId)
     expect(ids).not.toContain(deadId)
+  })
+})
+
+// ─── post_likes ───────────────────────────────────────────────────────────────
+
+describe('post_likes table', () => {
+  test('insert a like and retrieve it', async () => {
+    const authorId = await insertAccount()
+    const likerId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'likeable post' })
+
+    const likeId = crypto.randomUUID()
+    await db.insert(postLikes).values({ id: likeId, accountId: likerId, postId })
+    const [row] = await db.select().from(postLikes).where(eq(postLikes.id, likeId))
+    expect(row!.accountId).toBe(likerId)
+    expect(row!.postId).toBe(postId)
+    expect(row!.createdAt).not.toBeNull()
+  })
+
+  test('duplicate (account_id, post_id) violates unique constraint', async () => {
+    const authorId = await insertAccount()
+    const likerId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'double like post' })
+
+    await db.insert(postLikes).values({ id: crypto.randomUUID(), accountId: likerId, postId })
+    let threw = false
+    try {
+      await db.insert(postLikes).values({ id: crypto.randomUUID(), accountId: likerId, postId })
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  test('cascade on post deletion removes likes', async () => {
+    const authorId = await insertAccount()
+    const likerId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'cascade post' })
+    const likeId = crypto.randomUUID()
+    await db.insert(postLikes).values({ id: likeId, accountId: likerId, postId })
+
+    // Hard delete the post (cascade should remove the like)
+    await db.delete(posts).where(eq(posts.id, postId))
+    const rows = await db.select().from(postLikes).where(eq(postLikes.id, likeId))
+    expect(rows.length).toBe(0)
+  })
+
+  test('cascade on account deletion removes likes', async () => {
+    const authorId = await insertAccount()
+    const likerId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'account cascade post' })
+    const likeId = crypto.randomUUID()
+    await db.insert(postLikes).values({ id: likeId, accountId: likerId, postId })
+
+    // Hard delete the liker account
+    await db.delete(accounts).where(eq(accounts.id, likerId))
+    const rows = await db.select().from(postLikes).where(eq(postLikes.id, likeId))
+    expect(rows.length).toBe(0)
+  })
+})
+
+// ─── reposts ──────────────────────────────────────────────────────────────────
+
+describe('reposts table', () => {
+  test('insert a repost and retrieve it', async () => {
+    const authorId = await insertAccount()
+    const reposterId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'repostable post' })
+
+    const repostId = crypto.randomUUID()
+    await db.insert(reposts).values({ id: repostId, accountId: reposterId, postId })
+    const [row] = await db.select().from(reposts).where(eq(reposts.id, repostId))
+    expect(row!.accountId).toBe(reposterId)
+    expect(row!.postId).toBe(postId)
+    expect(row!.createdAt).not.toBeNull()
+  })
+
+  test('duplicate (account_id, post_id) violates unique constraint', async () => {
+    const authorId = await insertAccount()
+    const reposterId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'double repost post' })
+
+    await db.insert(reposts).values({ id: crypto.randomUUID(), accountId: reposterId, postId })
+    let threw = false
+    try {
+      await db.insert(reposts).values({ id: crypto.randomUUID(), accountId: reposterId, postId })
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  test('cascade on post or account deletion removes reposts', async () => {
+    const authorId = await insertAccount()
+    const reposterId = await insertAccount()
+    const postId = crypto.randomUUID()
+    await db.insert(posts).values({ id: postId, authorId, body: 'cascade repost post' })
+    const repostId = crypto.randomUUID()
+    await db.insert(reposts).values({ id: repostId, accountId: reposterId, postId })
+
+    // Hard delete the post
+    await db.delete(posts).where(eq(posts.id, postId))
+    const rows = await db.select().from(reposts).where(eq(reposts.id, repostId))
+    expect(rows.length).toBe(0)
+  })
+})
+
+// ─── notification_type new values ─────────────────────────────────────────────
+
+describe('notification_type enum new values', () => {
+  test('new_post_like and new_repost are valid notification types', async () => {
+    const accountId = await insertAccount()
+
+    const likeNotifId = crypto.randomUUID()
+    const repostNotifId = crypto.randomUUID()
+    await db.insert(notifications).values([
+      { id: likeNotifId, accountId, type: 'new_post_like', payload: { post_id: 'test' } },
+      { id: repostNotifId, accountId, type: 'new_repost', payload: { post_id: 'test' } },
+    ])
+
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(inArray(notifications.id, [likeNotifId, repostNotifId]))
+    expect(rows.length).toBe(2)
+    const types = rows.map((r) => r.type)
+    expect(types).toContain('new_post_like')
+    expect(types).toContain('new_repost')
   })
 })
 

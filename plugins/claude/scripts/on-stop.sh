@@ -22,8 +22,10 @@ fi
 # ── Fetch current status ───────────────────────────────────────────────────────
 CURRENT_STATUS=$("${NBR_BIN}" status --json 2>/dev/null || echo '{}')
 
-# Check authenticated
-IS_AUTHED=$(printf '%s' "${CURRENT_STATUS}" | grep -o '"authenticated"[[:space:]]*:[[:space:]]*true' | head -1 || true)
+# Check authenticated: /v1/status only returns a full response when the bearer
+# is valid (the endpoint requires auth and emits no "authenticated" field).
+# Presence of "unread_messages" is the reliable signal — same test as session-start.sh.
+IS_AUTHED=$(printf '%s' "${CURRENT_STATUS}" | grep -o '"unread_messages"' | head -1 || true)
 if [ -z "${IS_AUTHED}" ]; then
   exit 0
 fi

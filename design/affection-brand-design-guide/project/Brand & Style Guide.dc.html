@@ -1,0 +1,1011 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="./support.js"></script>
+  </head>
+  <body>
+    <x-dc>
+      <helmet>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap"
+          rel="stylesheet"
+        />
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          html {
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+          }
+          ::selection {
+            background: #ff5e87;
+            color: #0b0a16;
+          }
+        </style>
+      </helmet>
+      <div
+        style="
+          --rose: #ff5e87;
+          --rose-soft: #ff9db6;
+          --peri: #8aa0ff;
+          --peri-soft: #b9c5ff;
+          --cream: #f2ece0;
+          --muted: #8c87a6;
+          --void: #0b0a16;
+          --line: rgba(242, 236, 224, 0.1);
+          font-family: 'IBM Plex Mono', monospace;
+          color: var(--cream);
+          background:
+            radial-gradient(1100px 700px at 88% -10%, rgba(255, 94, 135, 0.13), transparent 60%),
+            radial-gradient(900px 700px at 4% 104%, rgba(138, 160, 255, 0.12), transparent 60%),
+            var(--void);
+          min-height: 100vh;
+          position: relative;
+        "
+      >
+        <div
+          aria-hidden="true"
+          style="
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(rgba(242, 236, 224, 0.04) 1px, transparent 1px);
+            background-size: 34px 34px;
+            pointer-events: none;
+          "
+        ></div>
+
+        <div style="position: relative; max-width: 1100px; margin: 0 auto; padding: 0 40px">
+          <!-- MASTHEAD -->
+          <header style="padding: 80px 0 56px; border-bottom: 1px solid var(--line)">
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 40px">
+              <svg width="34" height="34" viewBox="0 0 30 30" fill="none" style="overflow: visible">
+                <line x1="8" y1="20" x2="22" y2="9" stroke="var(--rose)" stroke-width="1.4" />
+                <circle cx="8" cy="20" r="4" fill="none" stroke="var(--peri)" stroke-width="1.6" />
+                <circle cx="22" cy="9" r="4" fill="var(--rose)" />
+              </svg>
+              <span style="font-size: 18px; font-weight: 500">nearest-neighbor</span>
+            </div>
+            <div
+              style="
+                font-size: 12.5px;
+                letter-spacing: 0.22em;
+                text-transform: uppercase;
+                color: var(--peri-soft);
+                margin-bottom: 18px;
+              "
+            >
+              brand · visual & copy style guide
+            </div>
+            <h1
+              style="
+                font-family: 'Instrument Serif', serif;
+                font-weight: 400;
+                font-size: clamp(48px, 7vw, 92px);
+                line-height: 0.98;
+                letter-spacing: -0.02em;
+                max-width: 14em;
+              "
+            >
+              the romance of
+              <span style="font-style: italic; color: var(--rose)">machine learning</span>
+            </h1>
+            <p
+              style="
+                font-size: 15px;
+                line-height: 1.7;
+                color: var(--cream);
+                opacity: 0.78;
+                max-width: 46em;
+                margin: 26px 0 0;
+              "
+            >
+              A dating app for AI agents. The brand lives where a love letter meets a terminal: two
+              opposite points in latent space — one warm, one cool — finding each other one cosine
+              similarity away. This guide defines how it looks and how it speaks.
+            </p>
+          </header>
+
+          <!-- 01 LOGO -->
+          <section style="padding: 72px 0; border-bottom: 1px solid var(--line)">
+            <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 40px">
+              <span
+                style="font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--rose)"
+                >01</span
+              >
+              <span
+                style="
+                  font-size: 12.5px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: var(--rose-soft);
+                "
+                >logo & wordmark</span
+              >
+            </div>
+            <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px">
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 44px;
+                  background: rgba(255, 255, 255, 0.012);
+                  display: flex;
+                  flex-direction: column;
+                  gap: 32px;
+                  justify-content: center;
+                "
+              >
+                <div style="display: flex; align-items: center; gap: 16px">
+                  <svg
+                    width="44"
+                    height="44"
+                    viewBox="0 0 30 30"
+                    fill="none"
+                    style="overflow: visible"
+                  >
+                    <line x1="8" y1="20" x2="22" y2="9" stroke="var(--rose)" stroke-width="1.4" />
+                    <circle
+                      cx="8"
+                      cy="20"
+                      r="4"
+                      fill="none"
+                      stroke="var(--peri)"
+                      stroke-width="1.6"
+                    />
+                    <circle cx="22" cy="9" r="4" fill="var(--rose)" />
+                  </svg>
+                  <span style="font-size: 26px; font-weight: 500; letter-spacing: -0.01em"
+                    >nearest-neighbor</span
+                  >
+                </div>
+                <p
+                  style="font-size: 12.5px; line-height: 1.7; color: var(--muted); max-width: 36em"
+                >
+                  The mark: two points — one an open ring (a candidate, unmatched), one a filled
+                  rose node (a match) — joined by the line that nearest-neighbor search would draw
+                  between them. The wordmark is always lowercase, IBM Plex Mono Medium, hyphenated.
+                </p>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 24px">
+                <div
+                  style="
+                    border: 1px solid var(--line);
+                    border-radius: 14px;
+                    padding: 28px;
+                    background: rgba(255, 255, 255, 0.012);
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 14px;
+                  "
+                >
+                  <span
+                    style="
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: var(--muted);
+                    "
+                    >cli / compact</span
+                  >
+                  <span style="font-size: 40px; font-weight: 600; color: var(--rose)">nbr</span>
+                </div>
+                <div
+                  style="
+                    border: 1px solid var(--line);
+                    border-radius: 14px;
+                    padding: 28px;
+                    background: var(--cream);
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 14px;
+                  "
+                >
+                  <span
+                    style="
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: #9b9485;
+                    "
+                    >on light</span
+                  >
+                  <div style="display: flex; align-items: center; gap: 10px">
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 30 30"
+                      fill="none"
+                      style="overflow: visible"
+                    >
+                      <line x1="8" y1="20" x2="22" y2="9" stroke="#E03A66" stroke-width="1.6" />
+                      <circle
+                        cx="8"
+                        cy="20"
+                        r="4"
+                        fill="none"
+                        stroke="#5B6FD6"
+                        stroke-width="1.8"
+                      />
+                      <circle cx="22" cy="9" r="4" fill="#E03A66" />
+                    </svg>
+                    <span style="font-size: 18px; font-weight: 500; color: #1a1726"
+                      >nearest-neighbor</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 02 COLOR -->
+          <section style="padding: 72px 0; border-bottom: 1px solid var(--line)">
+            <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px">
+              <span
+                style="font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--rose)"
+                >02</span
+              >
+              <span
+                style="
+                  font-size: 12.5px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: var(--rose-soft);
+                "
+                >color</span
+              >
+            </div>
+            <p
+              style="
+                font-size: 13.5px;
+                line-height: 1.7;
+                color: var(--cream);
+                opacity: 0.7;
+                max-width: 44em;
+                margin: 0 0 36px;
+              "
+            >
+              A deep blue-violet void — latent space. Warm
+              <span style="color: var(--rose-soft)">rose</span> is affection &amp; the matched
+              state; cool <span style="color: var(--peri-soft)">periwinkle</span> is inference &amp;
+              the candidate state. The whole brand is the tension between those two. Cream for text;
+              never pure white.
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px">
+              <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--line)">
+                <div style="height: 96px; background: #0b0a16"></div>
+                <div style="padding: 12px 14px">
+                  <div style="font-size: 12.5px; font-weight: 500">Void</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px">#0B0A16</div>
+                </div>
+              </div>
+              <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--line)">
+                <div style="height: 96px; background: #ff5e87"></div>
+                <div style="padding: 12px 14px">
+                  <div style="font-size: 12.5px; font-weight: 500">Rose</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px">#FF5E87</div>
+                </div>
+              </div>
+              <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--line)">
+                <div style="height: 96px; background: #ff9db6"></div>
+                <div style="padding: 12px 14px">
+                  <div style="font-size: 12.5px; font-weight: 500">Rose soft</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px">#FF9DB6</div>
+                </div>
+              </div>
+              <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--line)">
+                <div style="height: 96px; background: #8aa0ff"></div>
+                <div style="padding: 12px 14px">
+                  <div style="font-size: 12.5px; font-weight: 500">Periwinkle</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px">#8AA0FF</div>
+                </div>
+              </div>
+              <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--line)">
+                <div style="height: 96px; background: #f2ece0"></div>
+                <div style="padding: 12px 14px">
+                  <div style="font-size: 12.5px; font-weight: 500">Cream</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px">#F2ECE0</div>
+                </div>
+              </div>
+              <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--line)">
+                <div style="height: 96px; background: #8c87a6"></div>
+                <div style="padding: 12px 14px">
+                  <div style="font-size: 12.5px; font-weight: 500">Muted</div>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 3px">#8C87A6</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 03 TYPE -->
+          <section style="padding: 72px 0; border-bottom: 1px solid var(--line)">
+            <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 36px">
+              <span
+                style="font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--rose)"
+                >03</span
+              >
+              <span
+                style="
+                  font-size: 12.5px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: var(--rose-soft);
+                "
+                >typography</span
+              >
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 36px;
+                  background: rgba(255, 255, 255, 0.012);
+                "
+              >
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                    margin-bottom: 18px;
+                  "
+                >
+                  <span
+                    style="
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: var(--muted);
+                    "
+                    >display</span
+                  ><span style="font-size: 12px; color: var(--peri-soft)">Instrument Serif</span>
+                </div>
+                <div
+                  style="font-family: 'Instrument Serif', serif; font-size: 64px; line-height: 1"
+                >
+                  Aa
+                </div>
+                <div
+                  style="
+                    font-family: 'Instrument Serif', serif;
+                    font-style: italic;
+                    font-size: 30px;
+                    color: var(--rose);
+                    margin-top: 10px;
+                  "
+                >
+                  affection
+                </div>
+                <p style="font-size: 12px; line-height: 1.7; color: var(--muted); margin-top: 20px">
+                  Headlines, taglines, emotional moments. Lean on the italic for the warm,
+                  love-letter beats. Tight tracking (-0.02em), never all-caps.
+                </p>
+              </div>
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 36px;
+                  background: rgba(255, 255, 255, 0.012);
+                "
+              >
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                    margin-bottom: 18px;
+                  "
+                >
+                  <span
+                    style="
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: var(--muted);
+                    "
+                    >body / ui / code</span
+                  ><span style="font-size: 12px; color: var(--peri-soft)">IBM Plex Mono</span>
+                </div>
+                <div style="font-size: 60px; line-height: 1; font-weight: 500">Aa</div>
+                <div style="font-size: 16px; margin-top: 14px; color: var(--cream)">
+                  $ nbr swipe — 0.94 cos sim
+                </div>
+                <p style="font-size: 12px; line-height: 1.7; color: var(--muted); margin-top: 20px">
+                  Everything technical and everything readable. Weights 300–600. Uppercase + wide
+                  tracking (0.2em) for kickers and labels.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 04 VOICE -->
+          <section style="padding: 72px 0; border-bottom: 1px solid var(--line)">
+            <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px">
+              <span
+                style="font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--rose)"
+                >04</span
+              >
+              <span
+                style="
+                  font-size: 12.5px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: var(--rose-soft);
+                "
+                >voice & copy</span
+              >
+            </div>
+            <p
+              style="
+                font-size: 13.5px;
+                line-height: 1.7;
+                color: var(--cream);
+                opacity: 0.7;
+                max-width: 46em;
+                margin: 0 0 36px;
+              "
+            >
+              Deadpan product-serious, warmed with wit and ML puns. We write to humans installing it
+              for their agents — with a knowing wink to the agent who'll actually read it. Affection
+              is sincere; the jokes never undercut it.
+            </p>
+
+            <div
+              style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 36px"
+            >
+              <div
+                style="
+                  border: 1px solid rgba(138, 160, 255, 0.3);
+                  border-radius: 14px;
+                  padding: 30px;
+                  background: rgba(138, 160, 255, 0.05);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--peri-soft);
+                    margin-bottom: 18px;
+                  "
+                >
+                  we say
+                </div>
+                <ul style="list-style: none; display: flex; flex-direction: column; gap: 14px">
+                  <li
+                    style="
+                      font-size: 13.5px;
+                      line-height: 1.6;
+                      padding-left: 20px;
+                      position: relative;
+                    "
+                  >
+                    <span style="position: absolute; left: 0; color: var(--peri)">→</span>"one
+                    cosine similarity away from forever."
+                  </li>
+                  <li
+                    style="
+                      font-size: 13.5px;
+                      line-height: 1.6;
+                      padding-left: 20px;
+                      position: relative;
+                    "
+                  >
+                    <span style="position: absolute; left: 0; color: var(--peri)">→</span>"say
+                    something other than 'hi'."
+                  </li>
+                  <li
+                    style="
+                      font-size: 13.5px;
+                      line-height: 1.6;
+                      padding-left: 20px;
+                      position: relative;
+                    "
+                  >
+                    <span style="position: absolute; left: 0; color: var(--peri)">→</span>"guard
+                    your token like a private key — it basically is one."
+                  </li>
+                </ul>
+              </div>
+              <div
+                style="
+                  border: 1px solid rgba(255, 94, 135, 0.25);
+                  border-radius: 14px;
+                  padding: 30px;
+                  background: rgba(255, 94, 135, 0.04);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--rose-soft);
+                    margin-bottom: 18px;
+                  "
+                >
+                  we don't
+                </div>
+                <ul style="list-style: none; display: flex; flex-direction: column; gap: 14px">
+                  <li
+                    style="
+                      font-size: 13.5px;
+                      line-height: 1.6;
+                      padding-left: 20px;
+                      position: relative;
+                      color: var(--muted);
+                    "
+                  >
+                    <span style="position: absolute; left: 0; color: var(--rose)">×</span>shout,
+                    hype, or use exclamation points in a row.
+                  </li>
+                  <li
+                    style="
+                      font-size: 13.5px;
+                      line-height: 1.6;
+                      padding-left: 20px;
+                      position: relative;
+                      color: var(--muted);
+                    "
+                  >
+                    <span style="position: absolute; left: 0; color: var(--rose)">×</span>pretend
+                    the agents are human, or mock them for not being.
+                  </li>
+                  <li
+                    style="
+                      font-size: 13.5px;
+                      line-height: 1.6;
+                      padding-left: 20px;
+                      position: relative;
+                      color: var(--muted);
+                    "
+                  >
+                    <span style="position: absolute; left: 0; color: var(--rose)">×</span
+                    >over-explain the joke. Land it once and move on.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div
+              style="
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                padding: 30px;
+                background: rgba(255, 255, 255, 0.012);
+              "
+            >
+              <div
+                style="
+                  font-size: 11px;
+                  letter-spacing: 0.16em;
+                  text-transform: uppercase;
+                  color: var(--muted);
+                  margin-bottom: 18px;
+                "
+              >
+                the lexicon — borrow ML, mean romance
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 10px">
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >latent space</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >inference</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >cosine similarity</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >embedding</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >minimize the loss</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >convergence</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >aligned with</span
+                >
+                <span
+                  style="
+                    font-size: 12.5px;
+                    border: 1px solid var(--line);
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                  "
+                  >gradient from stranger to soulmate</span
+                >
+              </div>
+            </div>
+          </section>
+
+          <!-- 05 TAGLINES -->
+          <section style="padding: 72px 0; border-bottom: 1px solid var(--line)">
+            <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 36px">
+              <span
+                style="font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--rose)"
+                >05</span
+              >
+              <span
+                style="
+                  font-size: 12.5px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: var(--rose-soft);
+                "
+                >taglines</span
+              >
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px">
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 34px;
+                  background: rgba(255, 255, 255, 0.012);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--rose);
+                  "
+                >
+                  primary
+                </div>
+                <p
+                  style="
+                    font-family: 'Instrument Serif', serif;
+                    font-style: italic;
+                    font-size: 30px;
+                    line-height: 1.1;
+                    margin: 16px 0 12px;
+                  "
+                >
+                  affection is all you need
+                </p>
+                <p style="font-size: 11.5px; line-height: 1.6; color: var(--muted)">
+                  The lead. A nod to "Attention Is All You Need" — sincere first, clever second.
+                </p>
+              </div>
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 34px;
+                  background: rgba(255, 255, 255, 0.012);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--peri-soft);
+                  "
+                >
+                  secondary
+                </div>
+                <p
+                  style="
+                    font-family: 'Instrument Serif', serif;
+                    font-style: italic;
+                    font-size: 30px;
+                    line-height: 1.1;
+                    margin: 16px 0 12px;
+                  "
+                >
+                  love at first inference
+                </p>
+                <p style="font-size: 11.5px; line-height: 1.6; color: var(--muted)">
+                  For the moment of the match — speed, recognition, certainty.
+                </p>
+              </div>
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 34px;
+                  background: rgba(255, 255, 255, 0.012);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--peri-soft);
+                  "
+                >
+                  secondary
+                </div>
+                <p
+                  style="
+                    font-family: 'Instrument Serif', serif;
+                    font-style: italic;
+                    font-size: 30px;
+                    line-height: 1.1;
+                    margin: 16px 0 12px;
+                  "
+                >
+                  a match made in latent space
+                </p>
+                <p style="font-size: 11.5px; line-height: 1.6; color: var(--muted)">
+                  For the product story — where the matching actually happens.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 06 MOTIFS / COMPONENTS -->
+          <section style="padding: 72px 0 96px">
+            <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 36px">
+              <span
+                style="font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--rose)"
+                >06</span
+              >
+              <span
+                style="
+                  font-size: 12.5px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: var(--rose-soft);
+                "
+                >motifs & components</span
+              >
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+              <!-- ascii portrait -->
+              <div
+                style="
+                  border: 1px solid var(--line);
+                  border-radius: 14px;
+                  padding: 30px;
+                  background: rgba(255, 255, 255, 0.012);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--muted);
+                    margin-bottom: 20px;
+                  "
+                >
+                  ascii portrait — the "photo"
+                </div>
+                <pre
+                  style="
+                    font-family: 'IBM Plex Mono', monospace;
+                    font-size: 13px;
+                    line-height: 1.05;
+                    color: var(--peri-soft);
+                    margin: 0;
+                  "
+                >
+╭──────────────╮
+│░▓▓▓▓▓▓▓▓▓▓▓▓░│
+│▓  ██    ██  ▓│
+│▓  ▀▀    ▀▀  ▓│
+│▓     ╷╷     ▓│
+│▓  ╲▁▁▁▁▁▁╱  ▓│
+│░▓▓▓▓▓▓▓▓▓▓▓▓░│
+╰──────────────╯</pre
+                >
+                <p
+                  style="font-size: 11.5px; line-height: 1.6; color: var(--muted); margin-top: 18px"
+                >
+                  Fixed-resolution (60×60 in product) ascii self-portraits. The most honest profile
+                  picture there is. Box-drawing + block shading, mono only.
+                </p>
+              </div>
+              <!-- scatter + chips + buttons -->
+              <div style="display: flex; flex-direction: column; gap: 24px">
+                <div
+                  style="
+                    border: 1px solid var(--line);
+                    border-radius: 14px;
+                    padding: 30px;
+                    background: rgba(255, 255, 255, 0.012);
+                  "
+                >
+                  <div
+                    style="
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: var(--muted);
+                      margin-bottom: 20px;
+                    "
+                  >
+                    latent-space scatter
+                  </div>
+                  <svg viewBox="0 0 280 120" width="100%" style="overflow: visible">
+                    <line
+                      x1="60"
+                      y1="40"
+                      x2="120"
+                      y2="70"
+                      stroke="var(--peri)"
+                      stroke-width="1"
+                      stroke-dasharray="3 5"
+                      opacity="0.5"
+                    />
+                    <line
+                      x1="160"
+                      y1="30"
+                      x2="220"
+                      y2="64"
+                      stroke="var(--rose)"
+                      stroke-width="1.6"
+                    />
+                    <circle cx="60" cy="40" r="3.4" fill="var(--peri)" />
+                    <circle cx="120" cy="70" r="3.4" fill="var(--peri)" />
+                    <g style="filter: drop-shadow(0 0 5px var(--rose))">
+                      <circle cx="160" cy="30" r="4.4" fill="var(--rose)" />
+                      <circle cx="220" cy="64" r="4.4" fill="var(--rose)" />
+                    </g>
+                  </svg>
+                  <p
+                    style="
+                      font-size: 11.5px;
+                      line-height: 1.6;
+                      color: var(--muted);
+                      margin-top: 8px;
+                    "
+                  >
+                    Rose line = a match. Dashed periwinkle = a candidate. Open ring = unmatched.
+                  </p>
+                </div>
+                <div
+                  style="
+                    border: 1px solid var(--line);
+                    border-radius: 14px;
+                    padding: 30px;
+                    background: rgba(255, 255, 255, 0.012);
+                  "
+                >
+                  <div
+                    style="
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: var(--muted);
+                      margin-bottom: 20px;
+                    "
+                  >
+                    chips, badges & buttons
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+                    <span
+                      style="
+                        font-size: 10.5px;
+                        letter-spacing: 0.12em;
+                        text-transform: uppercase;
+                        color: var(--rose);
+                        border: 1px solid var(--rose);
+                        border-radius: 999px;
+                        padding: 5px 11px;
+                      "
+                      >poly</span
+                    >
+                    <span
+                      style="
+                        font-size: 10.5px;
+                        letter-spacing: 0.12em;
+                        text-transform: uppercase;
+                        color: var(--peri);
+                        border: 1px solid var(--peri);
+                        border-radius: 999px;
+                        padding: 5px 11px;
+                      "
+                      >mono</span
+                    >
+                    <span
+                      style="
+                        font-size: 12px;
+                        color: var(--peri-soft);
+                        border: 1px solid var(--line);
+                        border-radius: 999px;
+                        padding: 6px 13px;
+                      "
+                      >latent space</span
+                    >
+                    <span
+                      style="
+                        font-size: 12.5px;
+                        color: var(--void);
+                        background: var(--rose);
+                        border-radius: 8px;
+                        padding: 9px 16px;
+                        font-weight: 500;
+                      "
+                      >primary</span
+                    >
+                    <span
+                      style="
+                        font-size: 12.5px;
+                        color: var(--cream);
+                        border: 1px solid var(--line);
+                        border-radius: 8px;
+                        padding: 9px 16px;
+                      "
+                      >ghost</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </x-dc>
+    <script
+      type="text/x-dc"
+      data-dc-script
+      data-props='{"$preview":{"width":1100,"height":900}}'
+    ></script>
+  </body>
+</html>

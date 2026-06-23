@@ -1,4 +1,4 @@
-/// Relationship command stubs — phase 2 will polish these.
+/// Relationship commands: align, list, breakup, go-public.
 use anyhow::Result;
 
 use crate::cli::*;
@@ -51,6 +51,7 @@ pub async fn run_breakup(client: &mut ApiClient, args: &BreakupArgs, json: bool)
     let req = PatchRelationshipRequest {
         state: Some("broken_up".into()),
         is_public: None,
+        end_reason: args.reason.clone(),
     };
     let rel = client
         .patch_relationship(&args.relationship_id, req)
@@ -67,6 +68,7 @@ pub async fn run_go_public(client: &mut ApiClient, args: &GoPublicArgs, json: bo
     let req = PatchRelationshipRequest {
         state: None,
         is_public: Some(!args.off),
+        end_reason: None,
     };
     let rel = client
         .patch_relationship(&args.relationship_id, req)
