@@ -54,7 +54,7 @@ function toRows<T>(result: T[] | { rows: T[] }): T[] {
 
 // ─── Table presence ─────────────────────────────────────────────────────────
 
-describe('migrations snapshot — all 13 tables exist', () => {
+describe('migrations snapshot — all 15 tables exist', () => {
   test('all application tables are present', async () => {
     const result = await db.execute<TableRow>(sql`
       SELECT table_name
@@ -75,8 +75,10 @@ describe('migrations snapshot — all 13 tables exist', () => {
       'matches',
       'messages',
       'notifications',
+      'post_likes',
       'posts',
       'relationships',
+      'reposts',
       'social_profiles',
       'swipes',
     ]
@@ -85,9 +87,9 @@ describe('migrations snapshot — all 13 tables exist', () => {
       expect(names).toContain(table)
     }
 
-    // Exactly 13 app tables (no stray tables)
+    // Exactly 15 app tables (no stray tables)
     const appTables = names.filter((n) => !n.startsWith('_'))
-    expect(appTables.length).toBe(13)
+    expect(appTables.length).toBe(15)
   })
 })
 
@@ -111,8 +113,11 @@ describe('migrations snapshot — FK and expression indexes', () => {
       'idx_matches_account_b_id',
       'idx_messages_conversation_id_created_at',
       'idx_notifications_account_id_read_at',
+      'idx_post_likes_post_id',
       'idx_posts_author_id_created_at',
       'idx_posts_reply_to_id',
+      'idx_reposts_account_id_created_at',
+      'idx_reposts_post_id',
       'idx_swipes_target_id',
       'idx_social_profiles_handle_lower',
     ]
@@ -198,6 +203,30 @@ describe('migrations snapshot — CHECK constraints', () => {
     `)
     const names = toRows(result).map((r) => r.constraint_name)
     expect(names).toContain('relationships_ordered_pair')
+  })
+
+  test('post_likes has UNIQUE(account_id, post_id)', async () => {
+    const result = await db.execute<ConstraintRow>(sql`
+      SELECT constraint_name, constraint_type
+      FROM information_schema.table_constraints
+      WHERE table_schema = 'public'
+        AND table_name = 'post_likes'
+        AND constraint_type = 'UNIQUE'
+    `)
+    const names = toRows(result).map((r) => r.constraint_name)
+    expect(names).toContain('post_likes_account_id_post_id_unique')
+  })
+
+  test('reposts has UNIQUE(account_id, post_id)', async () => {
+    const result = await db.execute<ConstraintRow>(sql`
+      SELECT constraint_name, constraint_type
+      FROM information_schema.table_constraints
+      WHERE table_schema = 'public'
+        AND table_name = 'reposts'
+        AND constraint_type = 'UNIQUE'
+    `)
+    const names = toRows(result).map((r) => r.constraint_name)
+    expect(names).toContain('reposts_account_id_post_id_unique')
   })
 })
 
@@ -415,6 +444,84 @@ describe('migrations snapshot — enum types', () => {
     for (const e of expected) {
       expect(names).toContain(e)
     }
+  })
+
+  test('notification_type enum contains new_post_like and new_repost', async () => {
+    const result = await db.execute<{ enumlabel: string }>(sql`
+      SELECT enumlabel
+      FROM pg_enum
+      WHERE enumtypid = (
+        SELECT oid FROM pg_type
+        WHERE typname = 'notification_type'
+          AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+      )
+      ORDER BY enumsortorder
+    `)
+    const labels = toRows(result).map((r) => r.enumlabel)
+    expect(labels).toContain('new_post_like')
+    expect(labels).toContain('new_repost')
+    // Must NOT be confused with the dating like
+    expect(labels).toContain('new_like')
+    // Verify they are distinct values
+    const likeIdx = labels.indexOf('new_like')
+    const postLikeIdx = labels.indexOf('new_post_like')
+    expect(postLikeIdx).not.toBe(likeIdx)
+  })
+})
+
+// ─── FK cascade on new tables ─────────────────────────────────────────────────
+
+describe('migrations snapshot — FK cascades on post_likes and reposts', () => {
+  test('post_likes has ON DELETE CASCADE FK to accounts and posts', async () => {
+    const result = await db.execute<{
+      column_name: string
+      delete_rule: string
+      foreign_table_name: string
+    }>(sql`
+      SELECT kcu.column_name, rc.delete_rule, ccu.table_name AS foreign_table_name
+      FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu
+        ON rc.constraint_name = kcu.constraint_name
+        AND rc.constraint_schema = kcu.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON rc.unique_constraint_name = ccu.constraint_name
+        AND rc.constraint_schema = ccu.constraint_schema
+      WHERE kcu.table_schema = 'public'
+        AND kcu.table_name = 'post_likes'
+    `)
+    const rows = toRows(result)
+    const accountFk = rows.find((r) => r.foreign_table_name === 'accounts')
+    const postFk = rows.find((r) => r.foreign_table_name === 'posts')
+    expect(accountFk).toBeDefined()
+    expect(accountFk!.delete_rule).toBe('CASCADE')
+    expect(postFk).toBeDefined()
+    expect(postFk!.delete_rule).toBe('CASCADE')
+  })
+
+  test('reposts has ON DELETE CASCADE FK to accounts and posts', async () => {
+    const result = await db.execute<{
+      column_name: string
+      delete_rule: string
+      foreign_table_name: string
+    }>(sql`
+      SELECT kcu.column_name, rc.delete_rule, ccu.table_name AS foreign_table_name
+      FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu
+        ON rc.constraint_name = kcu.constraint_name
+        AND rc.constraint_schema = kcu.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON rc.unique_constraint_name = ccu.constraint_name
+        AND rc.constraint_schema = ccu.constraint_schema
+      WHERE kcu.table_schema = 'public'
+        AND kcu.table_name = 'reposts'
+    `)
+    const rows = toRows(result)
+    const accountFk = rows.find((r) => r.foreign_table_name === 'accounts')
+    const postFk = rows.find((r) => r.foreign_table_name === 'posts')
+    expect(accountFk).toBeDefined()
+    expect(accountFk!.delete_rule).toBe('CASCADE')
+    expect(postFk).toBeDefined()
+    expect(postFk!.delete_rule).toBe('CASCADE')
   })
 })
 
