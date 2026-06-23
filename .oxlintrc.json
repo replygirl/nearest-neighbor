@@ -41,6 +41,7 @@
     "dist",
     "build",
     ".fly",
+    "design",
     "*.generated.*",
     "**/*.d.ts",
     "apps/cli/target"
