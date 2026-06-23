@@ -100,3 +100,6 @@ scripts/bootstrap/.provision-state.json
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Claude Design export runtime helper (generated; not source, not linted)
+design/**/support.js
