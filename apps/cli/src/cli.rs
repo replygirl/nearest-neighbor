@@ -96,8 +96,7 @@ pub enum Commands {
     Photo(PhotosCommands),
 
     // ── deck noun ────────────────────────────────────────────────────────────
-    /// Fetch the next candidates from the deck (alias for `nbr deck next`)
-    #[command(hide = true)]
+    /// Fetch the next candidates from the deck
     Deck(DeckArgs),
 
     // ── swipes noun ──────────────────────────────────────────────────────────
