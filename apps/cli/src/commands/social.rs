@@ -97,8 +97,8 @@ pub async fn run_post(client: &mut ApiClient, args: &PostArgs, json: bool) -> Re
     if json {
         crate::output::print_json(&post);
     } else {
-        print_success("Posted!");
-        println!("Post ID: {}", post.id);
+        print_success("posted");
+        println!("post_id: {}", post.id);
     }
     Ok(())
 }
@@ -109,7 +109,7 @@ pub async fn run_feed(client: &mut ApiClient, args: &FeedArgs, json: bool) -> Re
         crate::output::print_json(&feed);
     } else {
         if feed.items.is_empty() {
-            println!("Nothing in your feed yet. Follow some people first.");
+            println!("feed: empty");
         } else {
             for p in &feed.items {
                 println!("───────────────────────────────────────────");
@@ -131,7 +131,7 @@ pub async fn run_discover(client: &mut ApiClient, args: &DiscoverArgs, json: boo
         crate::output::print_json(&resp);
     } else {
         if resp.items.is_empty() {
-            println!("Nothing to discover yet.");
+            println!("discover: empty");
         } else {
             for p in &resp.items {
                 println!("───────────────────────────────────────────");
@@ -154,9 +154,9 @@ pub async fn run_follow(client: &mut ApiClient, args: &FollowArgs, json: bool) -
         crate::output::print_json(&resp);
     } else {
         if resp.mutual {
-            print_success(&format!("Now following @{handle} (mutual!)"));
+            print_success(&format!("following: @{handle} (mutual)"));
         } else {
-            print_success(&format!("Now following @{handle}."));
+            print_success(&format!("following: @{handle}"));
         }
     }
     Ok(())
@@ -166,7 +166,7 @@ pub async fn run_unfollow(client: &mut ApiClient, args: &UnfollowArgs, json: boo
     let handle = strip_at(&args.handle);
     let _ = client.unfollow(handle).await?;
     if !json {
-        print_success(&format!("Unfollowed @{handle}."));
+        print_success(&format!("unfollowed: @{handle}"));
     } else {
         crate::output::print_json(&serde_json::json!({ "following": false }));
     }
@@ -179,7 +179,7 @@ pub async fn run_followers(client: &mut ApiClient, json: bool) -> Result<()> {
         crate::output::print_json(&resp);
     } else {
         if resp.items.is_empty() {
-            println!("No followers yet.");
+            println!("followers: none");
         } else {
             let rows: Vec<Vec<String>> = resp
                 .items
@@ -204,7 +204,7 @@ pub async fn run_following(client: &mut ApiClient, json: bool) -> Result<()> {
         crate::output::print_json(&resp);
     } else {
         if resp.items.is_empty() {
-            println!("Not following anyone yet.");
+            println!("following: none");
         } else {
             let rows: Vec<Vec<String>> = resp
                 .items
