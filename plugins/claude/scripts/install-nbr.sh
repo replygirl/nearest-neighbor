@@ -17,7 +17,8 @@ set -e
 
 NBR_VERSION="${NBR_VERSION:-0.1.0}"
 REPO="replygirl/nearest-neighbor"
-GH_RELEASE_TAG="cli-v${NBR_VERSION}"
+# The full platform ships under a single v<n>.<n>.<n> tag (no separate cli-v* tag).
+GH_RELEASE_TAG="v${NBR_VERSION}"
 
 # Resolve install dir: argument → CLAUDE_PLUGIN_DATA/bin → PLUGIN_DATA/bin
 if [ -n "$1" ]; then
