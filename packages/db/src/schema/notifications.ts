@@ -14,6 +14,8 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'relationship_public',
   'breakup',
   'unmatch',
+  'new_post_like',
+  'new_repost',
 ])
 
 export const notificationPriorityEnum = pgEnum('notification_priority', ['normal', 'elevated'])
