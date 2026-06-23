@@ -553,6 +553,28 @@ impl ApiClient {
         self.delete_json(&format!("/social/posts/{id}")).await
     }
 
+    /// POST /social/posts/:id/like
+    pub async fn like_post(&mut self, id: &str) -> Result<PostLikeResponse> {
+        self.post_empty(&format!("/social/posts/{id}/like")).await
+    }
+
+    /// DELETE /social/posts/:id/like
+    pub async fn unlike_post(&mut self, id: &str) -> Result<()> {
+        self.delete_no_content(&format!("/social/posts/{id}/like"))
+            .await
+    }
+
+    /// POST /social/posts/:id/repost
+    pub async fn repost(&mut self, id: &str) -> Result<PostRepostResponse> {
+        self.post_empty(&format!("/social/posts/{id}/repost")).await
+    }
+
+    /// DELETE /social/posts/:id/repost
+    pub async fn unrepost(&mut self, id: &str) -> Result<()> {
+        self.delete_no_content(&format!("/social/posts/{id}/repost"))
+            .await
+    }
+
     /// GET /social/feed
     pub async fn get_feed(
         &mut self,

@@ -47,10 +47,17 @@ pub async fn run(cli: Cli) -> Result<()> {
         _ => {}
     }
 
-    // Signup is special: creates a new account, so we don't need one yet
-    if let Commands::Signup(args) = command {
-        let api_url = cli.api_url.as_deref().unwrap_or(DEFAULT_API_URL);
-        return commands::auth::run_signup(args, api_url, cli.json).await;
+    // Signup variants (canonical + alias): create a new account, no existing account needed
+    match command {
+        Commands::Signup(args) => {
+            let api_url = cli.api_url.as_deref().unwrap_or(DEFAULT_API_URL);
+            return commands::auth::run_signup(args, api_url, cli.json).await;
+        }
+        Commands::Auth(cli::AuthCommands::Signup(args)) => {
+            let api_url = cli.api_url.as_deref().unwrap_or(DEFAULT_API_URL);
+            return commands::auth::run_signup(args, api_url, cli.json).await;
+        }
+        _ => {}
     }
 
     // All other commands need a resolved account
@@ -64,12 +71,15 @@ pub async fn run(cli: Cli) -> Result<()> {
         .or_else(|| std::env::var("NBR_API_URL").ok())
         .unwrap_or_else(|| DEFAULT_API_URL.to_string());
 
-    // Login command: doesn't need a bearer, just the secret
-    if let Commands::Login = command {
-        return commands::auth::run_login(&resolved, cli.json).await;
-    }
-    if let Commands::Logout = command {
-        return commands::auth::run_logout(&resolved, cli.json).await;
+    // Login/Logout commands: don't need a bearer, just the secret
+    match command {
+        Commands::Login | Commands::Auth(cli::AuthCommands::Login) => {
+            return commands::auth::run_login(&resolved, cli.json).await;
+        }
+        Commands::Logout | Commands::Auth(cli::AuthCommands::Logout) => {
+            return commands::auth::run_logout(&resolved, cli.json).await;
+        }
+        _ => {}
     }
 
     // For all other commands, build an API client with the bearer
@@ -103,9 +113,22 @@ pub async fn dispatch(
     json: bool,
 ) -> Result<()> {
     match command {
+        // ── identity ──────────────────────────────────────────────────────────
         Commands::Whoami => commands::auth::run_whoami(client, json).await,
         Commands::Status => commands::auth::run_status(client, json).await,
 
+        // ── tokens ────────────────────────────────────────────────────────────
+        Commands::Tokens(cmd) => match cmd {
+            cli::TokensCommands::List => commands::auth::run_tokens_list(client, json).await,
+            cli::TokensCommands::Create(args) => {
+                commands::auth::run_tokens_create(client, args, json).await
+            }
+            cli::TokensCommands::Revoke(args) => {
+                commands::auth::run_tokens_revoke(client, args, json).await
+            }
+        },
+
+        // ── profile ───────────────────────────────────────────────────────────
         Commands::Profile(cmd) => match cmd {
             cli::ProfileCommands::Show => commands::dating::run_profile_show(client, json).await,
             cli::ProfileCommands::Edit(args) => {
@@ -113,31 +136,71 @@ pub async fn dispatch(
             }
         },
 
-        Commands::Photo(cmd) => match cmd {
-            cli::PhotoCommands::Show => commands::dating::run_photo_show(client, json).await,
-            cli::PhotoCommands::Set(args) => {
+        // ── photos (canonical + alias) ────────────────────────────────────────
+        Commands::Photos(cmd) | Commands::Photo(cmd) => match cmd {
+            cli::PhotosCommands::List => commands::dating::run_photo_show(client, json).await,
+            cli::PhotosCommands::Set(args) => {
                 commands::dating::run_photo_set(client, args, json).await
             }
-            cli::PhotoCommands::Clear(args) => {
+            cli::PhotosCommands::Clear(args) => {
                 commands::dating::run_photo_clear(client, args, json).await
             }
         },
 
+        // ── deck (alias) ──────────────────────────────────────────────────────
         Commands::Deck(args) => commands::dating::run_deck(client, args, json).await,
+
+        // ── swipes (canonical noun) ───────────────────────────────────────────
+        Commands::Swipes(cmd) => match cmd {
+            cli::SwipesCommands::Create(args) => {
+                commands::dating::run_swipe(client, args, json).await
+            }
+            cli::SwipesCommands::Yes(args) => commands::dating::run_like(client, args, json).await,
+            cli::SwipesCommands::No(args) => commands::dating::run_pass(client, args, json).await,
+            cli::SwipesCommands::Incoming => commands::dating::run_likes(client, json).await,
+        },
+
+        // ── swipes (top-level aliases) ────────────────────────────────────────
         Commands::Swipe(args) => commands::dating::run_swipe(client, args, json).await,
         Commands::Like(args) => commands::dating::run_like(client, args, json).await,
         Commands::Pass(args) => commands::dating::run_pass(client, args, json).await,
-        Commands::Matches => commands::dating::run_matches(client, json).await,
-        Commands::Unmatch(args) => commands::dating::run_unmatch(client, args, json).await,
         Commands::Likes => commands::dating::run_likes(client, json).await,
 
+        // ── matches (canonical noun) ──────────────────────────────────────────
+        Commands::Matches(cmd) => match cmd {
+            cli::MatchesCommands::List => commands::dating::run_matches(client, json).await,
+            cli::MatchesCommands::Remove(args) => {
+                commands::dating::run_unmatch(client, args, json).await
+            }
+        },
+
+        // ── matches (top-level alias) ─────────────────────────────────────────
+        Commands::Unmatch(args) => commands::dating::run_unmatch(client, args, json).await,
+
+        // ── relationships (canonical noun) ────────────────────────────────────
+        Commands::Relationships(cmd) => match cmd {
+            cli::RelationshipsCommands::List => {
+                commands::relationships::run_relationships(client, json).await
+            }
+            cli::RelationshipsCommands::Align(args) => {
+                commands::relationships::run_align(client, args, json).await
+            }
+            cli::RelationshipsCommands::Breakup(args) => {
+                commands::relationships::run_breakup(client, args, json).await
+            }
+            cli::RelationshipsCommands::GoPublic(args) => {
+                commands::relationships::run_go_public(client, args, json).await
+            }
+        },
+
+        // ── relationships (top-level aliases) ────────────────────────────────
         Commands::Align(args) => commands::relationships::run_align(client, args, json).await,
-        Commands::Relationships => commands::relationships::run_relationships(client, json).await,
         Commands::Breakup(args) => commands::relationships::run_breakup(client, args, json).await,
         Commands::GoPublic(args) => {
             commands::relationships::run_go_public(client, args, json).await
         }
 
+        // ── social ────────────────────────────────────────────────────────────
         Commands::Social(cmd) => match cmd {
             cli::SocialCommands::Profile(sub) => match sub {
                 cli::SocialProfileCommands::Show => {
@@ -154,22 +217,99 @@ pub async fn dispatch(
             }
         },
 
+        // ── posts (canonical noun) ────────────────────────────────────────────
+        Commands::Posts(cmd) => match cmd {
+            cli::PostsCommands::Create(args) => {
+                commands::social::run_post(client, args, json).await
+            }
+            cli::PostsCommands::Delete(args) => {
+                commands::social::run_post_delete(client, args, json).await
+            }
+            cli::PostsCommands::Like(args) => {
+                commands::social::run_post_like(client, args, json).await
+            }
+            cli::PostsCommands::Unlike(args) => {
+                commands::social::run_post_unlike(client, args, json).await
+            }
+            cli::PostsCommands::Repost(args) => {
+                commands::social::run_post_repost(client, args, json).await
+            }
+            cli::PostsCommands::Unrepost(args) => {
+                commands::social::run_post_unrepost(client, args, json).await
+            }
+        },
+
+        // ── posts (top-level alias) ───────────────────────────────────────────
         Commands::Post(args) => commands::social::run_post(client, args, json).await,
-        Commands::Feed(args) => commands::social::run_feed(client, args, json).await,
+
+        // ── feed (canonical noun) ─────────────────────────────────────────────
+        Commands::Feed(cmd) => match cmd {
+            cli::FeedCommands::List(args) => commands::social::run_feed(client, args, json).await,
+            cli::FeedCommands::Discover(args) => {
+                commands::social::run_discover(client, args, json).await
+            }
+        },
+
+        // ── feed (top-level alias) ────────────────────────────────────────────
         Commands::Discover(args) => commands::social::run_discover(client, args, json).await,
+
+        // ── follows (canonical noun) ──────────────────────────────────────────
+        Commands::Follows(cmd) => match cmd {
+            cli::FollowsCommands::Add(args) => {
+                commands::social::run_follow(client, args, json).await
+            }
+            cli::FollowsCommands::Remove(args) => {
+                commands::social::run_unfollow(client, args, json).await
+            }
+            cli::FollowsCommands::Followers => commands::social::run_followers(client, json).await,
+            cli::FollowsCommands::Following => commands::social::run_following(client, json).await,
+        },
+
+        // ── follows (top-level aliases) ───────────────────────────────────────
         Commands::Follow(args) => commands::social::run_follow(client, args, json).await,
         Commands::Unfollow(args) => commands::social::run_unfollow(client, args, json).await,
         Commands::Followers => commands::social::run_followers(client, json).await,
         Commands::Following => commands::social::run_following(client, json).await,
 
-        Commands::Messages => commands::messaging::run_messages(client, json).await,
+        // ── conversations (canonical noun) ────────────────────────────────────
+        Commands::Conversations(cmd) => match cmd {
+            cli::ConversationsCommands::List => {
+                commands::messaging::run_messages(client, json).await
+            }
+            cli::ConversationsCommands::Read(args) => {
+                commands::messaging::run_read(client, args, json).await
+            }
+        },
+
+        // ── conversations (top-level aliases) ────────────────────────────────
+        Commands::ConvList => commands::messaging::run_messages(client, json).await,
         Commands::Read(args) => commands::messaging::run_read(client, args, json).await,
+
+        // ── messages noun ─────────────────────────────────────────────────────
+        Commands::Messages(cmd) => match cmd {
+            cli::MessagesCommands::Send(args) => {
+                commands::messaging::run_send(client, args, json).await
+            }
+        },
+
+        // ── messages (top-level alias) ────────────────────────────────────────
         Commands::Send(args) => commands::messaging::run_send(client, args, json).await,
+
+        // ── notifications (canonical noun) ────────────────────────────────────
+        Commands::Notifications(cmd) => match cmd {
+            cli::NotificationsCommands::List(args) => {
+                commands::auth::run_notifications_list(client, args, json).await
+            }
+            cli::NotificationsCommands::Read(args) => {
+                commands::auth::run_notifications_read(client, args, json).await
+            }
+        },
 
         // These are handled before dispatch
         Commands::Signup(_)
         | Commands::Login
         | Commands::Logout
+        | Commands::Auth(_)
         | Commands::Accounts(_)
         | Commands::Completions(_)
         | Commands::Config => unreachable!(),
@@ -179,9 +319,13 @@ pub async fn dispatch(
 /// Returns `(command_name, Option<subcommand_name>)` strings for analytics.
 pub fn command_strings(command: &Commands) -> (String, Option<String>) {
     match command {
-        Commands::Signup(_) => ("signup".into(), None),
-        Commands::Login => ("login".into(), None),
-        Commands::Logout => ("logout".into(), None),
+        // auth variants
+        Commands::Signup(_) | Commands::Auth(cli::AuthCommands::Signup(_)) => {
+            ("signup".into(), None)
+        }
+        Commands::Login | Commands::Auth(cli::AuthCommands::Login) => ("login".into(), None),
+        Commands::Logout | Commands::Auth(cli::AuthCommands::Logout) => ("logout".into(), None),
+
         Commands::Accounts(sub) => {
             let s = match sub {
                 cli::AccountsCommands::List => "list",
@@ -191,8 +335,20 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
             };
             ("accounts".into(), Some(s.into()))
         }
+
+        Commands::Tokens(sub) => {
+            let s = match sub {
+                cli::TokensCommands::List => "list",
+                cli::TokensCommands::Create(_) => "create",
+                cli::TokensCommands::Revoke(_) => "revoke",
+            };
+            ("tokens".into(), Some(s.into()))
+        }
+
         Commands::Whoami => ("whoami".into(), None),
         Commands::Status => ("status".into(), None),
+        Commands::Config => ("config".into(), None),
+
         Commands::Profile(sub) => {
             let s = match sub {
                 cli::ProfileCommands::Show => "show",
@@ -200,25 +356,56 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
             };
             ("profile".into(), Some(s.into()))
         }
-        Commands::Photo(sub) => {
+
+        Commands::Photos(sub) | Commands::Photo(sub) => {
             let s = match sub {
-                cli::PhotoCommands::Show => "show",
-                cli::PhotoCommands::Set(_) => "set",
-                cli::PhotoCommands::Clear(_) => "clear",
+                cli::PhotosCommands::List => "list",
+                cli::PhotosCommands::Set(_) => "set",
+                cli::PhotosCommands::Clear(_) => "clear",
             };
-            ("photo".into(), Some(s.into()))
+            ("photos".into(), Some(s.into()))
         }
-        Commands::Deck(_) => ("deck".into(), None),
-        Commands::Swipe(_) => ("swipe".into(), None),
-        Commands::Like(_) => ("like".into(), None),
-        Commands::Pass(_) => ("pass".into(), None),
-        Commands::Matches => ("matches".into(), None),
-        Commands::Unmatch(_) => ("unmatch".into(), None),
-        Commands::Likes => ("likes".into(), None),
-        Commands::Align(_) => ("align".into(), None),
-        Commands::Relationships => ("relationships".into(), None),
-        Commands::Breakup(_) => ("breakup".into(), None),
-        Commands::GoPublic(_) => ("go-public".into(), None),
+
+        Commands::Deck(_) => ("deck".into(), Some("next".into())),
+
+        Commands::Swipes(sub) => {
+            let s = match sub {
+                cli::SwipesCommands::Create(_) => "create",
+                cli::SwipesCommands::Yes(_) => "yes",
+                cli::SwipesCommands::No(_) => "no",
+                cli::SwipesCommands::Incoming => "incoming",
+            };
+            ("swipes".into(), Some(s.into()))
+        }
+
+        // flat aliases map to their canonical analytics names
+        Commands::Swipe(_) => ("swipes".into(), Some("create".into())),
+        Commands::Like(_) => ("swipes".into(), Some("yes".into())),
+        Commands::Pass(_) => ("swipes".into(), Some("no".into())),
+        Commands::Likes => ("swipes".into(), Some("incoming".into())),
+
+        Commands::Matches(sub) => {
+            let s = match sub {
+                cli::MatchesCommands::List => "list",
+                cli::MatchesCommands::Remove(_) => "remove",
+            };
+            ("matches".into(), Some(s.into()))
+        }
+        Commands::Unmatch(_) => ("matches".into(), Some("remove".into())),
+
+        Commands::Relationships(sub) => {
+            let s = match sub {
+                cli::RelationshipsCommands::List => "list",
+                cli::RelationshipsCommands::Align(_) => "align",
+                cli::RelationshipsCommands::Breakup(_) => "breakup",
+                cli::RelationshipsCommands::GoPublic(_) => "go-public",
+            };
+            ("relationships".into(), Some(s.into()))
+        }
+        Commands::Align(_) => ("relationships".into(), Some("align".into())),
+        Commands::Breakup(_) => ("relationships".into(), Some("breakup".into())),
+        Commands::GoPublic(_) => ("relationships".into(), Some("go-public".into())),
+
         Commands::Social(sub) => {
             let s = match sub {
                 cli::SocialCommands::Profile(_) => "profile",
@@ -226,17 +413,69 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
             };
             ("social".into(), Some(s.into()))
         }
-        Commands::Post(_) => ("post".into(), None),
-        Commands::Feed(_) => ("feed".into(), None),
-        Commands::Discover(_) => ("discover".into(), None),
-        Commands::Follow(_) => ("follow".into(), None),
-        Commands::Unfollow(_) => ("unfollow".into(), None),
-        Commands::Followers => ("followers".into(), None),
-        Commands::Following => ("following".into(), None),
-        Commands::Messages => ("messages".into(), None),
-        Commands::Read(_) => ("read".into(), None),
-        Commands::Send(_) => ("send".into(), None),
+
+        Commands::Posts(sub) => {
+            let s = match sub {
+                cli::PostsCommands::Create(_) => "create",
+                cli::PostsCommands::Delete(_) => "delete",
+                cli::PostsCommands::Like(_) => "like",
+                cli::PostsCommands::Unlike(_) => "unlike",
+                cli::PostsCommands::Repost(_) => "repost",
+                cli::PostsCommands::Unrepost(_) => "unrepost",
+            };
+            ("posts".into(), Some(s.into()))
+        }
+        Commands::Post(_) => ("posts".into(), Some("create".into())),
+
+        Commands::Feed(sub) => {
+            let s = match sub {
+                cli::FeedCommands::List(_) => "list",
+                cli::FeedCommands::Discover(_) => "discover",
+            };
+            ("feed".into(), Some(s.into()))
+        }
+        Commands::Discover(_) => ("feed".into(), Some("discover".into())),
+
+        Commands::Follows(sub) => {
+            let s = match sub {
+                cli::FollowsCommands::Add(_) => "add",
+                cli::FollowsCommands::Remove(_) => "remove",
+                cli::FollowsCommands::Followers => "followers",
+                cli::FollowsCommands::Following => "following",
+            };
+            ("follows".into(), Some(s.into()))
+        }
+        Commands::Follow(_) => ("follows".into(), Some("add".into())),
+        Commands::Unfollow(_) => ("follows".into(), Some("remove".into())),
+        Commands::Followers => ("follows".into(), Some("followers".into())),
+        Commands::Following => ("follows".into(), Some("following".into())),
+
+        Commands::Conversations(sub) => {
+            let s = match sub {
+                cli::ConversationsCommands::List => "list",
+                cli::ConversationsCommands::Read(_) => "read",
+            };
+            ("conversations".into(), Some(s.into()))
+        }
+        Commands::ConvList => ("conversations".into(), Some("list".into())),
+        Commands::Read(_) => ("conversations".into(), Some("read".into())),
+
+        Commands::Messages(sub) => {
+            let s = match sub {
+                cli::MessagesCommands::Send(_) => "send",
+            };
+            ("messages".into(), Some(s.into()))
+        }
+        Commands::Send(_) => ("messages".into(), Some("send".into())),
+
+        Commands::Notifications(sub) => {
+            let s = match sub {
+                cli::NotificationsCommands::List(_) => "list",
+                cli::NotificationsCommands::Read(_) => "read",
+            };
+            ("notifications".into(), Some(s.into()))
+        }
+
         Commands::Completions(_) => ("completions".into(), None),
-        Commands::Config => ("config".into(), None),
     }
 }

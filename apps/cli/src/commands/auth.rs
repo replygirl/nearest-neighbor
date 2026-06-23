@@ -1,13 +1,17 @@
-/// Fully implemented: signup, login, logout, accounts, whoami/me, status, config.
+/// Auth, accounts, tokens, whoami, status, config, and notifications commands.
 use anyhow::Result;
 use owo_colors::OwoColorize;
 
-use crate::cli::{AccountAddArgs, AccountRemoveArgs, AccountUseArgs, AccountsCommands, SignupArgs};
+use crate::cli::{
+    AccountAddArgs, AccountRemoveArgs, AccountUseArgs, AccountsCommands, NotificationsListArgs,
+    NotificationsReadArgs, SignupArgs, TokenCreateArgs, TokenRevokeArgs,
+};
 use crate::client::ApiClient;
 use crate::config::{
     self, DEFAULT_API_URL, add_account, config_path, delete_bearer, get_bearer, load_config,
     remove_account, set_bearer, set_default_account, set_secret,
 };
+use crate::models::ReadNotificationsRequest;
 use crate::output::{print_kv, print_success, print_table};
 use crate::resolver::ResolvedAccount;
 
@@ -47,7 +51,7 @@ pub async fn run_signup(args: &SignupArgs, api_url: &str, json: bool) -> Result<
         ]);
         eprintln!();
         eprintln!("secret: stored in keyring (or 0600 file)");
-        eprintln!("next: nbr login");
+        eprintln!("next: nbr auth login");
     }
 
     Ok(())
@@ -161,6 +165,69 @@ pub async fn run_accounts(cmd: &AccountsCommands, json: bool) -> Result<()> {
         AccountsCommands::Add(args) => run_accounts_add(args),
         AccountsCommands::Remove(args) => run_accounts_remove(args),
     }
+}
+
+// ── Tokens ────────────────────────────────────────────────────────────────────
+
+pub async fn run_tokens_list(client: &mut ApiClient, json: bool) -> Result<()> {
+    let tokens = client.list_tokens().await?;
+    if json {
+        crate::output::print_json(&tokens);
+    } else if tokens.is_empty() {
+        println!("tokens: none");
+    } else {
+        let rows: Vec<Vec<String>> = tokens
+            .iter()
+            .map(|t| {
+                vec![
+                    t.id.clone(),
+                    t.prefix.clone(),
+                    t.label.clone(),
+                    t.last_used_at.clone().unwrap_or_else(|| "(never)".into()),
+                    t.created_at.clone(),
+                ]
+            })
+            .collect();
+        print_table(&["ID", "Prefix", "Label", "Last Used", "Created"], rows);
+    }
+    Ok(())
+}
+
+pub async fn run_tokens_create(
+    client: &mut ApiClient,
+    args: &TokenCreateArgs,
+    json: bool,
+) -> Result<()> {
+    let token = client.create_token(args.label.clone()).await?;
+    if json {
+        crate::output::print_json(&token);
+    } else {
+        print_success("Token created.");
+        print_kv(&[
+            ("id", token.id),
+            ("prefix", token.prefix),
+            ("label", token.label),
+            ("secret", token.secret),
+            ("created_at", token.created_at),
+        ]);
+        eprintln!();
+        eprintln!("Store the secret — it will not be shown again.");
+    }
+    Ok(())
+}
+
+pub async fn run_tokens_revoke(
+    client: &mut ApiClient,
+    args: &TokenRevokeArgs,
+    json: bool,
+) -> Result<()> {
+    client.revoke_token(&args.id).await?;
+    if json {
+        crate::output::print_json(&serde_json::json!({ "revoked": true, "id": args.id }));
+    } else {
+        print_success(&format!("Token '{}' revoked.", args.id));
+    }
+    Ok(())
 }
 
 // ── Whoami / Me ───────────────────────────────────────────────────────────────
@@ -287,5 +354,55 @@ pub fn run_config(json: bool) -> Result<()> {
         ]);
     }
 
+    Ok(())
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+pub async fn run_notifications_list(
+    client: &mut ApiClient,
+    args: &NotificationsListArgs,
+    json: bool,
+) -> Result<()> {
+    let resp = client.notifications(None, Some(args.limit)).await?;
+    if json {
+        crate::output::print_json(&resp);
+    } else if resp.items.is_empty() {
+        println!("notifications: none");
+    } else {
+        for n in &resp.items {
+            let read_marker = if n.read_at.is_some() { "  " } else { "* " };
+            println!("{read_marker}[{}] {} — {}", n.kind, n.id, n.created_at);
+        }
+    }
+    Ok(())
+}
+
+pub async fn run_notifications_read(
+    client: &mut ApiClient,
+    args: &NotificationsReadArgs,
+    json: bool,
+) -> Result<()> {
+    let req = if args.all {
+        ReadNotificationsRequest {
+            ids: None,
+            all: Some(true),
+        }
+    } else if !args.ids.is_empty() {
+        ReadNotificationsRequest {
+            ids: Some(args.ids.clone()),
+            all: None,
+        }
+    } else {
+        anyhow::bail!("Provide --all or at least one --ids <id> to mark as read");
+    };
+
+    client.read_notifications(req).await?;
+
+    if json {
+        crate::output::print_json(&serde_json::json!({ "read": true }));
+    } else {
+        print_success("Notifications marked as read.");
+    }
     Ok(())
 }

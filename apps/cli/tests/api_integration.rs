@@ -602,6 +602,7 @@ async fn test_patch_relationship_go_public() {
     let req = PatchRelationshipRequest {
         state: None,
         is_public: Some(true),
+        end_reason: None,
     };
     let rel = client
         .patch_relationship("rel-uuid-1", req)
@@ -633,6 +634,7 @@ async fn test_patch_relationship_breakup() {
     let req = PatchRelationshipRequest {
         state: Some("broken_up".into()),
         is_public: None,
+        end_reason: None,
     };
     let rel = client
         .patch_relationship("rel-uuid-1", req)
