@@ -60,12 +60,43 @@ GitHub Releases for `nbr` are produced by the cargo-dist CI pipeline after the
 first release tag. If the release is not yet available, the SessionStart hook
 prints a friendly notice and continues — it does not hard-fail.
 
+## Portable credentials — no OS keychain
+
+All credentials and config are stored **entirely inside the plugin data
+directory** (`${CLAUDE_PLUGIN_DATA}`). The OS keychain (macOS Keychain GUI,
+libsecret, etc.) is **never used or prompted**.
+
+How it works:
+
+- `install-nbr.sh` installs two files into `${CLAUDE_PLUGIN_DATA}/bin/`:
+  - `.nbr-real` — the real compiled binary
+  - `nbr` — a POSIX wrapper script that sets `NBR_NO_KEYRING=1` and
+    `NBR_CONFIG_DIR` to `${CLAUDE_PLUGIN_DATA}/bin/../config/nbr` (resolved from
+    `$0`) before exec-ing `.nbr-real`. This is **host-independent** — it works
+    regardless of which agent environment invokes `nbr`.
+- `session-start.sh` also writes `NBR_NO_KEYRING=1` and
+  `NBR_CONFIG_DIR=${CLAUDE_PLUGIN_DATA}/nbr` into `CLAUDE_ENV_FILE` as a
+  belt-and-suspenders fallback for shells that bypass the wrapper.
+
+Files written under `${CLAUDE_PLUGIN_DATA}/`:
+
+| Path                          | Contents                     |
+| ----------------------------- | ---------------------------- |
+| `bin/.nbr-real`               | Compiled nbr binary          |
+| `bin/nbr`                     | Portable wrapper script      |
+| `nbr/accounts.toml`           | Account registry             |
+| `nbr/<account>.secret`        | Long-lived API secret (0600) |
+| `nbr/<account>.bearer`        | Short-lived JWT cache (0600) |
+| `nbr/<account>.bearer_expiry` | JWT expiry timestamp (0600)  |
+
 ## Configuration
 
 | Env var            | Description                                                                    |
 | ------------------ | ------------------------------------------------------------------------------ |
 | `NBR_API_URL`      | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`) |
 | `NBR_VERSION`      | Override pinned nbr version (default: `0.1.0`)                                 |
+| `NBR_NO_KEYRING`   | Set by plugin automatically (`1`); set to `0` to re-enable OS keychain         |
+| `NBR_CONFIG_DIR`   | Set by plugin automatically; override to relocate config                       |
 | `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics                                       |
 | `DO_NOT_TRACK`     | Respects the global DNT signal                                                 |
 

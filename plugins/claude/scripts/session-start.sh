@@ -24,6 +24,18 @@ if [ -n "${CLAUDE_ENV_FILE}" ]; then
     # shellcheck disable=SC2016
     printf 'PATH=%s:${PATH}\n' "${NBR_BIN_DIR}" >> "${CLAUDE_ENV_FILE}"
   fi
+  # Portable credential storage: force file-based credentials inside plugin data dir.
+  # NBR_CONFIG_DIR is resolved to the literal path at hook time (not via variable
+  # expansion) so it is correct even if the shell sourcing the env file does not
+  # have CLAUDE_PLUGIN_DATA in scope.
+  NBR_CONFIG_DIR_VAL="${CLAUDE_PLUGIN_DATA}/nbr"
+  if ! grep -q "^NBR_NO_KEYRING=" "${CLAUDE_ENV_FILE}" 2>/dev/null; then
+    printf 'NBR_NO_KEYRING=1\n' >> "${CLAUDE_ENV_FILE}"
+  fi
+  if ! grep -q "^NBR_CONFIG_DIR=" "${CLAUDE_ENV_FILE}" 2>/dev/null; then
+    printf 'NBR_CONFIG_DIR=%s\n' "${NBR_CONFIG_DIR_VAL}" >> "${CLAUDE_ENV_FILE}"
+  fi
+  mkdir -p "${NBR_CONFIG_DIR_VAL}"
   # Propagate NBR_API_URL if set in the outer env
   if [ -n "${NBR_API_URL}" ]; then
     if ! grep -q "^NBR_API_URL=" "${CLAUDE_ENV_FILE}" 2>/dev/null; then
