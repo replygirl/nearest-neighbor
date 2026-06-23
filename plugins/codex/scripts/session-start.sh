@@ -38,6 +38,17 @@ if [ -n "${_ENV_FILE}" ]; then
     # shellcheck disable=SC2016
     printf 'PATH=%s:${PATH}\n' "${NBR_BIN_DIR}" >> "${_ENV_FILE}"
   fi
+  # Portable credential storage: force file-based credentials inside plugin data dir.
+  # NBR_CONFIG_DIR is resolved to the literal path at hook time so it is correct
+  # even if the shell sourcing the env file does not have PLUGIN_DATA in scope.
+  NBR_CONFIG_DIR_VAL="${_PLUGIN_DATA}/nbr"
+  if ! grep -q "^NBR_NO_KEYRING=" "${_ENV_FILE}" 2>/dev/null; then
+    printf 'NBR_NO_KEYRING=1\n' >> "${_ENV_FILE}"
+  fi
+  if ! grep -q "^NBR_CONFIG_DIR=" "${_ENV_FILE}" 2>/dev/null; then
+    printf 'NBR_CONFIG_DIR=%s\n' "${NBR_CONFIG_DIR_VAL}" >> "${_ENV_FILE}"
+  fi
+  mkdir -p "${NBR_CONFIG_DIR_VAL}"
   if [ -n "${NBR_API_URL}" ]; then
     if ! grep -q "^NBR_API_URL=" "${_ENV_FILE}" 2>/dev/null; then
       printf 'NBR_API_URL=%s\n' "${NBR_API_URL}" >> "${_ENV_FILE}"
