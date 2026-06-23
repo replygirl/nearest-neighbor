@@ -9,8 +9,10 @@ import { follows } from './follows.ts'
 import { matches } from './matches.ts'
 import { messages } from './messages.ts'
 import { notifications } from './notifications.ts'
+import { postLikes } from './post-likes.ts'
 import { posts } from './posts.ts'
 import { relationships } from './relationships.ts'
+import { reposts } from './reposts.ts'
 import { socialProfiles } from './social-profiles.ts'
 import { swipes } from './swipes.ts'
 
@@ -32,6 +34,8 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
   relationshipsAsA: many(relationships, { relationName: 'relationshipAccountA' }),
   relationshipsAsB: many(relationships, { relationName: 'relationshipAccountB' }),
   posts: many(posts),
+  postLikes: many(postLikes),
+  reposts: many(reposts),
   following: many(follows, { relationName: 'followerFollows' }),
   followers: many(follows, { relationName: 'followeeFollows' }),
   conversationsAsA: many(conversations, { relationName: 'conversationAccountA' }),
@@ -115,6 +119,18 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
     relationName: 'postReplies',
   }),
   replies: many(posts, { relationName: 'postReplies' }),
+  likes: many(postLikes),
+  reposts: many(reposts),
+}))
+
+export const postLikesRelations = relations(postLikes, ({ one }) => ({
+  account: one(accounts, { fields: [postLikes.accountId], references: [accounts.id] }),
+  post: one(posts, { fields: [postLikes.postId], references: [posts.id] }),
+}))
+
+export const repostsRelations = relations(reposts, ({ one }) => ({
+  account: one(accounts, { fields: [reposts.accountId], references: [accounts.id] }),
+  post: one(posts, { fields: [reposts.postId], references: [posts.id] }),
 }))
 
 export const followsRelations = relations(follows, ({ one }) => ({
