@@ -244,6 +244,9 @@ pub struct PatchRelationshipRequest {
     pub state: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_public: Option<bool>,
+    /// Reason for ending a relationship, sent as end_reason to the API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_reason: Option<String>,
 }
 
 // ── Social ────────────────────────────────────────────────────────────────────
@@ -377,6 +380,18 @@ pub struct SendMessageRequest {
     pub body: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ascii_image: Option<String>,
+}
+
+// ── Post engagement ───────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostLikeResponse {
+    pub liked: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostRepostResponse {
+    pub reposted: bool,
 }
 
 // ── Error response ────────────────────────────────────────────────────────────

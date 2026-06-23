@@ -1,9 +1,12 @@
 use nbr::cli::{
     AccountAddArgs, AccountRemoveArgs, AccountUseArgs, AccountsCommands, AlignArgs, BreakupArgs,
-    Cli, Commands, DeckArgs, DiscoverArgs, FeedArgs, FollowArgs, GoPublicArgs, LikeArgs, PassArgs,
-    PhotoClearArgs, PhotoCommands, PostArgs, ProfileCommands, ProfileEditArgs, ReadArgs, SendArgs,
-    SignupArgs, SocialCommands, SocialProfileCommands, SocialViewArgs, SwipeArgs, UnfollowArgs,
-    UnmatchArgs,
+    Cli, Commands, ConversationsCommands, DeckArgs, DiscoverArgs, FeedArgs, FeedCommands,
+    FollowArgs, FollowsCommands, GoPublicArgs, LikeArgs, MatchesCommands, NotificationsCommands,
+    NotificationsListArgs, NotificationsReadArgs, PassArgs, PhotoClearArgs, PhotoSetArgs,
+    PhotosCommands, PostArgs, PostDeleteArgs, PostIdArgs, PostsCommands, ProfileCommands,
+    ProfileEditArgs, ReadArgs, RelationshipsCommands, SendArgs, SignupArgs, SocialCommands,
+    SocialProfileCommands, SocialViewArgs, SwipeArgs, SwipesCommands, TokenCreateArgs,
+    TokenRevokeArgs, TokensCommands, UnfollowArgs, UnmatchArgs,
 };
 use nbr::command_strings;
 use serde_json::json;
@@ -140,6 +143,31 @@ fn command_strings_accounts_remove() {
 }
 
 #[test]
+fn command_strings_tokens_list() {
+    let (cmd, sub) = command_strings(&Commands::Tokens(TokensCommands::List));
+    assert_eq!(cmd, "tokens");
+    assert_eq!(sub.as_deref(), Some("list"));
+}
+
+#[test]
+fn command_strings_tokens_create() {
+    let (cmd, sub) = command_strings(&Commands::Tokens(TokensCommands::Create(TokenCreateArgs {
+        label: None,
+    })));
+    assert_eq!(cmd, "tokens");
+    assert_eq!(sub.as_deref(), Some("create"));
+}
+
+#[test]
+fn command_strings_tokens_revoke() {
+    let (cmd, sub) = command_strings(&Commands::Tokens(TokensCommands::Revoke(TokenRevokeArgs {
+        id: "tok-1".into(),
+    })));
+    assert_eq!(cmd, "tokens");
+    assert_eq!(sub.as_deref(), Some("revoke"));
+}
+
+#[test]
 fn command_strings_whoami() {
     let (cmd, sub) = command_strings(&Commands::Whoami);
     assert_eq!(cmd, "whoami");
@@ -175,31 +203,38 @@ fn command_strings_profile_edit() {
 }
 
 #[test]
-fn command_strings_photo_show() {
-    let (cmd, sub) = command_strings(&Commands::Photo(PhotoCommands::Show));
-    assert_eq!(cmd, "photo");
-    assert_eq!(sub.as_deref(), Some("show"));
+fn command_strings_photos_list() {
+    // canonical noun
+    let (cmd, sub) = command_strings(&Commands::Photos(PhotosCommands::List));
+    assert_eq!(cmd, "photos");
+    assert_eq!(sub.as_deref(), Some("list"));
 }
 
 #[test]
-fn command_strings_photo_set() {
-    let (cmd, sub) = command_strings(&Commands::Photo(PhotoCommands::Set(
-        nbr::cli::PhotoSetArgs {
-            file: None,
-            art: None,
-            idx: 0,
-        },
-    )));
-    assert_eq!(cmd, "photo");
+fn command_strings_photo_list_alias() {
+    // `photo` alias maps to same analytics
+    let (cmd, sub) = command_strings(&Commands::Photo(PhotosCommands::List));
+    assert_eq!(cmd, "photos");
+    assert_eq!(sub.as_deref(), Some("list"));
+}
+
+#[test]
+fn command_strings_photos_set() {
+    let (cmd, sub) = command_strings(&Commands::Photos(PhotosCommands::Set(PhotoSetArgs {
+        file: None,
+        art: None,
+        idx: 0,
+    })));
+    assert_eq!(cmd, "photos");
     assert_eq!(sub.as_deref(), Some("set"));
 }
 
 #[test]
-fn command_strings_photo_clear() {
-    let (cmd, sub) = command_strings(&Commands::Photo(PhotoCommands::Clear(PhotoClearArgs {
+fn command_strings_photos_clear() {
+    let (cmd, sub) = command_strings(&Commands::Photos(PhotosCommands::Clear(PhotoClearArgs {
         idx: 0,
     })));
-    assert_eq!(cmd, "photo");
+    assert_eq!(cmd, "photos");
     assert_eq!(sub.as_deref(), Some("clear"));
 }
 
@@ -207,90 +242,159 @@ fn command_strings_photo_clear() {
 fn command_strings_deck() {
     let (cmd, sub) = command_strings(&Commands::Deck(DeckArgs { limit: 5 }));
     assert_eq!(cmd, "deck");
-    assert!(sub.is_none());
+    // Deck alias reports "next" as sub for analytics
+    assert_eq!(sub.as_deref(), Some("next"));
 }
 
 #[test]
-fn command_strings_swipe() {
+fn command_strings_swipes_create() {
+    let (cmd, sub) = command_strings(&Commands::Swipes(SwipesCommands::Create(SwipeArgs {
+        account_id: "acc".into(),
+        direction: "yes".into(),
+    })));
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("create"));
+}
+
+#[test]
+fn command_strings_swipes_yes() {
+    let (cmd, sub) = command_strings(&Commands::Swipes(SwipesCommands::Yes(LikeArgs {
+        id: "acc".into(),
+    })));
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("yes"));
+}
+
+#[test]
+fn command_strings_swipes_no() {
+    let (cmd, sub) = command_strings(&Commands::Swipes(SwipesCommands::No(PassArgs {
+        id: "acc".into(),
+    })));
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("no"));
+}
+
+#[test]
+fn command_strings_swipes_incoming() {
+    let (cmd, sub) = command_strings(&Commands::Swipes(SwipesCommands::Incoming));
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("incoming"));
+}
+
+// Flat aliases for swipes
+#[test]
+fn command_strings_swipe_alias() {
     let (cmd, sub) = command_strings(&Commands::Swipe(SwipeArgs {
         account_id: "acc".into(),
         direction: "yes".into(),
     }));
-    assert_eq!(cmd, "swipe");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("create"));
 }
 
 #[test]
-fn command_strings_like() {
+fn command_strings_like_alias() {
     let (cmd, sub) = command_strings(&Commands::Like(LikeArgs { id: "acc".into() }));
-    assert_eq!(cmd, "like");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("yes"));
 }
 
 #[test]
-fn command_strings_pass() {
+fn command_strings_pass_alias() {
     let (cmd, sub) = command_strings(&Commands::Pass(PassArgs { id: "acc".into() }));
-    assert_eq!(cmd, "pass");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("no"));
 }
 
 #[test]
-fn command_strings_matches() {
-    let (cmd, sub) = command_strings(&Commands::Matches);
+fn command_strings_likes_alias() {
+    let (cmd, sub) = command_strings(&Commands::Likes);
+    assert_eq!(cmd, "swipes");
+    assert_eq!(sub.as_deref(), Some("incoming"));
+}
+
+#[test]
+fn command_strings_matches_list() {
+    let (cmd, sub) = command_strings(&Commands::Matches(MatchesCommands::List));
     assert_eq!(cmd, "matches");
-    assert!(sub.is_none());
+    assert_eq!(sub.as_deref(), Some("list"));
 }
 
 #[test]
-fn command_strings_unmatch() {
+fn command_strings_matches_remove() {
+    let (cmd, sub) = command_strings(&Commands::Matches(MatchesCommands::Remove(UnmatchArgs {
+        match_id: "m1".into(),
+    })));
+    assert_eq!(cmd, "matches");
+    assert_eq!(sub.as_deref(), Some("remove"));
+}
+
+#[test]
+fn command_strings_unmatch_alias() {
     let (cmd, sub) = command_strings(&Commands::Unmatch(UnmatchArgs {
         match_id: "m1".into(),
     }));
-    assert_eq!(cmd, "unmatch");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "matches");
+    assert_eq!(sub.as_deref(), Some("remove"));
 }
 
 #[test]
-fn command_strings_likes() {
-    let (cmd, sub) = command_strings(&Commands::Likes);
-    assert_eq!(cmd, "likes");
-    assert!(sub.is_none());
+fn command_strings_relationships_list() {
+    let (cmd, sub) = command_strings(&Commands::Relationships(RelationshipsCommands::List));
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("list"));
 }
 
 #[test]
-fn command_strings_align() {
+fn command_strings_relationships_align() {
+    let (cmd, sub) = command_strings(&Commands::Relationships(RelationshipsCommands::Align(
+        AlignArgs {
+            account_id: "acc".into(),
+        },
+    )));
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("align"));
+}
+
+#[test]
+fn command_strings_align_alias() {
     let (cmd, sub) = command_strings(&Commands::Align(AlignArgs {
         account_id: "acc".into(),
     }));
-    assert_eq!(cmd, "align");
-    assert!(sub.is_none());
-}
-
-#[test]
-fn command_strings_relationships() {
-    let (cmd, sub) = command_strings(&Commands::Relationships);
     assert_eq!(cmd, "relationships");
-    assert!(sub.is_none());
+    assert_eq!(sub.as_deref(), Some("align"));
 }
 
 #[test]
-fn command_strings_breakup() {
+fn command_strings_relationships_breakup() {
+    let (cmd, sub) = command_strings(&Commands::Relationships(RelationshipsCommands::Breakup(
+        BreakupArgs {
+            relationship_id: "r1".into(),
+            reason: None,
+        },
+    )));
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("breakup"));
+}
+
+#[test]
+fn command_strings_breakup_alias() {
     let (cmd, sub) = command_strings(&Commands::Breakup(BreakupArgs {
         relationship_id: "r1".into(),
         reason: None,
     }));
-    assert_eq!(cmd, "breakup");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("breakup"));
 }
 
 #[test]
-fn command_strings_go_public() {
+fn command_strings_go_public_alias() {
     let (cmd, sub) = command_strings(&Commands::GoPublic(GoPublicArgs {
         relationship_id: "r1".into(),
         off: false,
     }));
-    assert_eq!(cmd, "go-public");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("go-public"));
 }
 
 #[test]
@@ -312,87 +416,236 @@ fn command_strings_social_view() {
 }
 
 #[test]
-fn command_strings_post() {
+fn command_strings_posts_create() {
+    let (cmd, sub) = command_strings(&Commands::Posts(PostsCommands::Create(PostArgs {
+        text: "hi".into(),
+        image: None,
+        reply_to: None,
+    })));
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("create"));
+}
+
+#[test]
+fn command_strings_posts_delete() {
+    let (cmd, sub) = command_strings(&Commands::Posts(PostsCommands::Delete(PostDeleteArgs {
+        id: "p1".into(),
+    })));
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("delete"));
+}
+
+#[test]
+fn command_strings_posts_like() {
+    let (cmd, sub) = command_strings(&Commands::Posts(PostsCommands::Like(PostIdArgs {
+        id: "p1".into(),
+    })));
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("like"));
+}
+
+#[test]
+fn command_strings_posts_unlike() {
+    let (cmd, sub) = command_strings(&Commands::Posts(PostsCommands::Unlike(PostIdArgs {
+        id: "p1".into(),
+    })));
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("unlike"));
+}
+
+#[test]
+fn command_strings_posts_repost() {
+    let (cmd, sub) = command_strings(&Commands::Posts(PostsCommands::Repost(PostIdArgs {
+        id: "p1".into(),
+    })));
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("repost"));
+}
+
+#[test]
+fn command_strings_posts_unrepost() {
+    let (cmd, sub) = command_strings(&Commands::Posts(PostsCommands::Unrepost(PostIdArgs {
+        id: "p1".into(),
+    })));
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("unrepost"));
+}
+
+#[test]
+fn command_strings_post_alias() {
     let (cmd, sub) = command_strings(&Commands::Post(PostArgs {
         text: "hi".into(),
         image: None,
         reply_to: None,
     }));
-    assert_eq!(cmd, "post");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "posts");
+    assert_eq!(sub.as_deref(), Some("create"));
 }
 
 #[test]
-fn command_strings_feed() {
-    let (cmd, sub) = command_strings(&Commands::Feed(FeedArgs { limit: 20 }));
+fn command_strings_feed_list() {
+    let (cmd, sub) = command_strings(&Commands::Feed(FeedCommands::List(FeedArgs { limit: 20 })));
     assert_eq!(cmd, "feed");
-    assert!(sub.is_none());
+    assert_eq!(sub.as_deref(), Some("list"));
 }
 
 #[test]
-fn command_strings_discover() {
+fn command_strings_feed_discover() {
+    let (cmd, sub) = command_strings(&Commands::Feed(FeedCommands::Discover(DiscoverArgs {
+        limit: 20,
+    })));
+    assert_eq!(cmd, "feed");
+    assert_eq!(sub.as_deref(), Some("discover"));
+}
+
+#[test]
+fn command_strings_discover_alias() {
     let (cmd, sub) = command_strings(&Commands::Discover(DiscoverArgs { limit: 20 }));
-    assert_eq!(cmd, "discover");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "feed");
+    assert_eq!(sub.as_deref(), Some("discover"));
 }
 
 #[test]
-fn command_strings_follow() {
+fn command_strings_follows_add() {
+    let (cmd, sub) = command_strings(&Commands::Follows(FollowsCommands::Add(FollowArgs {
+        handle: "alice".into(),
+    })));
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("add"));
+}
+
+#[test]
+fn command_strings_follows_remove() {
+    let (cmd, sub) = command_strings(&Commands::Follows(FollowsCommands::Remove(UnfollowArgs {
+        handle: "alice".into(),
+    })));
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("remove"));
+}
+
+#[test]
+fn command_strings_follows_followers() {
+    let (cmd, sub) = command_strings(&Commands::Follows(FollowsCommands::Followers));
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("followers"));
+}
+
+#[test]
+fn command_strings_follows_following() {
+    let (cmd, sub) = command_strings(&Commands::Follows(FollowsCommands::Following));
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("following"));
+}
+
+#[test]
+fn command_strings_follow_alias() {
     let (cmd, sub) = command_strings(&Commands::Follow(FollowArgs {
         handle: "alice".into(),
     }));
-    assert_eq!(cmd, "follow");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("add"));
 }
 
 #[test]
-fn command_strings_unfollow() {
+fn command_strings_unfollow_alias() {
     let (cmd, sub) = command_strings(&Commands::Unfollow(UnfollowArgs {
         handle: "alice".into(),
     }));
-    assert_eq!(cmd, "unfollow");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("remove"));
 }
 
 #[test]
-fn command_strings_followers() {
+fn command_strings_followers_alias() {
     let (cmd, sub) = command_strings(&Commands::Followers);
-    assert_eq!(cmd, "followers");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("followers"));
 }
 
 #[test]
-fn command_strings_following() {
+fn command_strings_following_alias() {
     let (cmd, sub) = command_strings(&Commands::Following);
-    assert_eq!(cmd, "following");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "follows");
+    assert_eq!(sub.as_deref(), Some("following"));
 }
 
 #[test]
-fn command_strings_messages() {
-    let (cmd, sub) = command_strings(&Commands::Messages);
-    assert_eq!(cmd, "messages");
-    assert!(sub.is_none());
+fn command_strings_conversations_list() {
+    let (cmd, sub) = command_strings(&Commands::Conversations(ConversationsCommands::List));
+    assert_eq!(cmd, "conversations");
+    assert_eq!(sub.as_deref(), Some("list"));
 }
 
 #[test]
-fn command_strings_read() {
+fn command_strings_conversations_read() {
+    let (cmd, sub) = command_strings(&Commands::Conversations(ConversationsCommands::Read(
+        ReadArgs {
+            conversation_id: "conv-1".into(),
+        },
+    )));
+    assert_eq!(cmd, "conversations");
+    assert_eq!(sub.as_deref(), Some("read"));
+}
+
+#[test]
+fn command_strings_conv_list_alias() {
+    // `nbr messages` / `nbr inbox` → conversations list
+    let (cmd, sub) = command_strings(&Commands::ConvList);
+    assert_eq!(cmd, "conversations");
+    assert_eq!(sub.as_deref(), Some("list"));
+}
+
+#[test]
+fn command_strings_read_alias() {
     let (cmd, sub) = command_strings(&Commands::Read(ReadArgs {
         conversation_id: "conv-1".into(),
     }));
-    assert_eq!(cmd, "read");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "conversations");
+    assert_eq!(sub.as_deref(), Some("read"));
 }
 
 #[test]
-fn command_strings_send() {
+fn command_strings_messages_send() {
+    use nbr::cli::MessagesCommands;
+    let (cmd, sub) = command_strings(&Commands::Messages(MessagesCommands::Send(SendArgs {
+        target: "alice".into(),
+        text: "hello".into(),
+        image: None,
+    })));
+    assert_eq!(cmd, "messages");
+    assert_eq!(sub.as_deref(), Some("send"));
+}
+
+#[test]
+fn command_strings_send_alias() {
     let (cmd, sub) = command_strings(&Commands::Send(SendArgs {
         target: "alice".into(),
         text: "hello".into(),
         image: None,
     }));
-    assert_eq!(cmd, "send");
-    assert!(sub.is_none());
+    assert_eq!(cmd, "messages");
+    assert_eq!(sub.as_deref(), Some("send"));
+}
+
+#[test]
+fn command_strings_notifications_list() {
+    let (cmd, sub) = command_strings(&Commands::Notifications(NotificationsCommands::List(
+        NotificationsListArgs { limit: 20 },
+    )));
+    assert_eq!(cmd, "notifications");
+    assert_eq!(sub.as_deref(), Some("list"));
+}
+
+#[test]
+fn command_strings_notifications_read() {
+    let (cmd, sub) = command_strings(&Commands::Notifications(NotificationsCommands::Read(
+        NotificationsReadArgs {
+            ids: vec![],
+            all: true,
+        },
+    )));
+    assert_eq!(cmd, "notifications");
+    assert_eq!(sub.as_deref(), Some("read"));
 }
 
 #[test]
@@ -704,7 +957,7 @@ async fn dispatch_status() {
     );
 }
 
-/// Verify dispatch routes matches correctly.
+/// Verify dispatch routes matches (canonical noun) correctly.
 #[tokio::test]
 async fn dispatch_matches() {
     let server = MockServer::start().await;
@@ -717,7 +970,12 @@ async fn dispatch_matches() {
     let mut client = nbr::client::ApiClient::new(server.uri());
     client.bearer = Some("jwt-test".into());
 
-    let result = nbr::dispatch(&Commands::Matches, &mut client, false).await;
+    let result = nbr::dispatch(
+        &Commands::Matches(MatchesCommands::List),
+        &mut client,
+        false,
+    )
+    .await;
     assert!(
         result.is_ok(),
         "dispatch matches should succeed: {:?}",
@@ -725,7 +983,7 @@ async fn dispatch_matches() {
     );
 }
 
-/// Verify dispatch routes likes correctly.
+/// Verify dispatch routes likes (alias) correctly.
 #[tokio::test]
 async fn dispatch_likes() {
     let server = MockServer::start().await;
@@ -749,7 +1007,7 @@ async fn dispatch_likes() {
     );
 }
 
-/// Verify dispatch routes relationships correctly.
+/// Verify dispatch routes relationships (canonical noun) correctly.
 #[tokio::test]
 async fn dispatch_relationships() {
     let server = MockServer::start().await;
@@ -762,7 +1020,12 @@ async fn dispatch_relationships() {
     let mut client = nbr::client::ApiClient::new(server.uri());
     client.bearer = Some("jwt-test".into());
 
-    let result = nbr::dispatch(&Commands::Relationships, &mut client, false).await;
+    let result = nbr::dispatch(
+        &Commands::Relationships(RelationshipsCommands::List),
+        &mut client,
+        false,
+    )
+    .await;
     assert!(
         result.is_ok(),
         "dispatch relationships should succeed: {:?}",
@@ -770,7 +1033,7 @@ async fn dispatch_relationships() {
     );
 }
 
-/// Verify dispatch routes followers correctly.
+/// Verify dispatch routes followers (alias) correctly.
 #[tokio::test]
 async fn dispatch_followers() {
     let server = MockServer::start().await;
@@ -791,7 +1054,7 @@ async fn dispatch_followers() {
     );
 }
 
-/// Verify dispatch routes following correctly.
+/// Verify dispatch routes following (alias) correctly.
 #[tokio::test]
 async fn dispatch_following() {
     let server = MockServer::start().await;
@@ -812,9 +1075,9 @@ async fn dispatch_following() {
     );
 }
 
-/// Verify dispatch routes messages correctly.
+/// Verify dispatch routes conversations list (alias ConvList) correctly.
 #[tokio::test]
-async fn dispatch_messages() {
+async fn dispatch_conv_list() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/v1/conversations"))
@@ -825,10 +1088,10 @@ async fn dispatch_messages() {
     let mut client = nbr::client::ApiClient::new(server.uri());
     client.bearer = Some("jwt-test".into());
 
-    let result = nbr::dispatch(&Commands::Messages, &mut client, false).await;
+    let result = nbr::dispatch(&Commands::ConvList, &mut client, false).await;
     assert!(
         result.is_ok(),
-        "dispatch messages should succeed: {:?}",
+        "dispatch conv-list should succeed: {:?}",
         result
     );
 }
