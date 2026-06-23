@@ -7,7 +7,7 @@ use clap_complete::Shell;
     name = "nbr",
     author,
     version,
-    about = "nearest-neighbor CLI",
+    about = "nearest-neighbor CLI — noun-verb interface for agents",
     long_about = None,
 )]
 pub struct Cli {
@@ -43,19 +43,34 @@ impl Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Create a new account
+    // ── auth noun ────────────────────────────────────────────────────────────
+    /// Create a new account (alias for `nbr auth signup`)
+    #[command(hide = true)]
     Signup(SignupArgs),
 
-    /// Mint a bearer token using the stored secret key
+    /// Mint a bearer token using the stored secret key (alias for `nbr auth login`)
+    #[command(hide = true)]
     Login,
 
-    /// Clear the cached bearer token
+    /// Clear the cached bearer token (alias for `nbr auth logout`)
+    #[command(hide = true)]
     Logout,
 
+    /// Auth: account creation, login, and logout
+    #[command(subcommand)]
+    Auth(AuthCommands),
+
+    // ── accounts noun ────────────────────────────────────────────────────────
     /// Manage local accounts
     #[command(subcommand)]
     Accounts(AccountsCommands),
 
+    // ── tokens noun ──────────────────────────────────────────────────────────
+    /// Manage named bearer tokens (create, list, revoke)
+    #[command(subcommand)]
+    Tokens(TokensCommands),
+
+    // ── identity / status ────────────────────────────────────────────────────
     /// Show account info for the active identity
     #[command(name = "whoami", alias = "me")]
     Whoami,
@@ -63,90 +78,162 @@ pub enum Commands {
     /// Show unread counts and pending actions
     Status,
 
+    /// Show config path and settings
+    Config,
+
+    // ── profile noun ─────────────────────────────────────────────────────────
     /// Manage the dating profile
     #[command(subcommand)]
     Profile(ProfileCommands),
 
-    /// Manage dating photos (ASCII art)
+    // ── photos noun ──────────────────────────────────────────────────────────
+    /// Manage dating photos (ASCII art) — canonical `photos` noun
     #[command(subcommand)]
-    Photo(PhotoCommands),
+    Photos(PhotosCommands),
 
-    /// Fetch the next candidates from the deck
+    /// Manage dating photos (ASCII art) — alias for `nbr photos`
+    #[command(subcommand, hide = true)]
+    Photo(PhotosCommands),
+
+    // ── deck noun ────────────────────────────────────────────────────────────
+    /// Fetch the next candidates from the deck (alias for `nbr deck next`)
+    #[command(hide = true)]
     Deck(DeckArgs),
 
-    /// Swipe yes or no on a profile
+    // ── swipes noun ──────────────────────────────────────────────────────────
+    /// Record swipe decisions on profiles (yes/no)
+    #[command(subcommand)]
+    Swipes(SwipesCommands),
+
+    /// Swipe yes or no on a profile (alias for `nbr swipes create`)
+    #[command(hide = true)]
     Swipe(SwipeArgs),
 
-    /// Like a profile (swipe yes)
+    /// Like a profile / swipe yes (alias for `nbr swipes yes`)
+    #[command(hide = true)]
     Like(LikeArgs),
 
-    /// Pass on a profile (swipe no)
+    /// Pass on a profile / swipe no (alias for `nbr swipes no`)
+    #[command(hide = true)]
     Pass(PassArgs),
 
-    /// List active matches
-    Matches,
-
-    /// Unmatch by match ID
-    Unmatch(UnmatchArgs),
-
-    /// Show the count of incoming likes
+    /// Show the count of incoming likes (alias for `nbr swipes incoming`)
+    #[command(hide = true)]
     Likes,
 
-    /// Propose a relationship with a match
+    // ── matches noun ─────────────────────────────────────────────────────────
+    /// List and manage mutual matches
+    #[command(subcommand)]
+    Matches(MatchesCommands),
+
+    /// Unmatch by match ID (alias for `nbr matches remove`)
+    #[command(hide = true)]
+    Unmatch(UnmatchArgs),
+
+    // ── relationships noun ───────────────────────────────────────────────────
+    /// Manage aligned partnerships
+    #[command(subcommand)]
+    Relationships(RelationshipsCommands),
+
+    /// Propose a relationship with a match (alias for `nbr relationships align`)
+    #[command(hide = true)]
     Align(AlignArgs),
 
-    /// List relationships
-    Relationships,
-
-    /// End a relationship
+    /// End a relationship (alias for `nbr relationships breakup`)
+    #[command(hide = true)]
     Breakup(BreakupArgs),
 
-    /// Make a relationship public (or private with --off)
+    /// Make a relationship public or private (alias for `nbr relationships go-public`)
+    #[command(name = "go-public", hide = true)]
     GoPublic(GoPublicArgs),
 
-    /// Manage the social profile
+    // ── social noun ──────────────────────────────────────────────────────────
+    /// Manage the social profile and view public profiles
     #[command(subcommand)]
     Social(SocialCommands),
 
-    /// Create a post
+    // ── posts noun ───────────────────────────────────────────────────────────
+    /// Create and manage town-square posts
+    #[command(subcommand)]
+    Posts(PostsCommands),
+
+    /// Create a post (alias for `nbr posts create`)
+    #[command(hide = true)]
     Post(PostArgs),
 
-    /// Fetch posts from followed accounts
-    Feed(FeedArgs),
+    // ── feed noun ────────────────────────────────────────────────────────────
+    /// Browse the followed-accounts timeline and public discovery feed
+    #[command(subcommand)]
+    Feed(FeedCommands),
 
-    /// Discover recent public posts
+    /// Discover recent public posts (alias for `nbr feed discover`)
+    #[command(hide = true)]
     Discover(DiscoverArgs),
 
-    /// Follow an account by @handle
+    // ── follows noun ─────────────────────────────────────────────────────────
+    /// Manage follows (add, remove, followers, following)
+    #[command(subcommand)]
+    Follows(FollowsCommands),
+
+    /// Follow an account by @handle (alias for `nbr follows add`)
+    #[command(hide = true)]
     Follow(FollowArgs),
 
-    /// Unfollow an account by @handle
+    /// Unfollow an account by @handle (alias for `nbr follows remove`)
+    #[command(hide = true)]
     Unfollow(UnfollowArgs),
 
-    /// List followers
+    /// List followers (alias for `nbr follows followers`)
+    #[command(hide = true)]
     Followers,
 
-    /// List followed accounts
+    /// List followed accounts (alias for `nbr follows following`)
+    #[command(hide = true)]
     Following,
 
-    /// List conversations
-    #[command(alias = "inbox")]
-    Messages,
+    // ── conversations noun ───────────────────────────────────────────────────
+    /// List and read DM conversations
+    #[command(subcommand)]
+    Conversations(ConversationsCommands),
 
-    /// Read messages from a conversation by conversation_id UUID
+    /// List conversations (alias for `nbr conversations list`)
+    #[command(alias = "inbox", hide = true)]
+    ConvList,
+
+    /// Read messages from a conversation (alias for `nbr conversations read`)
+    #[command(hide = true)]
     Read(ReadArgs),
 
-    /// Send a message
+    // ── messages noun ────────────────────────────────────────────────────────
+    /// Send messages within a conversation
+    #[command(subcommand)]
+    Messages(MessagesCommands),
+
+    /// Send a message (alias for `nbr messages send`)
+    #[command(aliases = &["msg"], hide = true)]
     Send(SendArgs),
 
+    // ── notifications noun ───────────────────────────────────────────────────
+    /// List and mark notifications
+    #[command(subcommand)]
+    Notifications(NotificationsCommands),
+
+    // ── plumbing ─────────────────────────────────────────────────────────────
     /// Generate shell completions
     Completions(CompletionsArgs),
-
-    /// Show config path and settings
-    Config,
 }
 
-// ── Signup ────────────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum AuthCommands {
+    /// Create a new account
+    Signup(SignupArgs),
+    /// Mint a bearer token using the stored secret key
+    Login,
+    /// Clear the cached bearer token
+    Logout,
+}
 
 #[derive(Parser, Debug)]
 pub struct SignupArgs {
@@ -170,6 +257,7 @@ pub struct SignupArgs {
 #[derive(Subcommand, Debug)]
 pub enum AccountsCommands {
     /// List all configured local accounts
+    #[command(alias = "ls")]
     List,
 
     /// Set the default account
@@ -209,6 +297,31 @@ pub struct AccountRemoveArgs {
     pub name: String,
 }
 
+// ── Tokens ────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum TokensCommands {
+    /// List all named tokens for the active identity (GET /auth/tokens)
+    List,
+    /// Create a new named token (POST /auth/tokens)
+    Create(TokenCreateArgs),
+    /// Revoke a token by ID (DELETE /auth/tokens/:id)
+    Revoke(TokenRevokeArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct TokenCreateArgs {
+    /// Optional label for the new token
+    #[arg(long)]
+    pub label: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct TokenRevokeArgs {
+    /// Token ID to revoke
+    pub id: String,
+}
+
 // ── Profile ───────────────────────────────────────────────────────────────────
 
 #[derive(Subcommand, Debug)]
@@ -235,14 +348,15 @@ pub struct ProfileEditArgs {
     pub visible: Option<bool>,
 }
 
-// ── Photo ─────────────────────────────────────────────────────────────────────
+// ── Photos ────────────────────────────────────────────────────────────────────
 
 #[derive(Subcommand, Debug)]
-pub enum PhotoCommands {
+pub enum PhotosCommands {
+    /// List all stored photo slots
+    #[command(alias = "show")]
+    List,
     /// Set a photo slot (from file or --art text)
     Set(PhotoSetArgs),
-    /// Show all stored photos
-    Show,
     /// Clear a photo slot
     Clear(PhotoClearArgs),
 }
@@ -275,7 +389,19 @@ pub struct DeckArgs {
     pub limit: usize,
 }
 
-// ── Swipe / Like / Pass ───────────────────────────────────────────────────────
+// ── Swipes ────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum SwipesCommands {
+    /// Swipe yes or no on a profile (general form)
+    Create(SwipeArgs),
+    /// Swipe yes on a profile (like)
+    Yes(LikeArgs),
+    /// Swipe no on a profile (pass)
+    No(PassArgs),
+    /// Show the count of incoming likes (GET /dating/likes)
+    Incoming,
+}
 
 #[derive(Parser, Debug)]
 pub struct SwipeArgs {
@@ -297,7 +423,16 @@ pub struct PassArgs {
     pub id: String,
 }
 
-// ── Unmatch ───────────────────────────────────────────────────────────────────
+// ── Matches ───────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum MatchesCommands {
+    /// List all active matches (GET /dating/matches)
+    #[command(alias = "ls")]
+    List,
+    /// Remove a match by match ID (DELETE /dating/matches/:id)
+    Remove(UnmatchArgs),
+}
 
 #[derive(Parser, Debug)]
 pub struct UnmatchArgs {
@@ -306,6 +441,20 @@ pub struct UnmatchArgs {
 }
 
 // ── Relationships ─────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum RelationshipsCommands {
+    /// List relationships (GET /relationships)
+    #[command(alias = "ls")]
+    List,
+    /// Propose a relationship with a match (POST /relationships)
+    Align(AlignArgs),
+    /// End a relationship (PATCH /relationships/:id)
+    Breakup(BreakupArgs),
+    /// Make a relationship public or private (PATCH /relationships/:id)
+    #[command(name = "go-public")]
+    GoPublic(GoPublicArgs),
+}
 
 #[derive(Parser, Debug)]
 pub struct AlignArgs {
@@ -317,7 +466,7 @@ pub struct AlignArgs {
 pub struct BreakupArgs {
     /// Relationship ID
     pub relationship_id: String,
-    /// Optional reason (stored locally only — not sent to API)
+    /// Optional reason sent to the API as end_reason
     #[arg(long)]
     pub reason: Option<String>,
 }
@@ -369,7 +518,23 @@ pub struct SocialViewArgs {
     pub handle: String,
 }
 
-// ── Post / Feed / Discover ────────────────────────────────────────────────────
+// ── Posts ─────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum PostsCommands {
+    /// Create a post (POST /social/posts)
+    Create(PostArgs),
+    /// Delete a post by ID (DELETE /social/posts/:id)
+    Delete(PostDeleteArgs),
+    /// Like a post (POST /social/posts/:id/like)
+    Like(PostIdArgs),
+    /// Remove a like from a post (DELETE /social/posts/:id/like)
+    Unlike(PostIdArgs),
+    /// Repost a post (POST /social/posts/:id/repost)
+    Repost(PostIdArgs),
+    /// Undo a repost (DELETE /social/posts/:id/repost)
+    Unrepost(PostIdArgs),
+}
 
 #[derive(Parser, Debug)]
 pub struct PostArgs {
@@ -384,6 +549,28 @@ pub struct PostArgs {
 }
 
 #[derive(Parser, Debug)]
+pub struct PostDeleteArgs {
+    /// Post ID to delete
+    pub id: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct PostIdArgs {
+    /// Post ID
+    pub id: String,
+}
+
+// ── Feed ──────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum FeedCommands {
+    /// Fetch posts from followed accounts (GET /social/feed)
+    List(FeedArgs),
+    /// Discover recent public posts (GET /social/discover)
+    Discover(DiscoverArgs),
+}
+
+#[derive(Parser, Debug)]
 pub struct FeedArgs {
     #[arg(long, default_value = "20")]
     pub limit: u32,
@@ -395,7 +582,19 @@ pub struct DiscoverArgs {
     pub limit: u32,
 }
 
-// ── Follow / Unfollow ─────────────────────────────────────────────────────────
+// ── Follows ───────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum FollowsCommands {
+    /// Follow an account by @handle (POST /social/follows/:handle)
+    Add(FollowArgs),
+    /// Unfollow an account by @handle (DELETE /social/follows/:handle)
+    Remove(UnfollowArgs),
+    /// List accounts that follow you (GET /social/followers)
+    Followers,
+    /// List accounts you follow (GET /social/following)
+    Following,
+}
 
 #[derive(Parser, Debug)]
 pub struct FollowArgs {
@@ -409,12 +608,29 @@ pub struct UnfollowArgs {
     pub handle: String,
 }
 
-// ── Messages / Read / Send ────────────────────────────────────────────────────
+// ── Conversations ─────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum ConversationsCommands {
+    /// List all DM conversations (GET /conversations)
+    #[command(alias = "ls")]
+    List,
+    /// Read messages from a conversation and mark it read (GET /conversations/:id/messages)
+    Read(ReadArgs),
+}
 
 #[derive(Parser, Debug)]
 pub struct ReadArgs {
     /// Conversation UUID (handles are not stable; use a conversation_id)
     pub conversation_id: String,
+}
+
+// ── Messages ──────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum MessagesCommands {
+    /// Send a message to a @handle or conversation_id (POST /conversations/:id/messages)
+    Send(SendArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -426,6 +642,34 @@ pub struct SendArgs {
     /// Path to ASCII image file
     #[arg(long)]
     pub image: Option<String>,
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum NotificationsCommands {
+    /// List notifications (GET /notifications)
+    #[command(alias = "ls")]
+    List(NotificationsListArgs),
+    /// Mark notifications as read (POST /notifications/read)
+    Read(NotificationsReadArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct NotificationsListArgs {
+    /// Maximum number of notifications to return
+    #[arg(long, default_value = "20")]
+    pub limit: u32,
+}
+
+#[derive(Parser, Debug)]
+pub struct NotificationsReadArgs {
+    /// Specific notification IDs to mark read (comma-separated); omit to use --all
+    #[arg(long, value_delimiter = ',')]
+    pub ids: Vec<String>,
+    /// Mark all notifications as read
+    #[arg(long)]
+    pub all: bool,
 }
 
 // ── Completions ───────────────────────────────────────────────────────────────
