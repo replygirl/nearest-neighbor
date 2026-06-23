@@ -16,6 +16,10 @@ jobs = 8
 [env]
 NODE_ENV = "development"
 HK_MISE = "1"
+# hk's built-in pkl evaluator (the default; no external pkl CLI needed).
+# Note: pklr had a config-cache-freshness bug (hk.pkl edits ignored until a
+# manual `hk cache clear`) fixed upstream in hk 1.44.2 (jdx/hk#879), so it
+# requires hk >= 1.44.2, which we pin below.
 HK_PKL_BACKEND = "pklr"
 # Load per-developer secrets; file is git-ignored
 _.file = [{ path = ".env.local", redact = true }]
@@ -47,8 +51,9 @@ rust = "stable"
 "npm:oxlint" = "1.70.0"
 "npm:oxfmt" = "0.55.0"
 
-# Git hooks runner — pinned to 1.41.0; 1.44.1 regression skips pre-push install
-"aqua:jdx/hk" = "1.41.0"
+# Git hooks runner. >= 1.44.2 is required for the pklr cache-freshness fix
+# (jdx/hk#879) so edits to hk.pkl are picked up without a manual `hk cache clear`.
+"aqua:jdx/hk" = "1.48.0"
 "aqua:jdx/usage" = "3.2.1"
 
 # TOML formatter (used by hk taplo step) — cargo backend is most reliable
