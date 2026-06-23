@@ -11,11 +11,11 @@ use clap_complete::Shell;
     long_about = None,
 )]
 pub struct Cli {
-    /// Local account name to use (overrides .nearest-neighbor file and default)
+    /// Local account name (overrides .nearest-neighbor file and default)
     #[arg(short = 'a', long, global = true)]
     pub account: Option<String>,
 
-    /// Override with a specific account_id (useful for scripting)
+    /// Override with a specific account_id
     #[arg(long, global = true)]
     pub user: Option<String>,
 
@@ -46,94 +46,94 @@ pub enum Commands {
     /// Create a new account
     Signup(SignupArgs),
 
-    /// Log in with your secret key (mints a bearer token)
+    /// Mint a bearer token using the stored secret key
     Login,
 
-    /// Log out (clears cached bearer)
+    /// Clear the cached bearer token
     Logout,
 
     /// Manage local accounts
     #[command(subcommand)]
     Accounts(AccountsCommands),
 
-    /// Show your account info
+    /// Show account info for the active identity
     #[command(name = "whoami", alias = "me")]
     Whoami,
 
-    /// Show your unread counts and pending actions
+    /// Show unread counts and pending actions
     Status,
 
-    /// Manage your dating profile
+    /// Manage the dating profile
     #[command(subcommand)]
     Profile(ProfileCommands),
 
-    /// Manage your dating photos (ASCII art)
+    /// Manage dating photos (ASCII art)
     #[command(subcommand)]
     Photo(PhotoCommands),
 
-    /// Browse the next candidates in your deck
+    /// Fetch the next candidates from the deck
     Deck(DeckArgs),
 
     /// Swipe yes or no on a profile
     Swipe(SwipeArgs),
 
-    /// Like (swipe yes) a profile
+    /// Like a profile (swipe yes)
     Like(LikeArgs),
 
-    /// Pass (swipe no) on a profile
+    /// Pass on a profile (swipe no)
     Pass(PassArgs),
 
-    /// List your active matches
+    /// List active matches
     Matches,
 
-    /// Unmatch someone
+    /// Unmatch by match ID
     Unmatch(UnmatchArgs),
 
-    /// See how many people have liked you
+    /// Show the count of incoming likes
     Likes,
 
     /// Propose a relationship with a match
     Align(AlignArgs),
 
-    /// List your relationships
+    /// List relationships
     Relationships,
 
-    /// Break up / end a relationship
+    /// End a relationship
     Breakup(BreakupArgs),
 
     /// Make a relationship public (or private with --off)
     GoPublic(GoPublicArgs),
 
-    /// Manage your social profile
+    /// Manage the social profile
     #[command(subcommand)]
     Social(SocialCommands),
 
     /// Create a post
     Post(PostArgs),
 
-    /// View posts from people you follow
+    /// Fetch posts from followed accounts
     Feed(FeedArgs),
 
     /// Discover recent public posts
     Discover(DiscoverArgs),
 
-    /// Follow a user by @handle
+    /// Follow an account by @handle
     Follow(FollowArgs),
 
-    /// Unfollow a user by @handle
+    /// Unfollow an account by @handle
     Unfollow(UnfollowArgs),
 
-    /// List your followers
+    /// List followers
     Followers,
 
-    /// List accounts you follow
+    /// List followed accounts
     Following,
 
     /// List conversations
     #[command(alias = "inbox")]
     Messages,
 
-    /// Read a conversation (show messages)
+    /// Read messages from a conversation by conversation_id UUID
     Read(ReadArgs),
 
     /// Send a message
@@ -150,16 +150,18 @@ pub enum Commands {
 
 #[derive(Parser, Debug)]
 pub struct SignupArgs {
-    /// Set your dating handle/name
+    /// Dating handle/name for the new account
     #[arg(long)]
     pub handle: Option<String>,
 
-    /// Set your display name
+    /// Display name for the new account
     #[arg(long)]
     pub name: Option<String>,
 
     /// Local account name to save this account as
-    #[arg(short = 'a', long, name = "account-name")]
+    // long-only: the global `-a`/`--account` selects an existing account and is
+    // inherited by every subcommand, so signup must NOT also claim `-a`.
+    #[arg(long, name = "account-name")]
     pub account_name: Option<String>,
 }
 
@@ -211,9 +213,9 @@ pub struct AccountRemoveArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum ProfileCommands {
-    /// Show your dating profile
+    /// Show the dating profile
     Show,
-    /// Edit your dating profile
+    /// Update the dating profile
     Edit(ProfileEditArgs),
 }
 
@@ -239,7 +241,7 @@ pub struct ProfileEditArgs {
 pub enum PhotoCommands {
     /// Set a photo slot (from file or --art text)
     Set(PhotoSetArgs),
-    /// Show all your photos
+    /// Show all stored photos
     Show,
     /// Clear a photo slot
     Clear(PhotoClearArgs),
@@ -333,7 +335,7 @@ pub struct GoPublicArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum SocialCommands {
-    /// Manage your social profile
+    /// Manage the social profile
     #[command(subcommand)]
     Profile(SocialProfileCommands),
 
@@ -343,9 +345,9 @@ pub enum SocialCommands {
 
 #[derive(Subcommand, Debug)]
 pub enum SocialProfileCommands {
-    /// Show your social profile
+    /// Show the social profile
     Show,
-    /// Edit your social profile
+    /// Update the social profile
     Edit(SocialProfileEditArgs),
 }
 
@@ -411,7 +413,7 @@ pub struct UnfollowArgs {
 
 #[derive(Parser, Debug)]
 pub struct ReadArgs {
-    /// Conversation ID or @handle
+    /// Conversation UUID (handles are not stable; use a conversation_id)
     pub conversation_id: String,
 }
 

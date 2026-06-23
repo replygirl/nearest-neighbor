@@ -40,22 +40,14 @@ pub async fn run_signup(args: &SignupArgs, api_url: &str, json: bool) -> Result<
             "secret": resp.secret,
         }));
     } else {
-        print_success("Account created!");
+        print_success("account created");
         print_kv(&[
-            ("account name", account_name.clone()),
+            ("account_name", account_name.clone()),
             ("account_id", resp.account_id.clone()),
         ]);
         eprintln!();
-        eprintln!(
-            "Your secret key has been saved to the keyring (or a file with 0600 permissions)."
-        );
-        eprintln!("Run `nbr login` to mint a bearer token.");
-        if args.handle.is_some() || args.name.is_some() {
-            eprintln!();
-            eprintln!(
-                "Hint: run `nbr login` first, then `nbr profile edit` and `nbr social profile edit` to set up your profiles."
-            );
-        }
+        eprintln!("secret: stored in keyring (or 0600 file)");
+        eprintln!("next: nbr login");
     }
 
     Ok(())
@@ -119,7 +111,7 @@ pub fn run_accounts_list(json: bool) -> Result<()> {
     }
 
     if config.accounts.is_empty() {
-        println!("No accounts configured. Run `nbr signup` to get started.");
+        println!("No accounts configured.");
         return Ok(());
     }
 
@@ -200,9 +192,7 @@ pub async fn run_whoami(client: &mut ApiClient, json: bool) -> Result<()> {
         ]);
     } else {
         println!();
-        println!(
-            "No dating profile set up. Run `nbr profile edit --first-name <name>` to create one."
-        );
+        println!("dating_profile: none");
     }
 
     if let Some(sp) = &me.social_profile {
@@ -221,9 +211,7 @@ pub async fn run_whoami(client: &mut ApiClient, json: bool) -> Result<()> {
         ]);
     } else {
         println!();
-        println!(
-            "No social profile set up. Run `nbr social profile edit --handle <h>` to create one."
-        );
+        println!("social_profile: none");
     }
 
     Ok(())

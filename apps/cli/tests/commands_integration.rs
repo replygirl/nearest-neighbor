@@ -105,7 +105,7 @@ fn post_response() -> serde_json::Value {
 
 fn conversation_response() -> serde_json::Value {
     json!({
-        "id": "conv-uuid-1",
+        "id": "00000000-0000-0000-0000-000000000001",
         "other": { "handle": "bob", "account_id": "acc-bob-456" },
         "social_unlocked": true,
         "dating_unlocked": false,
@@ -116,8 +116,8 @@ fn conversation_response() -> serde_json::Value {
 
 fn message_response() -> serde_json::Value {
     json!({
-        "id": "msg-uuid-1",
-        "conversation_id": "conv-uuid-1",
+        "id": "00000000-0000-0000-0000-000000000010",
+        "conversation_id": "00000000-0000-0000-0000-000000000001",
         "sender_id": "acc-test-123",
         "body": "Hey there!",
         "ascii_image": null,
@@ -1678,7 +1678,7 @@ async fn test_run_messages_with_data_human() {
     let server = MockServer::start().await;
     // conv with no handle (account_id shown)
     let conv_no_handle = json!({
-        "id": "conv-uuid-2",
+        "id": "00000000-0000-0000-0000-000000000002",
         "other": { "handle": null, "account_id": "acc-anon-789" },
         "social_unlocked": false,
         "dating_unlocked": false,
@@ -1719,7 +1719,9 @@ async fn test_run_messages_json() {
 async fn test_run_read_empty_human() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(json!({ "items": [], "next_cursor": null })),
         )
@@ -1727,14 +1729,16 @@ async fn test_run_read_empty_human() {
         .await;
     // read mark best-effort
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/read"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/read",
+        ))
         .respond_with(ResponseTemplate::new(204))
         .mount(&server)
         .await;
 
     let mut client = auth_client(&server.uri());
     let args = nbr::cli::ReadArgs {
-        conversation_id: "conv-uuid-1".into(),
+        conversation_id: "00000000-0000-0000-0000-000000000001".into(),
     };
     commands::messaging::run_read(&mut client, &args, false)
         .await
@@ -1745,7 +1749,9 @@ async fn test_run_read_empty_human() {
 async fn test_run_read_with_messages_human() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "items": [message_response()],
             "next_cursor": null
@@ -1753,14 +1759,16 @@ async fn test_run_read_with_messages_human() {
         .mount(&server)
         .await;
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/read"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/read",
+        ))
         .respond_with(ResponseTemplate::new(204))
         .mount(&server)
         .await;
 
     let mut client = auth_client(&server.uri());
     let args = nbr::cli::ReadArgs {
-        conversation_id: "conv-uuid-1".into(),
+        conversation_id: "00000000-0000-0000-0000-000000000001".into(),
     };
     commands::messaging::run_read(&mut client, &args, false)
         .await
@@ -1771,21 +1779,25 @@ async fn test_run_read_with_messages_human() {
 async fn test_run_read_json() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(json!({ "items": [], "next_cursor": null })),
         )
         .mount(&server)
         .await;
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/read"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/read",
+        ))
         .respond_with(ResponseTemplate::new(204))
         .mount(&server)
         .await;
 
     let mut client = auth_client(&server.uri());
     let args = nbr::cli::ReadArgs {
-        conversation_id: "conv-uuid-1".into(),
+        conversation_id: "00000000-0000-0000-0000-000000000001".into(),
     };
     commands::messaging::run_read(&mut client, &args, true)
         .await
@@ -1796,14 +1808,16 @@ async fn test_run_read_json() {
 async fn test_run_send_direct_id_human() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(ResponseTemplate::new(201).set_body_json(message_response()))
         .mount(&server)
         .await;
 
     let mut client = auth_client(&server.uri());
     let args = nbr::cli::SendArgs {
-        target: "conv-uuid-1".into(),
+        target: "00000000-0000-0000-0000-000000000001".into(),
         text: "Hey there!".into(),
         image: None,
     };
@@ -1822,7 +1836,9 @@ async fn test_run_send_by_handle() {
         .mount(&server)
         .await;
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(ResponseTemplate::new(201).set_body_json(message_response()))
         .mount(&server)
         .await;
@@ -1842,14 +1858,16 @@ async fn test_run_send_by_handle() {
 async fn test_run_send_json() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(ResponseTemplate::new(201).set_body_json(message_response()))
         .mount(&server)
         .await;
 
     let mut client = auth_client(&server.uri());
     let args = nbr::cli::SendArgs {
-        target: "conv-uuid-1".into(),
+        target: "00000000-0000-0000-0000-000000000001".into(),
         text: "Hey there!".into(),
         image: None,
     };
@@ -1862,7 +1880,9 @@ async fn test_run_send_json() {
 async fn test_run_send_with_image_file() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path("/v1/conversations/conv-uuid-1/messages"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
         .respond_with(ResponseTemplate::new(201).set_body_json(message_response()))
         .mount(&server)
         .await;
@@ -1872,7 +1892,7 @@ async fn test_run_send_with_image_file() {
 
     let mut client = auth_client(&server.uri());
     let args = nbr::cli::SendArgs {
-        target: "conv-uuid-1".into(),
+        target: "00000000-0000-0000-0000-000000000001".into(),
         text: "Here's some art!".into(),
         image: Some(tmp.path().to_str().unwrap().to_string()),
     };
@@ -2348,5 +2368,5 @@ async fn test_client_get_conversation() {
         .get_conversation("conv-1")
         .await
         .expect("get_conversation should succeed");
-    assert_eq!(conv.id, "conv-uuid-1");
+    assert_eq!(conv.id, "00000000-0000-0000-0000-000000000001");
 }

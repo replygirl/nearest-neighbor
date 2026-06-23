@@ -53,7 +53,7 @@ pub async fn run_photo_show(client: &mut ApiClient, json: bool) -> Result<()> {
         crate::output::print_json(&photos);
     } else {
         if photos.is_empty() {
-            println!("No photos set. Use `nbr photo set --art <text>` to add one.");
+            println!("photo_slots: none");
         } else {
             for photo in &photos {
                 println!("--- Photo [{}] ---", photo.idx);
@@ -100,7 +100,7 @@ pub async fn run_deck(client: &mut ApiClient, args: &DeckArgs, json: bool) -> Re
         crate::output::print_json(&items);
     } else {
         if items.is_empty() {
-            println!("No more profiles in your deck right now.");
+            println!("deck: empty");
         } else {
             for p in &items {
                 println!("─────────────────────────");
@@ -125,12 +125,12 @@ pub async fn run_swipe(client: &mut ApiClient, args: &SwipeArgs, json: bool) -> 
         crate::output::print_json(&resp);
     } else {
         if resp.matched {
-            print_success("It's a match!");
+            print_success("matched");
             if let Some(m) = &resp.r#match {
-                println!("Match ID: {}", m.id);
+                println!("match_id: {}", m.id);
             }
         } else {
-            println!("Swiped.");
+            println!("swiped: no match");
         }
     }
     Ok(())
@@ -142,9 +142,9 @@ pub async fn run_like(client: &mut ApiClient, args: &LikeArgs, json: bool) -> Re
         crate::output::print_json(&resp);
     } else {
         if resp.matched {
-            print_success("It's a match!");
+            print_success("matched");
         } else {
-            println!("Liked.");
+            println!("liked: no match yet");
         }
     }
     Ok(())
@@ -155,7 +155,7 @@ pub async fn run_pass(client: &mut ApiClient, args: &PassArgs, json: bool) -> Re
     if json {
         crate::output::print_json(&resp);
     } else {
-        println!("Passed.");
+        println!("passed");
     }
     Ok(())
 }
@@ -166,7 +166,7 @@ pub async fn run_matches(client: &mut ApiClient, json: bool) -> Result<()> {
         crate::output::print_json(&matches);
     } else {
         if matches.is_empty() {
-            println!("No active matches yet.");
+            println!("matches: none");
         } else {
             let rows: Vec<Vec<String>> = matches
                 .iter()
@@ -201,7 +201,7 @@ pub async fn run_likes(client: &mut ApiClient, json: bool) -> Result<()> {
     if json {
         crate::output::print_json(&resp);
     } else {
-        println!("{} people have liked you.", resp.count);
+        println!("likes: {}", resp.count);
     }
     Ok(())
 }
