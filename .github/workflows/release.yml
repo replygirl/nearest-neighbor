@@ -1,13 +1,16 @@
-# CLI release pipeline for the `nbr` binary.
+# Platform release pipeline — builds and publishes the `nbr` CLI binary.
 #
-# Triggered by tags matching cli-v* (e.g. cli-v0.1.0).
+# Triggered by tags matching v<n>.<n>.<n> (e.g. v0.1.0).
+# The full platform ships in each GitHub Release under a single semantic tag;
+# there is no separate cli-v* tag.
+#
 # Builds five target triples in a matrix, packages each as
 #   nbr-<triple>.tar.xz  (Unix)
 #   nbr-<triple>.zip     (Windows)
 # Generates SHA256SUMS, creates a GitHub Release, and uploads all assets.
 #
 # To cut a release:
-#   git tag cli-v0.1.0 && git push origin cli-v0.1.0
+#   git tag v0.1.0 && git push origin v0.1.0
 #
 # Rustls is used for TLS so musl builds need no OpenSSL.
 
@@ -16,7 +19,7 @@ name: CLI Release
 on:
   push:
     tags:
-      - 'cli-v*'
+      - 'v*'
 
 permissions:
   contents: write
@@ -157,13 +160,13 @@ jobs:
 
       - name: Extract version from tag
         id: version
-        run: echo "version=${GITHUB_REF_NAME#cli-}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: 'nbr ${{ steps.version.outputs.version }}'
+          name: 'nearest-neighbor ${{ steps.version.outputs.version }}'
           body: |
             ## Install
 
