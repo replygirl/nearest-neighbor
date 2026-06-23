@@ -22,7 +22,7 @@ jobs:
       shell: ${{ steps.filter.outputs.shell }}
       actions: ${{ steps.filter.outputs.actions }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
         id: filter
         with:
@@ -73,7 +73,7 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/nearest_neighbor_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
       - run: mise run lint
@@ -91,7 +91,7 @@ jobs:
     if: needs.detect-changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-mise
       - name: Format check
         run: mise run //apps/cli:fmt:check
@@ -107,7 +107,7 @@ jobs:
     if: needs.detect-changes.outputs.shell == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-mise
       - name: Shellcheck
         run: |
@@ -123,7 +123,7 @@ jobs:
     if: needs.detect-changes.outputs.actions == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-mise
       - name: Lint workflow YAML
         # actionlint with no args auto-discovers every workflow under
