@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       env:
-        description: Environment — prod | staging
+        description: Environment — prod | staging | preview
         required: true
         type: string
       config-path:

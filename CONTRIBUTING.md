@@ -217,3 +217,61 @@ See [docs/testing.md](docs/testing.md) for the full strategy.
 
 OpenAPI docs: `localhost:8080/docs` (public routes) and
 `localhost:8080/admin/docs` (all routes).
+
+---
+
+## Preview deployments
+
+Every PR gets a throwaway Fly app and its own database, torn down when the PR
+closes.
+
+**Lifecycle**
+
+- **Deploy** (`.github/workflows/deploy-preview.yml`, on PR
+  `opened`/`reopened`/`synchronize`): creates `nearest-neighbor-pr-<N>`, creates
+  database `nn_pr_<N>` inside the shared `nearest-neighbor-db-staging` cluster,
+  stages the app's secrets, deploys (the `release_command` migrates the fresh
+  DB), and posts a sticky PR comment with the URL. Uses the `pr-<N>` GitHub
+  Environment.
+- **Delete** (`.github/workflows/delete-preview.yml`, on PR `closed`): destroys
+  the Fly app, drops `nn_pr_<N>`, and deletes the `pr-<N>` GitHub Environment.
+  Shares a concurrency group with deploy so closing mid-deploy can't orphan
+  resources.
+- **Reap** (`.github/workflows/reap-previews.yml`, nightly): sweeps any preview
+  app or `nn_pr_*` database whose PR is no longer open — a safety net for
+  force-deleted branches or cancelled teardowns.
+
+**Required configuration**
+
+| Kind     | Name                         | Purpose                                                                                                                                                                                                                                                    |
+| -------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Secret   | `FLY_API_TOKEN`              | Org-scoped Fly deploy token (already used by staging/prod)                                                                                                                                                                                                 |
+| Secret   | `STAGING_DATABASE_ADMIN_URL` | libpq URL to the staging Postgres cluster as a role that can `CREATE`/`DROP DATABASE`, using the private flycast host — e.g. `postgres://postgres:PASSWORD@nearest-neighbor-db-staging.flycast:5432/postgres`. Without it, preview workflows skip cleanly. |
+| Variable | `FLY_ORG`                    | Fly org slug (`personal`, displayed as "replygirl") — used to create preview apps. Already set in the repo.                                                                                                                                                |
+
+CI never reaches the cluster over the public internet; it opens a `flyctl proxy`
+WireGuard tunnel and runs `psql` against `localhost`. The preview app reaches
+the DB over the private network via the flycast host in
+`STAGING_DATABASE_ADMIN_URL`.
+
+To get `STAGING_DATABASE_ADMIN_URL`, read the operator credentials from the
+staging cluster (e.g.
+`flyctl ssh console -a nearest-neighbor-db-staging -C "printenv OPERATOR_PASSWORD"`)
+and assemble the URL with host `nearest-neighbor-db-staging.flycast`.
+
+**Optional: deleting the GitHub Environment on teardown**
+
+The default `GITHUB_TOKEN` cannot delete environments. To enable environment
+cleanup, create a GitHub App and wire it up; otherwise the Fly app + DB are
+still removed and only the empty `pr-<N>` environment lingers (with a warning).
+
+1. Create a GitHub App (org **Settings → Developer settings → GitHub Apps →
+   New**) with these repository permissions:
+   - **Environments: Read and write** — to delete the `pr-<N>` environment
+   - **Deployments: Read and write** — to deactivate/delete its deployments
+     (Administration is _not_ required.) The webhook can be disabled, and
+     repository access can be scoped to just `nearest-neighbor`.
+2. Install it on the `nearest-neighbor` repo.
+3. Generate a private key (PEM) for the app.
+4. Add repo **variable** `CLEANUP_GITHUB_APP_ID` (the numeric App ID) and repo
+   **secret** `CLEANUP_GITHUB_APP_PRIVATE_KEY` (the generated PEM).
