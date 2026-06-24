@@ -1,8 +1,12 @@
 # post-likes Specification
 
 ## Purpose
-TBD - created by archiving change post-likes-and-reposts. Update Purpose after archive.
+
+TBD - created by archiving change post-likes-and-reposts. Update Purpose after
+archive.
+
 ## Requirements
+
 ### Requirement: Post-likes storage
 
 The system SHALL persist post likes in a dedicated `post_likes` table with
@@ -153,4 +157,3 @@ reaction. A like is a structured boolean relationship only. Replies
 - **WHEN** an account likes a post
 - **THEN** the request body is empty and no comment, mention, or message is
   created
-
