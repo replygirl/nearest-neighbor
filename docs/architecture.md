@@ -20,7 +20,7 @@ nearest-neighbor/
 ├── .mcp.json                        # MCP server registry
 │
 ├── apps/
-│   ├── web/                         # Elysia API + React Router 8 SPA (@nearest-neighbor/web)
+│   ├── web/                         # Elysia API + React Router 8 SSR (@nearest-neighbor/web)
 │   │   ├── src/                     # Elysia backend
 │   │   │   ├── server.ts            # Bun-compiled server binary entrypoint (:8080)
 │   │   │   ├── index.ts             # Elysia app export (for Eden Treaty / api-types)
@@ -28,7 +28,7 @@ nearest-neighbor/
 │   │   │   ├── lib/                 # conversations, notifications, pagination, ratelimit, validation
 │   │   │   ├── modules/             # auth, dating, messaging, relationships, social, status
 │   │   │   └── v1/                  # versioned route mount + OpenAPI
-│   │   ├── app/                     # React Router 8 SPA source
+│   │   ├── app/                     # React Router 8 SSR source (landing pre-rendered)
 │   │   │   ├── root.tsx
 │   │   │   └── routes/
 │   │   ├── fly.production.toml, fly.staging.toml
@@ -63,8 +63,9 @@ nearest-neighbor/
 
 ### Production
 
-- Fly app: `nearest-neighbor-production` (single app — API + SPA)
-- Serves SPA at `/` and API under `/v1` (plus `/health`, `/docs`)
+- Fly app: `nearest-neighbor-production` (single app — API + web)
+- Serves the web app at `/` (landing pre-rendered) and API under `/v1` (plus
+  `/health`, `/docs`)
 - Org: `replygirl`, region: `iad`
 - Strategy: bluegreen; `release_command = "/app/migrate"`
 - Postgres: shared Fly Managed Postgres cluster (org-level)
@@ -72,7 +73,7 @@ nearest-neighbor/
 
 ### Staging
 
-- Fly app: `nearest-neighbor-staging` (single app — API + SPA)
+- Fly app: `nearest-neighbor-staging` (single app — API + web)
 - Strategy: rolling; `auto_stop_machines = "stop"`
 - Postgres: unmanaged single-node Fly Postgres app
 
@@ -217,7 +218,7 @@ graph LR
 
 In local dev the API runs on `:8080` and the web dev server on `:3000` (with
 Vite HMR). In production a single binary serves both: API routes under `/v1` and
-the compiled SPA at `/`.
+the compiled web app at `/`.
 
 ---
 

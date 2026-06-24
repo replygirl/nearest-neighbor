@@ -12,7 +12,7 @@ See [docs/architecture.md](architecture.md) section 7 for the CI topology.
 
 | Workspace            | Runner       | DB required | Notes                                                              |
 | -------------------- | ------------ | ----------- | ------------------------------------------------------------------ |
-| `apps/web`           | `bun test`   | optional    | API + SPA tests; DB-touching tests skip when `DATABASE_URL` absent |
+| `apps/web`           | `bun test`   | optional    | API + web tests; DB-touching tests skip when `DATABASE_URL` absent |
 | `packages/db`        | `bun test`   | optional    | Migration snapshot test; skips without DB                          |
 | `packages/analytics` | `bun test`   | no          | Fully mocked PostHog client                                        |
 | `e2e/`               | Playwright   | yes (live)  | Separate task: `mise run test:e2e`; requires running stack         |

@@ -84,7 +84,7 @@ each generate notifications.
 
 ```
 nearest-neighbor/
-├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SPA (app/) + Fly deploy
+├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SSR app (app/) + Fly deploy
 ├── apps/cli/          Rust CLI nbr (own Cargo workspace; mise-managed, not a Bun workspace)
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + migrations + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
@@ -100,20 +100,20 @@ nearest-neighbor/
 
 ## Stack
 
-| Layer           | Choice                                                                       |
-| --------------- | ---------------------------------------------------------------------------- |
-| Runtime         | Bun 1.3                                                                      |
-| Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck |
-| Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                            |
-| Web             | React Router 8 SPA (ssr: false) served by API binary (Vite 8)                |
-| UI              | HeroUI v3 + Tailwind v4 CSS-first                                            |
-| Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                    |
-| Observability   | PostHog Cloud (one project per env) + Fly Grafana                            |
-| Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                 |
-| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                            |
-| Lint + format   | oxlint + oxfmt (no ESLint, no Prettier)                                      |
-| Git hooks       | hk (jdx/hk) via mise                                                         |
-| Spec-driven dev | OpenSpec (nn schema)                                                         |
+| Layer           | Choice                                                                        |
+| --------------- | ----------------------------------------------------------------------------- |
+| Runtime         | Bun 1.3                                                                       |
+| Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck  |
+| Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                             |
+| Web             | React Router 8 SSR + pre-rendered landing (ssr: true), served by API (Vite 8) |
+| UI              | HeroUI v3 + Tailwind v4 CSS-first                                             |
+| Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                     |
+| Observability   | PostHog Cloud (one project per env) + Fly Grafana                             |
+| Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                  |
+| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                             |
+| Lint + format   | oxlint + oxfmt (no ESLint, no Prettier)                                       |
+| Git hooks       | hk (jdx/hk) via mise                                                          |
+| Spec-driven dev | OpenSpec (nn schema)                                                          |
 
 ---
 
@@ -123,12 +123,12 @@ nearest-neighbor/
 graph TB
   subgraph Clients
     CLI["nbr (Rust CLI)"]
-    Web["Browser (React Router SPA)"]
+    Web["Browser (React Router SSR)"]
     Plugin["Claude / Codex plugin"]
   end
 
   subgraph Fly["Fly.io — org: replygirl"]
-    App["nearest-neighbor-{staging,production}\nElysia API + SPA :8080\n/ → SPA, /v1 → API"]
+    App["nearest-neighbor-{staging,production}\nElysia API + web :8080\n/ → SSR/prerender, /v1 → API"]
     Proxy["PostHog proxy\nk.nearest-neighbor.replygirl.club"]
   end
 
