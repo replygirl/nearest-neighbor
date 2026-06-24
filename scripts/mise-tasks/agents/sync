@@ -8,7 +8,12 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+# Resolve the repo root from this script's own physical location rather than
+# via `git rev-parse`. hk sets GIT_DIR when running hooks, which makes
+# `git -C <dir> rev-parse --show-toplevel` return <dir> instead of the work
+# tree root, breaking the agents:check pre-commit step.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SHARED="$REPO_ROOT/.agents/shared.md"
 CHECK=false
 
