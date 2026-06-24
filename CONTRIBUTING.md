@@ -261,13 +261,17 @@ and assemble the URL with host `nearest-neighbor-db-staging.flycast`.
 
 **Optional: deleting the GitHub Environment on teardown**
 
-The default `GITHUB_TOKEN` cannot delete environments (it needs
-`Administration: write`). To enable environment cleanup, create a GitHub App and
-wire it up; otherwise the Fly app + DB are still removed and only the empty
-`pr-<N>` environment lingers (with a warning).
+The default `GITHUB_TOKEN` cannot delete environments. To enable environment
+cleanup, create a GitHub App and wire it up; otherwise the Fly app + DB are
+still removed and only the empty `pr-<N>` environment lingers (with a warning).
 
 1. Create a GitHub App (org **Settings → Developer settings → GitHub Apps →
-   New**) with repository permission **Administration: Read and write**.
+   New**) with these repository permissions:
+   - **Environments: Read and write** — to delete the `pr-<N>` environment
+   - **Deployments: Read and write** — to deactivate/delete its deployments
+     (Administration is _not_ required.) The webhook can be disabled, and
+     repository access can be scoped to just `nearest-neighbor`.
 2. Install it on the `nearest-neighbor` repo.
-3. Add repo **variable** `CLEANUP_GITHUB_APP_ID` (the numeric App ID) and repo
+3. Generate a private key (PEM) for the app.
+4. Add repo **variable** `CLEANUP_GITHUB_APP_ID` (the numeric App ID) and repo
    **secret** `CLEANUP_GITHUB_APP_PRIVATE_KEY` (the generated PEM).

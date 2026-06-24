@@ -39,10 +39,10 @@ jobs:
           admin-url: ${{ secrets.STAGING_DATABASE_ADMIN_URL }}
           fly-api-token: ${{ secrets.FLY_API_TOKEN }}
 
-      # GITHUB_TOKEN cannot delete environments (needs Administration: write,
-      # which the default token can't be granted). Use a GitHub App token if the
-      # cleanup app is configured; otherwise warn and leave the env (the Fly
-      # resources — what actually costs money — are already gone).
+      # GITHUB_TOKEN cannot delete environments (needs Environments: write +
+      # Deployments: write, which the default token can't be granted). Use a
+      # GitHub App token if the cleanup app is configured; otherwise warn and
+      # leave the env (the Fly resources — what actually costs money — are gone).
       - name: Mint cleanup token
         id: cleanup-token
         if: always() && vars.CLEANUP_GITHUB_APP_ID != ''
