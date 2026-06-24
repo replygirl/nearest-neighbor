@@ -50,8 +50,18 @@ jobs:
         id: deploy
         run: |
           strategy="rolling"
+          extra=()
           if [[ "${{ inputs.env }}" == "prod" ]]; then
             strategy="bluegreen"
+          elif [[ "${{ inputs.env }}" == "preview" ]]; then
+            # Ephemeral previews: a single machine (--ha=false, no HA spare) with
+            # the `immediate` strategy. Rolling updates across an auto-stopped HA
+            # pair raced the scale-to-zero machinery — flyctl 408'd updating the
+            # second machine, or timed out waiting for it to reach a good state.
+            # immediate replaces without that health-state wait; one machine has
+            # no second machine to race.
+            strategy="immediate"
+            extra+=(--ha=false)
           fi
           # Build context is the repo root (Dockerfiles COPY workspace files from
           # root); the config lives under apps/<app>/. The explicit "." sets the
@@ -64,6 +74,7 @@ jobs:
             --app "${{ inputs.app }}" \
             --config "${{ inputs.config-path }}" \
             --strategy "$strategy" \
+            "${extra[@]}" \
             --remote-only \
             --build-arg "VITE_POSTHOG_KEY=${{ vars.VITE_POSTHOG_KEY }}" \
             --build-arg "VITE_POSTHOG_HOST=${{ vars.VITE_POSTHOG_HOST }}"

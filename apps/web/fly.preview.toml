@@ -11,8 +11,12 @@ kill_timeout = 15
 [build]
 dockerfile = "Dockerfile"
 
+# Ephemeral previews deploy a single machine (--ha=false) with the `immediate`
+# strategy (see deploy-fly-app.yml): no health-state wait and no multi-machine
+# rolling update, which is what flaked on these scale-to-zero apps. The workflow
+# passes --strategy explicitly, so this value is just for standalone parsing.
 [deploy]
-strategy = "rolling"
+strategy = "immediate"
 release_command = "/app/migrate"
 
 [env]
@@ -32,12 +36,15 @@ min_machines_running = 0
 processes = ["web"]
 
 [[http_service.checks]]
-grace_period = "15s"
+grace_period = "30s"
 interval = "30s"
 timeout = "5s"
 method = "get"
 path = "/health"
 
+# 512mb matches staging/production — the compiled Bun server + React Router SSR
+# was unreliable booting in 256mb (machine "created but never started"), and the
+# saving on an ephemeral preview is negligible.
 [[vm]]
 size = "shared-cpu-1x"
-memory = "256mb"
+memory = "512mb"
