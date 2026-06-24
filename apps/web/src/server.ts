@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { extname, join } from 'node:path'
 
 import { createRequestHandler } from 'react-router'
 
@@ -7,6 +7,29 @@ import { app } from './index.ts'
 
 const WEB_DIR = process.env['WEB_DIR'] ?? '/app/web'
 const INDEX_HTML = join(WEB_DIR, 'index.html')
+
+// `bun build --compile` ships an incomplete MIME table, so `new Response(BunFile)`
+// emits no Content-Type for most extensions (images, text, xml, manifest) — only
+// a few like .js resolve. Social scrapers drop OG images without `image/png`, and
+// browsers reject SVG favicons without `image/svg+xml`, so set the type explicitly
+// for the static files we serve. Unmapped extensions (e.g. `.data`) keep Bun's
+// default so client-navigation payloads are untouched.
+const STATIC_CONTENT_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.sh': 'text/plain; charset=utf-8',
+}
 
 let webDirExists = false
 try {
@@ -53,6 +76,10 @@ const server = Bun.serve({
       const file = Bun.file(join(WEB_DIR, pathname))
       if (await file.exists()) {
         const headers: Record<string, string> = {}
+        const contentType = STATIC_CONTENT_TYPES[extname(pathname)]
+        if (contentType !== undefined) {
+          headers['Content-Type'] = contentType
+        }
         if (pathname.startsWith('/assets/')) {
           headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         }
