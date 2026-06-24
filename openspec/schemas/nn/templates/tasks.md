@@ -8,7 +8,7 @@
 - [ ] 2.1 <!-- Task description -->
 - [ ] 2.2 <!-- Task description -->
 
-## 3. Spec review (run before /opsx:apply)
+## 3. Spec review (gate before `mise run openspec:archive`)
 
 The five reviewer agents are read-only Claude Code subagents defined in
 `.claude/agents/openspec-review-*.md`. The implementing agent runs each via the
@@ -33,4 +33,3 @@ substantive impact or reaches beyond this change's scope.
   - `subagent_type: openspec-review-decision-compliance-reviewer`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
 - [ ] 3.6 `mise run openspec:validate` exits 0
-- [ ] 3.7 `mise run openspec:schema-validate` exits 0

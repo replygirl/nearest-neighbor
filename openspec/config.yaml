@@ -1,7 +1,7 @@
 schema: nn
 
 context: |
-  Tech stack: Bun 1.3 + TypeScript 6 (via @typescript/native-preview), Elysia 1.4 (backend),
+  Tech stack: Bun 1.3 + TypeScript 7 (via @typescript/native-preview), Elysia 1.4 (backend),
   React Router 8 framework mode + SSR (web). TypeBox for schemas (no Zod). Eden Treaty
   for end-to-end typed clients. Drizzle ORM with drizzle-orm/bun-sql driver.
   Fly Managed Postgres. PostHog Cloud (one project per env).
@@ -32,8 +32,8 @@ context: |
   Design principles: openspec/principles.md — read it before authoring any artifact.
   OPENSPEC_TELEMETRY=0 is set via mise env — no telemetry in CI or local dev.
 
-  Verification pipeline: hk pre-commit (oxfmt + oxlint + prettier + taplo + shellcheck +
-  actionlint + openspec validate), hk pre-push slow profile (+ tsgo --build + test:affected).
+  Verification pipeline: hk pre-commit (oxfmt + oxlint + taplo + shellcheck +
+  actionlint + cargo-fmt + agents:check), hk pre-push slow profile (+ tsgo --build + test:affected).
   CI mirrors local exactly. 95%+ test coverage enforced. Never use --no-verify.
 
 rules:
@@ -63,7 +63,7 @@ rules:
     - State alternatives considered for each key decision
   tasks:
     - Every code-change task must have a corresponding test task
-    - Include a lint+format verification task (mise run lint && mise run fmt --check)
+    - Include a lint+format verification task (mise run lint && mise run format:check)
     - Include a typecheck verification task (mise run typecheck)
     - Order tasks by dependency — earlier tasks must not depend on later ones
     - Every task must be verifiable — include expected output where non-obvious
@@ -76,8 +76,7 @@ rules:
       openspec-review-spec-quality-reviewer, and
       openspec-review-decision-compliance-reviewer. PASS verdict required
       before /opsx:apply.
-    - Final task section must include `mise run openspec:validate` and
-      `mise run openspec:schema-validate` as gating verification steps
+    - Final task section must include `mise run openspec:validate` as a gating verification step
     - Reviewer-agent CRITICAL findings are auto-resolved in-flow by the
       implementing agent during /opsx:apply; only escalate to human review
       when fixes have substantive impact or reach beyond the change's scope

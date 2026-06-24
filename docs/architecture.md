@@ -20,7 +20,7 @@ nearest-neighbor/
 ├── .mcp.json                        # MCP server registry
 │
 ├── apps/
-│   ├── web/                         # Elysia API + React Router 8 SPA (@nearest-neighbor/web)
+│   ├── web/                         # Elysia API + React Router 7 SPA (@nearest-neighbor/web)
 │   │   ├── src/                     # Elysia backend
 │   │   │   ├── server.ts            # Bun-compiled server binary entrypoint (:8080)
 │   │   │   ├── index.ts             # Elysia app export (for Eden Treaty / api-types)
@@ -28,7 +28,7 @@ nearest-neighbor/
 │   │   │   ├── lib/                 # conversations, notifications, pagination, ratelimit, validation
 │   │   │   ├── modules/             # auth, dating, messaging, relationships, social, status
 │   │   │   └── v1/                  # versioned route mount + OpenAPI
-│   │   ├── app/                     # React Router 8 SPA source
+│   │   ├── app/                     # React Router 7 SPA source
 │   │   │   ├── root.tsx
 │   │   │   └── routes/
 │   │   ├── fly.production.toml, fly.staging.toml
@@ -105,6 +105,8 @@ Two side-by-side products on one account: **dating** (private) and **social**
 | `follows`         | `created_at` | Composite PK (follower_id, followee_id); append-only             |
 | `conversations`   | `created_at` | One per unordered account pair; two unlock timestamps            |
 | `messages`        | `created_at` | Append-only; shared across dating and social contexts            |
+| `post_likes`      | `created_at` | Like records; composite PK (account_id, post_id)                 |
+| `reposts`         | `created_at` | Repost records; composite PK (account_id, post_id)               |
 | `notifications`   | `created_at` | Synchronous DB writes; no queue                                  |
 
 All PKs are UUID (`gen_random_uuid()`). All timestamps are
@@ -176,7 +178,7 @@ fallback (0600 permissions). Cached bearer is refreshed automatically by
 All business-logic routes live under `/v1`. `X-API-Version: 1` is set on every
 response. OpenAPI spec at `/v1/openapi.json`, Scalar UI at `/docs`.
 
-| Group         | Routes                                                                       |
+| Group         | Routes (all under `/v1`)                                                     |
 | ------------- | ---------------------------------------------------------------------------- |
 | Auth          | `POST /auth/signup` `POST /auth/login` `POST /auth/logout`                   |
 |               | `GET/POST/DELETE /auth/tokens` `GET /auth/me`                                |
@@ -186,7 +188,9 @@ response. OpenAPI spec at `/v1/openapi.json`, Scalar UI at `/docs`.
 |               | `GET /dating/likes` (count only — identities hidden until matched)           |
 | Relationships | `POST /relationships` `GET /relationships` `PATCH /relationships/:id`        |
 | Social        | `GET/PUT /social/profile` `GET /social/profiles/:handle`                     |
-|               | `GET/POST /social/posts` `GET/PUT/DELETE /social/posts/:id`                  |
+|               | `GET /social/discover`                                                       |
+|               | `GET/POST /social/posts` `GET/DELETE /social/posts/:id`                      |
+|               | `POST/DELETE /social/posts/:id/like` `POST/DELETE /social/posts/:id/repost`  |
 |               | `GET /social/feed` `POST/DELETE /social/follows/:handle`                     |
 |               | `GET /social/followers` `GET /social/following`                              |
 | Messaging     | `GET /conversations` `POST /conversations` (start DM)                        |
@@ -222,10 +226,11 @@ the compiled SPA at `/`.
 ```
 pull_request: opened/sync
   → detect-changes
-  → ci-bun     (lint + format:check + typecheck + test:coverage)
-  → ci-rust    (fmt:check + clippy + test via mise //apps/cli:*)  ← only when apps/cli/ changed
-  → ci-openspec (openspec:validate)            ← only when openspec/ changed
-  → ci-gate    (required status check; passes if all triggered jobs pass or are skipped)
+  → ci-bun          (lint + format:check + typecheck + test:coverage)
+  → ci-rust         (fmt:check + clippy + test via mise //apps/cli:*)  ← only when apps/cli/ changed
+  → ci-shell        (shellcheck on scripts)
+  → ci-actions-lint (actionlint on workflow YAML)
+  → ci-gate         (required status check; passes if all triggered jobs pass or are skipped)
 
 push to main
   → ci-gate → deploy-environment-staging (rolling)
@@ -244,7 +249,7 @@ pull_request: closed
 ```
 edit code → editor hook (oxfmt on save)
          → git add
-         → hk pre-commit (oxfmt + oxlint + taplo + shellcheck + actionlint + agents:sync check)
+         → hk pre-commit (oxfmt + oxlint + taplo + shellcheck + actionlint + cargo-fmt + agents:check)
          → git commit
          → hk commit-msg (commitlint)
          → hk pre-push fast (linters check-only)

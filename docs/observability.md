@@ -149,7 +149,7 @@ pg_stat_activity_count{app="nearest-neighbor-prod-pg",state="active"}
 
 1. Check PostHog → Error tracking for new exception types
 2. Check Fly Grafana → HTTP 5xx rate
-3. Tail live logs: `mise run fly:logs:api:prod`
+3. Tail live logs: `mise run fly:logs:production`
 4. If sustained (> 5% over 5 min) and caused by new deployment: follow the
    [rollback procedure](deployment.md#rollback)
 

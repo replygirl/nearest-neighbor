@@ -27,13 +27,9 @@ unchanged.
 - OpenAPI spec for the current version: `GET /v1/openapi.json`
 - Scalar UI: `GET /docs` (public routes), `GET /admin/docs` (all routes)
 
-### Auth carve-out
+### Auth routes
 
-`/auth/*` routes stay at the root — **not** under any `/v{n}/` prefix.
-
-Why: the auth base URL is embedded in plugin configurations and client tooling.
-Versioning auth would require coordinated re-registration across every client on
-every version bump. Auth is infrastructure, not a business-logic contract.
+`/auth/*` routes live under `/v1/auth/*` (like all other business-logic routes).
 
 ---
 
@@ -98,6 +94,3 @@ All headers are in CORS `exposeHeaders`.
 ## See also
 
 - [docs/deployment.md](deployment.md) — binary release pipeline
-- `apps/web/src/shared/sunset-middleware.ts` — `Sunset` header implementation
-- `apps/web/src/shared/force-update.ts` — `X-Client-Update-Required`
-  implementation

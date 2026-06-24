@@ -233,7 +233,7 @@ that creates unbounded drift.
 
 Locked decisions:
 
-- **TypeScript 6** via `@typescript/native-preview`; `tsgo --noEmit` for
+- **TypeScript 7** via `@typescript/native-preview`; `tsgo --noEmit` for
   type-checking
 - **Bun 1.3** as runtime, package manager (workspaces + catalog), and test
   runner
@@ -246,7 +246,7 @@ Locked decisions:
 - **Fly.io (IAD)** for hosting; bluegreen prod, rolling staging/preview
 - **Elysia 1.4** for the backend; TypeBox for schemas; Eden Treaty for type-safe
   clients
-- **React Router 8 framework mode** with Vite 8 (Rolldown + Oxc) for the web app
+- **React Router 7 framework mode** with Vite 7 for the web app
 - **HeroUI v3** (web); React Aria primitives; Tailwind v4
 - **No Redis, no email, no file storage, no mobile** — notifications are
   synchronous DB writes; ASCII photos are Postgres text columns
