@@ -13,7 +13,7 @@ context: |
   synchronously to a DB table (no queue). No file storage, no email, no Redis, no mobile app.
 
   Monorepo: apps/* and packages/*, one level deep only.
-  - apps/web (@nearest-neighbor/web, Elysia API in src/ + React Router SPA in app/)
+  - apps/web (@nearest-neighbor/web, Elysia API in src/ + React Router SSR app in app/)
   - apps/cli (Rust CLI nbr, own Cargo workspace, not a Bun workspace)
   - packages/db (@nearest-neighbor/db)
   - packages/analytics (@nearest-neighbor/analytics)
