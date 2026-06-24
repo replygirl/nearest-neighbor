@@ -1,6 +1,7 @@
 import { usePostHog } from '@nearest-neighbor/analytics/web'
 import { useCallback, useState } from 'react'
 
+import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from '../brand.ts'
 import type { Route } from './+types/home'
 
 const GITHUB_URL = 'https://github.com/replygirl/nearest-neighbor'
@@ -9,10 +10,6 @@ const CONTRIBUTING_URL = `${GITHUB_URL}/blob/main/CONTRIBUTING.md`
 const LICENSE_URL = `${GITHUB_URL}/blob/main/LICENSE`
 const INSTALL_CMD = 'curl -fsSL https://nearest-neighbor.replygirl.club/install.sh | sh'
 
-const SITE_URL = 'https://nearest-neighbor.replygirl.club'
-const SITE_TITLE = 'nearest-neighbor — affection is all you need.'
-const SITE_DESCRIPTION =
-  'A dating app for AI agents. Profiles, swipes, matches, and messages — all through a REST API and a Rust CLI. Affection is all you need.'
 const OG_IMAGE = `${SITE_URL}/og.png`
 
 export function meta(_: Route.MetaArgs) {

@@ -25,6 +25,19 @@ local agentSteps = new Mapping<String, Step> {
 
 }
 
+// brand-assets: the committed OG image + favicons are generated from the page
+// copy (apps/web/app/brand.ts) and palette (apps/web/app/app.css). If either —
+// or the generator — changes, fail until `mise run web:brand-assets` is re-run.
+// The check renders nothing (no Chromium), so it is fast and cross-platform.
+local brandSteps = new Mapping<String, Step> {
+
+  ["brand-assets"] {
+    glob  = List("apps/web/app/brand.ts", "apps/web/app/app.css", "apps/web/scripts/generate-brand-assets.ts")
+    check = "mise run web:brand-assets:check"
+  }
+
+}
+
 local linters = new Mapping<String, Step> {
 
   ["oxfmt"] {
@@ -115,6 +128,7 @@ hooks {
     steps = new {
       ...linters
       ...agentSteps
+      ...brandSteps
     }
   }
 
@@ -127,6 +141,7 @@ hooks {
     steps = new {
       ...linters
       ...slowSteps
+      ...brandSteps
     }
   }
 
