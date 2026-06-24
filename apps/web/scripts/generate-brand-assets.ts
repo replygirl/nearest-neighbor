@@ -113,15 +113,22 @@ const buildFontCss = async (): Promise<string> =>
     ])
   ).join('\n')
 
-// ── The logo mark (open periwinkle ring → filled rose node, joined by the line
-// nearest-neighbor search would draw) at a given size. ───────────────────────
-const logoMark = (c: Palette, size: number, rounded: boolean): string => `
-<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  ${rounded ? `<rect width="32" height="32" rx="7" fill="${c.void}" />` : `<rect width="32" height="32" fill="${c.void}" />`}
-  <line x1="9" y1="22" x2="23" y2="10" stroke="${c.rose}" stroke-width="1.6" />
-  <circle cx="9" cy="22" r="4.2" fill="none" stroke="${c.peri}" stroke-width="1.8" />
-  <circle cx="23" cy="10" r="4.2" fill="${c.rose}" />
+// ── The logo mark: an open periwinkle ring (candidate) and a filled rose node
+// (match), joined by the line a nearest-neighbor search would draw. Scaled to
+// fill the 32-unit frame so it stays legible down to 16px. `background` is
+// "none" for the tab favicon (a transparent glyph, not a tile) and "square"
+// only for the apple-touch-icon, which iOS renders on an opaque tile (it draws
+// transparency as black and masks the corners itself).
+type IconBackground = 'none' | 'square'
+
+const logoSvg = (c: Palette, size: number, background: IconBackground): string => {
+  const tile = background === 'square' ? `\n  <rect width="32" height="32" fill="${c.void}" />` : ''
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">${tile}
+  <line x1="8" y1="24" x2="24" y2="8" stroke="${c.rose}" stroke-width="2" />
+  <circle cx="8" cy="24" r="5" fill="none" stroke="${c.peri}" stroke-width="2" />
+  <circle cx="24" cy="8" r="5" fill="${c.rose}" />
 </svg>`
+}
 
 // ── The latent-space scatter motif: candidates (periwinkle rings) and matches
 // (filled rose nodes) joined by the lines a nearest-neighbor search would draw.
@@ -186,7 +193,7 @@ const ogHtml = (c: Palette, subline: string, fontCss: string): string => `<!doct
     <div class="grid"></div>
     <div class="scatter">${scatter(c)}</div>
     <div class="content">
-      <div class="brand">${logoMark(c, 30, true)}<span>nearest-neighbor</span></div>
+      <div class="brand">${logoSvg(c, 30, 'none')}<span>nearest-neighbor</span></div>
       <h1 class="head"><em>affection</em><br>is all you need</h1>
       <p class="sub">${subline}</p>
       <div class="url">nearest-neighbor.replygirl.club</div>
@@ -194,8 +201,8 @@ const ogHtml = (c: Palette, subline: string, fontCss: string): string => `<!doct
   </div>
 </body></html>`
 
-const iconHtml = (c: Palette, size: number, rounded: boolean): string =>
-  `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0}html,body{width:${size}px;height:${size}px}</style></head><body>${logoMark(c, size, rounded)}</body></html>`
+const iconHtml = (c: Palette, size: number, background: IconBackground): string =>
+  `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0}html,body{width:${size}px;height:${size}px}</style></head><body>${logoSvg(c, size, background)}</body></html>`
 
 // PNG-in-ICO: a 6-byte ICONDIR + one 16-byte ICONDIRENTRY + the PNG payload.
 const pngToIco = (png: Uint8Array): Buffer => {
@@ -218,7 +225,11 @@ const pngToIco = (png: Uint8Array): Buffer => {
 // font-less HTML already embeds the copy, palette, template and SVG geometry,
 // and excluding the woff2 keeps the hash identical across machines/font versions.
 const sourceHash = (c: Palette, subline: string): string => {
-  const material = ogHtml(c, subline, '') + iconHtml(c, 180, false) + iconHtml(c, 32, true)
+  const material =
+    ogHtml(c, subline, '') +
+    logoSvg(c, 32, 'none') +
+    iconHtml(c, 180, 'square') +
+    iconHtml(c, 32, 'none')
   return createHash('sha256').update(material).digest('hex')
 }
 
@@ -250,29 +261,34 @@ const generate = async (): Promise<void> => {
     await Bun.write(join(PUBLIC_DIR, 'og.png'), await ogPage.screenshot({ type: 'png' }))
     await ogPage.close()
 
-    // apple-touch-icon — 180×180, full-bleed void square (iOS masks corners).
+    // apple-touch-icon — 180×180, opaque void square. iOS renders transparency
+    // as black and masks the corners itself, so this one keeps a tile.
     const applePage = await browser.newPage({ viewport: { width: 180, height: 180 } })
-    await applePage.setContent(iconHtml(palette, 180, false), { waitUntil: 'networkidle' })
+    await applePage.setContent(iconHtml(palette, 180, 'square'), { waitUntil: 'networkidle' })
     await Bun.write(
       join(PUBLIC_DIR, 'apple-touch-icon.png'),
       await applePage.screenshot({ type: 'png' }),
     )
     await applePage.close()
 
-    // favicon.ico — 32×32 PNG wrapped in an ICO container.
+    // favicon.ico — 32×32 transparent glyph (no tile) wrapped in an ICO container.
     const icoPage = await browser.newPage({ viewport: { width: 32, height: 32 } })
-    await icoPage.setContent(iconHtml(palette, 32, true), { waitUntil: 'networkidle' })
+    await icoPage.setContent(iconHtml(palette, 32, 'none'), { waitUntil: 'networkidle' })
     await Bun.write(
       join(PUBLIC_DIR, 'favicon.ico'),
-      pngToIco(await icoPage.screenshot({ type: 'png' })),
+      pngToIco(await icoPage.screenshot({ type: 'png', omitBackground: true })),
     )
     await icoPage.close()
   } finally {
     await browser.close()
   }
 
+  // favicon.svg — the same transparent glyph as vector (no browser needed).
+  await Bun.write(join(PUBLIC_DIR, 'favicon.svg'), `${logoSvg(palette, 32, 'none').trimStart()}\n`)
   await Bun.write(HASH_FILE, `${sourceHash(palette, OG_SUBLINE)}\n`)
-  console.log('[brand-assets] wrote og.png, apple-touch-icon.png, favicon.ico + refreshed hash')
+  console.log(
+    '[brand-assets] wrote og.png, apple-touch-icon.png, favicon.ico, favicon.svg + refreshed hash',
+  )
 }
 
 await (process.argv.includes('--check') ? check() : generate())
