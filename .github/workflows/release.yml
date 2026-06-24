@@ -1,25 +1,35 @@
-# Platform release pipeline — builds and publishes the `nbr` CLI binary.
+# Platform release pipeline — builds and attaches the `nbr` CLI binary to a GitHub Release.
 #
-# Triggered by tags matching v<n>.<n>.<n> (e.g. v0.1.0).
-# The full platform ships in each GitHub Release under a single semantic tag;
-# there is no separate cli-v* tag.
+# Model: the owner creates a GitHub Release in the web UI (draft → publish).
+# Publishing fires `release: published`, which triggers this workflow to build
+# the five CLI targets and attach the binaries to the existing release.
+# No release is ever created by CI; title, body, draft, and prerelease flags
+# are left exactly as the owner set them.
+#
+# Prereleases are treated as real releases: `release: published` fires for both
+# prerelease and full releases, so binaries are always attached. deploy-production
+# also runs on `release: published` so prerelease → prod deploy works end-to-end.
+#
+# Manual re-attach: workflow_dispatch lets you (re)build and attach binaries for
+# an existing tag without republishing the release. Supply the tag name (e.g. v0.2.0).
 #
 # Builds five target triples in a matrix, packages each as
 #   nbr-<triple>.tar.xz  (Unix)
 #   nbr-<triple>.zip     (Windows)
-# Generates SHA256SUMS, creates a GitHub Release, and uploads all assets.
-#
-# To cut a release:
-#   git tag v0.1.0 && git push origin v0.1.0
+# Generates SHA256SUMS and uploads all assets with `gh release upload --clobber`.
 #
 # Rustls is used for TLS so musl builds need no OpenSSL.
 
 name: CLI Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to (re)attach nbr binaries to'
+        required: true
 
 permissions:
   contents: write
@@ -62,8 +72,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
-      # ── Rust toolchain ─────────────────────────────────────────────────────
+      # ── Rust toolchain ─────────────────────────────────────────────────────────
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -76,7 +88,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
 
-      # ── cross-rs for aarch64-musl ──────────────────────────────────────────
+      # ── cross-rs for aarch64-musl ──────────────────────────────────────────────
       - name: Install cross
         if: matrix.cross
         uses: taiki-e/install-action@v2
@@ -127,7 +139,7 @@ jobs:
           Copy-Item LICENSE       "$dir\LICENSE"
           Compress-Archive -Path "$dir\*" -DestinationPath "$dir.zip"
 
-      # ── Upload artifact for the checksum + release jobs ───────────────────
+      # ── Upload artifact for the checksum + attach jobs ───────────────────
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -135,13 +147,15 @@ jobs:
           path: nbr-${{ matrix.target }}.${{ matrix.archive }}
           if-no-files-found: error
 
-  # ── Collect all artifacts, compute checksums, create GitHub Release ────────
-  release:
-    name: Create GitHub Release
+  # ── Collect all artifacts, compute checksums, attach to the existing release ──
+  attach:
+    name: Attach nbr binaries to the release
     needs: build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -158,33 +172,9 @@ jobs:
         working-directory: dist
         run: sha256sum nbr-*.tar.xz nbr-*.zip > SHA256SUMS
 
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: 'nearest-neighbor ${{ steps.version.outputs.version }}'
-          body: |
-            ## Install
-
-            **macOS / Linux — one-liner:**
-            ```sh
-            curl -fsSL https://nearest-neighbor.replygirl.club/install.sh | sh
-            ```
-
-            **From source:**
-            ```sh
-            cargo install --git https://github.com/replygirl/nearest-neighbor --manifest-path apps/cli/Cargo.toml nbr
-            ```
-
-            See [SHA256SUMS](./SHA256SUMS) to verify downloads manually.
-          files: |
-            dist/nbr-*.tar.xz
-            dist/nbr-*.zip
-            dist/SHA256SUMS
-          fail_on_unmatched_files: true
-          draft: false
-          prerelease: false
+      - name: Attach assets to the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ github.event.release.tag_name || inputs.tag }}
+          gh release upload "${TAG}" dist/nbr-*.tar.xz dist/nbr-*.zip dist/SHA256SUMS --clobber

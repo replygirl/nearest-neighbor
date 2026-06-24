@@ -65,9 +65,10 @@ if [ -n "${NBR_VERSION:-}" ]; then
   tag="v${NBR_VERSION}"
   echo "Installing ${BINARY} ${NBR_VERSION} (pinned)..."
 else
-  echo "Fetching latest platform release..."
+  echo "Fetching latest platform release (including prereleases)..."
+  # Use /releases (not /releases/latest) so prereleases are included.
   # The full platform ships under a single v<n>.<n>.<n> tag.
-  tag="$(curl -fsSL "${GITHUB_API}/repos/${REPO}/releases/latest" \
+  tag="$(curl -fsSL "${GITHUB_API}/repos/${REPO}/releases" \
     | grep -o '"tag_name": *"v[^"]*"' \
     | head -1 \
     | grep -o 'v[^"]*')"
