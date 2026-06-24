@@ -1,0 +1,43 @@
+# Per-PR preview config. The app name is always overridden by
+# `flyctl deploy --app nearest-neighbor-pr-<N>` (see
+# .github/workflows/deploy-preview.yml); the value below is a placeholder so
+# flyctl can still parse the file standalone. Previews mirror staging but scale
+# to zero when idle to keep cost near zero.
+app = "nearest-neighbor-pr"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = 15
+
+[build]
+dockerfile = "Dockerfile"
+
+[deploy]
+strategy = "rolling"
+release_command = "/app/migrate"
+
+[env]
+NODE_ENV = "staging"
+PORT = "8080"
+LOG_LEVEL = "debug"
+
+[processes]
+web = "/app/server"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+processes = ["web"]
+
+[[http_service.checks]]
+grace_period = "15s"
+interval = "30s"
+timeout = "5s"
+method = "get"
+path = "/health"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"

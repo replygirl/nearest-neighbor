@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  merge_group:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,13 +18,20 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      bun: ${{ steps.filter.outputs.bun }}
-      rust: ${{ steps.filter.outputs.rust }}
-      shell: ${{ steps.filter.outputs.shell }}
-      actions: ${{ steps.filter.outputs.actions }}
+      bun: ${{ steps.filter.outputs.bun || steps.all.outputs.all }}
+      rust: ${{ steps.filter.outputs.rust || steps.all.outputs.all }}
+      shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
+      actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@v7
+      # The merge queue must validate the squashed candidate in full, and
+      # dorny/paths-filter has no reliable base on merge_group events — so force
+      # every surface on for merge_group and skip the path filter entirely.
+      - id: all
+        if: github.event_name == 'merge_group'
+        run: echo "all=true" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        if: github.event_name != 'merge_group'
         id: filter
         with:
           filters: |

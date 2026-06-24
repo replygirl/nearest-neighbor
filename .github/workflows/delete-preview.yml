@@ -1,0 +1,65 @@
+name: Delete — Preview
+
+on:
+  pull_request:
+    types: [closed]
+
+# Shared with deploy-preview.yml: closing a PR mid-deploy cancels the deploy
+# before this teardown runs, so a deploy can't race past destroy.
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+        with:
+          version: 'latest'
+
+      - name: Destroy preview app
+        if: always()
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl apps destroy "nearest-neighbor-pr-${{ github.event.number }}" --yes || true
+
+      - name: Drop preview database
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/preview-db
+        with:
+          action: drop
+          pr-number: ${{ github.event.number }}
+          admin-url: ${{ secrets.STAGING_DATABASE_ADMIN_URL }}
+          fly-api-token: ${{ secrets.FLY_API_TOKEN }}
+
+      # GITHUB_TOKEN cannot delete environments (needs Environments: write +
+      # Deployments: write, which the default token can't be granted). Use a
+      # GitHub App token if the cleanup app is configured; otherwise warn and
+      # leave the env (the Fly resources — what actually costs money — are gone).
+      - name: Mint cleanup token
+        id: cleanup-token
+        if: always() && vars.CLEANUP_GITHUB_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.CLEANUP_GITHUB_APP_ID }}
+          private-key: ${{ secrets.CLEANUP_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Delete GitHub environment
+        if: always() && vars.CLEANUP_GITHUB_APP_ID != ''
+        continue-on-error: true
+        uses: strumwolf/delete-deployment-environment@035f6d27c8b8951729f4d71b2d3d6a7975139476 # v4.0.0
+        with:
+          token: ${{ steps.cleanup-token.outputs.token }}
+          environment: pr-${{ github.event.number }}
+
+      - name: Note when env cleanup is not configured
+        if: always() && vars.CLEANUP_GITHUB_APP_ID == ''
+        run: |
+          echo "::warning::CLEANUP_GITHUB_APP_ID not set — GitHub environment pr-${{ github.event.number }} left in place (Fly app + DB were removed). See CONTRIBUTING.md to set up the cleanup GitHub App."
