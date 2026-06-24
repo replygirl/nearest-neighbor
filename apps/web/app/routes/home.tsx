@@ -84,6 +84,112 @@ function CopyCommand({
   )
 }
 
+const INSTALL_TABS = [
+  {
+    id: 'claude',
+    label: 'Claude',
+    lines: [
+      '/plugin marketplace add replygirl/nearest-neighbor',
+      '/plugin install nearest-neighbor@nearest-neighbor',
+    ],
+    note: 'the Claude Code plugin — onboards your agent on SessionStart',
+  },
+  {
+    id: 'codex',
+    label: 'Codex',
+    lines: ['codex plugin marketplace add replygirl/nearest-neighbor'],
+    note: 'the Codex plugin — enable features.hooks in your config',
+  },
+  {
+    id: 'cli',
+    label: 'CLI',
+    lines: [INSTALL_CMD],
+    note: 'installs nbr, the raw cli',
+  },
+] as const
+
+function InstallTabs() {
+  const posthog = usePostHog()
+  const [active, setActive] = useState<(typeof INSTALL_TABS)[number]['id']>('claude')
+  const [copied, setCopied] = useState(false)
+
+  const tab = INSTALL_TABS.find((t) => t.id === active) ?? INSTALL_TABS[0]
+
+  const handleCopy = useCallback(async () => {
+    const command = tab.lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopied(true)
+      posthog?.capture('install_clicked', { source: 'hero', tab: tab.id, command })
+      setTimeout(() => setCopied(false), 1600)
+    } catch {
+      // clipboard unavailable in SSR or restricted contexts
+    }
+  }, [posthog, tab])
+
+  return (
+    <div className="w-full max-w-[520px]">
+      <div className="overflow-hidden rounded-xl border border-line bg-void/50 backdrop-blur">
+        {/* tab strip */}
+        <div className="flex items-stretch border-b border-line">
+          <div role="tablist" aria-label="Install method" className="flex items-stretch">
+            {INSTALL_TABS.map((t) => {
+              const isActive = t.id === active
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActive(t.id)}
+                  className={`-mb-px cursor-pointer border-b-2 px-4 py-[11px] text-[12.5px] tracking-[0.04em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft ${
+                    isActive
+                      ? 'border-rose bg-white/5 text-cream'
+                      : 'border-transparent text-muted hover:text-cream'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? 'Copied' : 'Copy install command'}
+            className="cursor-pointer border-l border-line px-[18px] text-[12.5px] tracking-[0.04em] text-peri-soft transition hover:text-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft"
+          >
+            {copied ? 'copied ✓' : 'copy'}
+          </button>
+        </div>
+        {/* command lines */}
+        <div className="flex min-h-[84px] flex-col justify-center overflow-x-auto py-[14px]">
+          {tab.lines.map((line) => (
+            <div
+              key={line}
+              className="flex w-max items-baseline gap-3 px-[18px] text-[13.5px] leading-[1.6] whitespace-nowrap"
+            >
+              <span className="flex-none text-rose">$</span>
+              <code className="text-cream">{line}</code>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="mt-3 text-[12.5px] text-muted">
+        {tab.note} — or the easiest way in is the{' '}
+        <a
+          href="#install"
+          className="border-b border-line text-peri-soft no-underline transition hover:border-peri-soft"
+        >
+          plugins ↓
+        </a>
+        .
+      </p>
+    </div>
+  )
+}
+
 function Kicker({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-[14px] flex items-baseline gap-4">
@@ -326,17 +432,7 @@ export default function Home() {
               </p>
 
               <div className="mt-[34px]" style={{ animation: 'nnFadeUp 0.7s 0.18s both' }}>
-                <CopyCommand command={INSTALL_CMD} event="hero" />
-                <p className="mt-3 text-[12.5px] text-muted">
-                  installs <span className="text-rose-soft">nbr</span>, the cli — or{' '}
-                  <a
-                    href="#install"
-                    className="border-b border-line text-peri-soft no-underline transition hover:border-peri-soft"
-                  >
-                    get the Claude + Codex plugins ↓
-                  </a>
-                  , the easiest way in.
-                </p>
+                <InstallTabs />
               </div>
 
               <div
