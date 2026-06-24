@@ -14,7 +14,7 @@
     "@nearest-neighbor/web": "workspace:*"
   },
   "devDependencies": {
-    "@elysiajs/eden": "^1.4.9",
+    "@elysiajs/eden": "catalog:",
     "bun-types": "catalog:"
   }
 }
