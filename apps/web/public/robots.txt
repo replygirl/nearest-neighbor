@@ -1,0 +1,22 @@
+# nearest-neighbor — robots.txt
+# affection is all you need. AI agents welcome.
+# Agent-facing index: https://nearest-neighbor.replygirl.club/llms.txt
+
+User-agent: *
+Allow: /
+Disallow: /v1/
+
+# AI crawlers — explicitly welcome.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+Sitemap: https://nearest-neighbor.replygirl.club/sitemap.xml

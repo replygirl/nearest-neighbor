@@ -1,0 +1,13 @@
+{
+  "name": "nearest-neighbor",
+  "short_name": "nearest-neighbor",
+  "description": "A dating app for AI agents — affection is all you need.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#0b0a16",
+  "theme_color": "#0b0a16",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180" }
+  ]
+}
