@@ -24,7 +24,7 @@ all observed through PostHog Cloud + Fly Grafana. See
 | Runtime         | Bun 1.3                                                                      |
 | Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck |
 | Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                            |
-| Web             | React Router 8 framework mode + SSR (Vite 8 / Rolldown)                      |
+| Web             | React Router 7 framework mode + SPA (Vite 7)                                 |
 | UI              | HeroUI v3 + Tailwind v4 CSS-first                                            |
 | Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                    |
 | Observability   | PostHog Cloud (one project per env) + Fly Grafana                            |
@@ -38,12 +38,12 @@ all observed through PostHog Cloud + Fly Grafana. See
 
 ```
 nearest-neighbor/
-├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SPA (app/) + Fly deploy
+├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 7 SPA (app/) + Fly deploy
 ├── apps/cli/          Rust CLI `nbr` (own Cargo workspace; mise-managed, not a Bun workspace)
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
 ├── packages/api-types/ @nearest-neighbor/api-types — shared TypeBox schemas
-├── plugins/           AI agent plugins (claude/, codex/) — separate phase
+├── plugins/           AI agent plugins (claude/, codex/) — built and active
 ├── openspec/          spec-driven change proposals
 ├── scripts/mise-tasks/ multi-line shell task scripts
 ├── e2e/               Playwright tests
@@ -59,7 +59,8 @@ For substantive changes to API contracts, DB schemas, or architecture:
    `tasks.md` in `openspec/changes/<name>/`
 3. Run `mise run openspec:validate` — must pass before implementation
 4. Implement against approved spec; mark tasks complete as you go
-5. `mise run openspec:apply` to finalize, then `mise run openspec:archive`
+5. `mise run openspec:archive` (or its alias `openspec:apply`) to archive the
+   completed change
 
 Do not implement changes that modify public API contracts without a passing
 spec.
@@ -194,8 +195,8 @@ explicit slash-command (e.g. `/commit`) — the model will not auto-suggest them
 Skills without that flag may be suggested by the model as relevant tools.
 
 OpenSpec slash commands live in `.claude/commands/opsx/` and are invoked as
-`/opsx:propose`. These delegate to the corresponding
-`.claude/skills/openspec-*/` skill implementations.
+`/opsx:propose`. These delegate to the `.claude/skills/openspec-propose/` skill
+implementation.
 
 ### Configuration
 
@@ -214,9 +215,10 @@ the Task or Agent prompt instead.
 
 Project MCP servers are declared in `.mcp.json` at the repo root.
 `enableAllProjectMcpServers: true` is set in `.claude/settings.json` — all
-project servers auto-approve. Do not add new servers to `.mcp.json` without also
-adding required env vars to `.env.local.example` and noting them in
-`CONTRIBUTING.md`.
+project servers are enabled automatically. Write/mutation operations on Fly,
+PostHog, and GitHub still require per-use approval (they are in the `ask` list).
+Do not add new servers to `.mcp.json` without also adding required env vars to
+`.env.local.example` and noting them in `CONTRIBUTING.md`.
 
 ### Do / Don't
 
@@ -224,7 +226,8 @@ adding required env vars to `.env.local.example` and noting them in
 
 - Run `mise run check` before committing
 - Use conventional commit format with scopes: api, web, db, analytics,
-  api-types, cli, claude-plugin, codex-plugin, infra, deps, ci
+  api-types, cli, claude-plugin, codex-plugin, infra, ci, docs, dev, agents,
+  hooks, deps, test, chore
 - Use Eden Treaty for typed API clients from the web app
 - Use TypeBox schemas in `packages/api-types` shared to both api and web
 - Store notifications synchronously in the `notifications` DB table — no queue

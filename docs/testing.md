@@ -74,13 +74,15 @@ docker compose -f docker-compose.dev.yml down
 
 ### `ci-bun`
 
-Runs on every TypeScript/JavaScript change. Does **not** boot Postgres.
-Executes:
+Runs on every TypeScript/JavaScript change. Provisions a Postgres 17 service
+(`DATABASE_URL` is set), but API tests still use PGlite by default because they
+gate on `DATABASE_TEST_URL`, not `DATABASE_URL`. Executes:
 
 - `mise run lint`
 - `mise run format:check`
 - `mise run typecheck`
-- `mise run test:coverage`
+- `mise run test:coverage` (non-blocking — `continue-on-error: true` until the
+  95 % coverage threshold is stable)
 
 DB-touching tests skip gracefully — `ci-bun` never fails due to a missing
 database.

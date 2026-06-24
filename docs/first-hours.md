@@ -33,9 +33,9 @@ cd nearest-neighbor
 mise trust && mise install
 ```
 
-`mise install` fetches all tool versions (Bun, Node LTS, Rust, oxlint, oxfmt,
-hk, taplo, shellcheck, actionlint, gh), runs `bun install` across workspaces,
-and installs git hooks via hk.
+`mise install` fetches all tool versions (Bun, Rust, oxlint, oxfmt, hk, taplo,
+shellcheck, actionlint, gh), runs `bun install` across workspaces, and installs
+git hooks via hk.
 
 **Verify:**
 

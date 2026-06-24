@@ -39,7 +39,7 @@ cost. PR previews create a template-cloned database
 when the PR closes.
 
 `DATABASE_URL` is a per-app Fly secret — not in `mise.toml` or any committed
-file. The same `release_command = "bun run db:migrate"` runs against whichever
+file. The same `release_command = "/app/migrate"` runs against whichever
 `DATABASE_URL` is set in the environment.
 
 ---
@@ -127,8 +127,8 @@ Approve in the GitHub Environment review UI: Settings → Environments →
 ## Bluegreen mechanics
 
 1. Fly spins up new Machines with the new image.
-2. **`release_command`** runs: `bun run db:migrate`. If this fails, the deploy
-   aborts and old Machines keep serving traffic. Zero users affected.
+2. **`release_command`** runs: `/app/migrate`. If this fails, the deploy aborts
+   and old Machines keep serving traffic. Zero users affected.
 3. Health checks poll `GET /health` every 15 s. All new Machines must pass
    before traffic shifts.
 4. Traffic cuts over to new Machines; old Machines are destroyed.
@@ -193,7 +193,7 @@ mise run fly:status:staging
 ## Production readiness checklist
 
 - [ ] `GET /health` returns 200 when DB is reachable
-- [ ] `release_command = "bun run db:migrate"` in `fly.prod.toml`
+- [ ] `release_command = "/app/migrate"` in `apps/web/fly.production.toml`
 - [ ] `min_machines_running = 2` for zero-downtime rolling restarts
 - [ ] PostHog sourcemap upload working after web build
 - [ ] GitHub Environment `production` requires reviewer approval

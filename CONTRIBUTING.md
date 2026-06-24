@@ -28,9 +28,9 @@ cd nearest-neighbor
 mise trust && mise install
 ```
 
-`mise install` fetches all tool versions (Bun, Node, Rust, oxlint, oxfmt, hk,
-taplo, shellcheck, actionlint, gh), runs `bun install` across workspaces, and
-installs git hooks via hk.
+`mise install` fetches all tool versions (Bun, Rust, oxlint, oxfmt, hk, taplo,
+shellcheck, actionlint, gh), runs `bun install` across workspaces, and installs
+git hooks via hk.
 
 ### Start the stack
 
@@ -142,7 +142,8 @@ OpenSpec proposal before implementation.
    `tasks.md`
 3. `mise run openspec:validate` — must pass before any code changes
 4. Implement against the approved spec; mark tasks complete as you go
-5. `mise run openspec:apply` then `mise run openspec:archive` to finalize
+5. `mise run openspec:archive` (or its alias `openspec:apply`) to archive the
+   completed change
 
 Do not modify public API contracts without a passing spec. Small bug fixes and
 isolated refactors that do not touch contracts can skip OpenSpec.

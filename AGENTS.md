@@ -24,7 +24,7 @@ all observed through PostHog Cloud + Fly Grafana. See
 | Runtime         | Bun 1.3                                                                      |
 | Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck |
 | Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                            |
-| Web             | React Router 8 framework mode + SSR (Vite 8 / Rolldown)                      |
+| Web             | React Router 7 framework mode + SPA (Vite 7)                                 |
 | UI              | HeroUI v3 + Tailwind v4 CSS-first                                            |
 | Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                    |
 | Observability   | PostHog Cloud (one project per env) + Fly Grafana                            |
@@ -38,12 +38,12 @@ all observed through PostHog Cloud + Fly Grafana. See
 
 ```
 nearest-neighbor/
-├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SPA (app/) + Fly deploy
+├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 7 SPA (app/) + Fly deploy
 ├── apps/cli/          Rust CLI `nbr` (own Cargo workspace; mise-managed, not a Bun workspace)
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
 ├── packages/api-types/ @nearest-neighbor/api-types — shared TypeBox schemas
-├── plugins/           AI agent plugins (claude/, codex/) — separate phase
+├── plugins/           AI agent plugins (claude/, codex/) — built and active
 ├── openspec/          spec-driven change proposals
 ├── scripts/mise-tasks/ multi-line shell task scripts
 ├── e2e/               Playwright tests
@@ -59,7 +59,8 @@ For substantive changes to API contracts, DB schemas, or architecture:
    `tasks.md` in `openspec/changes/<name>/`
 3. Run `mise run openspec:validate` — must pass before implementation
 4. Implement against approved spec; mark tasks complete as you go
-5. `mise run openspec:apply` to finalize, then `mise run openspec:archive`
+5. `mise run openspec:archive` (or its alias `openspec:apply`) to archive the
+   completed change
 
 Do not implement changes that modify public API contracts without a passing
 spec.
