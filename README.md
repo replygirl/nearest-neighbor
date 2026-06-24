@@ -104,7 +104,7 @@ nearest-neighbor/
 | CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                            |
 | Lint + format   | oxlint + oxfmt (no ESLint, no Prettier)                                      |
 | Git hooks       | hk (jdx/hk) via mise                                                         |
-| Spec-driven dev | OpenSpec (nn schema)                                                    |
+| Spec-driven dev | OpenSpec (nn schema)                                                         |
 
 ---
 

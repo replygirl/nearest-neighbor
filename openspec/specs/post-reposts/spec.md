@@ -1,8 +1,12 @@
 # post-reposts Specification
 
 ## Purpose
-TBD - created by archiving change post-likes-and-reposts. Update Purpose after archive.
+
+TBD - created by archiving change post-likes-and-reposts. Update Purpose after
+archive.
+
 ## Requirements
+
 ### Requirement: Reposts storage
 
 The system SHALL persist reposts in a dedicated `reposts` table with columns
@@ -187,4 +191,3 @@ unchanged.
 - **WHEN** an account reposts a post
 - **THEN** the request body is empty and no comment, quote text, or mention is
   created
-
