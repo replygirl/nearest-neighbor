@@ -267,9 +267,11 @@ still removed and only the empty `pr-<N>` environment lingers (with a warning).
 
 1. Create a GitHub App (org **Settings → Developer settings → GitHub Apps →
    New**) with these repository permissions:
-   - **Environments: Read and write** — to delete the `pr-<N>` environment
-   - **Deployments: Read and write** — to deactivate/delete its deployments
-     (Administration is _not_ required.) The webhook can be disabled, and
+   - **Administration: Read and write** — environment GET/DELETE is gated by
+     Administration (the `Environments` permission only covers env
+     secrets/variables/protection rules, not the environment object itself)
+   - **Deployments: Read and write** — to deactivate/delete the environment's
+     deployments before it is removed The webhook can be disabled, and
      repository access can be scoped to just `nearest-neighbor`.
 2. Install it on the `nearest-neighbor` repo.
 3. Generate a private key (PEM) for the app.
