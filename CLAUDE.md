@@ -21,7 +21,7 @@ all observed through PostHog Cloud + Fly Grafana. See
 
 | Layer           | Choice                                                                       |
 | --------------- | ---------------------------------------------------------------------------- |
-| Runtime         | Bun 1.3 + Node LTS                                                           |
+| Runtime         | Bun 1.3                                                                      |
 | Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck |
 | Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                            |
 | Web             | React Router 8 framework mode + SSR (Vite 8 / Rolldown)                      |
