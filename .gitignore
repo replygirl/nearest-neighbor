@@ -74,6 +74,7 @@ tmp/
 # Claude Code (local overrides only — project settings ARE checked in)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+.claude/worktrees/
 CLAUDE.local.md
 
 # Per-developer agent overrides
