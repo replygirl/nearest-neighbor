@@ -13,7 +13,7 @@ are written synchronously to a DB table; there is no queue. The repo is public
 on GitHub under the `replygirl` org on Fly.io.
 
 Stack: Bun + TypeScript 7 monorepo (`apps/*` and `packages/*`, one level deep)
-with an Elysia API, React Router 7 web frontend, and shared Drizzle ORM types —
+with an Elysia API, React Router 8 web frontend, and shared Drizzle ORM types —
 all observed through PostHog Cloud + Fly Grafana. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the contributor guide.
 
@@ -24,7 +24,7 @@ all observed through PostHog Cloud + Fly Grafana. See
 | Runtime         | Bun 1.3                                                                      |
 | Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck |
 | Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                            |
-| Web             | React Router 7 framework mode + SPA (Vite 7)                                 |
+| Web             | React Router 8 SPA (ssr: false) served by API binary (Vite 8)                |
 | UI              | HeroUI v3 + Tailwind v4 CSS-first                                            |
 | Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                    |
 | Observability   | PostHog Cloud (one project per env) + Fly Grafana                            |
@@ -38,7 +38,7 @@ all observed through PostHog Cloud + Fly Grafana. See
 
 ```
 nearest-neighbor/
-├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 7 SPA (app/) + Fly deploy
+├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SPA (app/) + Fly deploy
 ├── apps/cli/          Rust CLI `nbr` (own Cargo workspace; mise-managed, not a Bun workspace)
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
