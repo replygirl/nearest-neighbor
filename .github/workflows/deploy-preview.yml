@@ -1,0 +1,132 @@
+name: Deploy — Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.claude/**'
+      - 'openspec/**'
+      - 'plugins/**'
+
+# Shared with delete-preview.yml so closing a PR mid-deploy cancels the in-flight
+# deploy before teardown runs — prevents a deploy racing past destroy and leaving
+# an orphaned app shell or database behind.
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    outputs:
+      bootstrapped: ${{ steps.bootstrap.outputs.bootstrapped }}
+      app: ${{ steps.meta.outputs.app }}
+      url: ${{ steps.meta.outputs.url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Preview infra needs a staging DB admin URL secret + Fly token. On forks
+      # or before those are set, skip cleanly so PRs aren't blocked.
+      - name: Check preview is bootstrapped
+        id: bootstrap
+        env:
+          STAGING_DATABASE_ADMIN_URL: ${{ secrets.STAGING_DATABASE_ADMIN_URL }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$STAGING_DATABASE_ADMIN_URL" ] || [ -z "$FLY_API_TOKEN" ]; then
+            echo "::notice::Preview not bootstrapped (STAGING_DATABASE_ADMIN_URL or FLY_API_TOKEN empty) — skipping. See CONTRIBUTING.md."
+            echo "bootstrapped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bootstrapped=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve preview names
+        id: meta
+        run: |
+          app="nearest-neighbor-pr-${{ github.event.number }}"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "url=https://$app.fly.dev" >> "$GITHUB_OUTPUT"
+
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+        if: steps.bootstrap.outputs.bootstrapped == 'true'
+        with:
+          version: 'latest'
+
+      - name: Create preview app if missing
+        if: steps.bootstrap.outputs.bootstrapped == 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          app="${{ steps.meta.outputs.app }}"
+          if flyctl status --app "$app" >/dev/null 2>&1; then
+            echo "Preview app already exists: $app"
+          else
+            flyctl apps create "$app" --org "${{ vars.FLY_ORG }}"
+          fi
+
+      - name: Provision preview database
+        id: db
+        if: steps.bootstrap.outputs.bootstrapped == 'true'
+        uses: ./.github/actions/preview-db
+        with:
+          action: create
+          pr-number: ${{ github.event.number }}
+          admin-url: ${{ secrets.STAGING_DATABASE_ADMIN_URL }}
+          fly-api-token: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Stage preview app secrets
+        if: steps.bootstrap.outputs.bootstrapped == 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DATABASE_URL: ${{ steps.db.outputs.database-url }}
+        run: |
+          app="${{ steps.meta.outputs.app }}"
+          jwt=$(openssl rand -base64 32)
+          echo "::add-mask::$jwt"
+          flyctl secrets set \
+            "DATABASE_URL=$DATABASE_URL" \
+            "JWT_SECRET=$jwt" \
+            "WEB_URL=${{ steps.meta.outputs.url }}" \
+            --app "$app" --stage
+
+  deploy:
+    needs: provision
+    if: needs.provision.outputs.bootstrapped == 'true'
+    uses: ./.github/workflows/deploy-fly-app.yml
+    with:
+      app: nearest-neighbor-pr-${{ github.event.number }}
+      env: preview
+      config-path: apps/web/fly.preview.toml
+      environment: pr-${{ github.event.number }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  comment:
+    needs: [provision, deploy]
+    if: needs.provision.outputs.bootstrapped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          header: preview
+          number: ${{ github.event.number }}
+          message: |
+            ## 🌐 Preview deployment
+
+            |  |  |
+            | --- | --- |
+            | **App** | ${{ needs.provision.outputs.url }} |
+            | **Health** | ${{ needs.provision.outputs.url }}/health |
+            | **Docs** | ${{ needs.provision.outputs.url }}/docs |
+            | **Database** | `nn_pr_${{ github.event.number }}` in `nearest-neighbor-db-staging` |
+            | **Commit** | `${{ github.sha }}` |
+
+            Torn down automatically when this PR closes.

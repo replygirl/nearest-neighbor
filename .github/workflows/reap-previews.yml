@@ -1,0 +1,113 @@
+name: Reap Stale Previews
+
+# Belt-and-suspenders cleanup for preview resources. delete-preview.yml can miss
+# closures when a PR's branch is force-deleted on close (the closed-event run
+# never fires) or when a delete is cancelled by concurrency. This daily sweep
+# inspects every preview Fly app + per-PR database and removes those whose PR is
+# no longer open.
+
+on:
+  schedule:
+    - cron: '23 4 * * *' # daily 04:23 UTC, off the hour to dodge scheduler congestion
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: reap-previews
+  cancel-in-progress: false
+
+jobs:
+  reap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+        with:
+          version: 'latest'
+
+      - name: Sweep stale preview apps and databases
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          STAGING_DATABASE_ADMIN_URL: ${{ secrets.STAGING_DATABASE_ADMIN_URL }}
+          PG_APP: nearest-neighbor-db-staging
+          PROXY_PORT: '15432'
+        run: |
+          set -euo pipefail
+
+          # PR numbers that still have a preview Fly app.
+          apps_json=$(flyctl apps list --json)
+          mapfile -t app_prs < <(
+            printf '%s' "$apps_json" \
+              | jq -r '.[].Name | select(test("^nearest-neighbor-pr-[0-9]+$")) | capture("(?<n>[0-9]+)$").n'
+          )
+
+          # PR numbers that still have a per-PR database (if the DB secret is set).
+          CI_DB_URL=""
+          db_prs=()
+          if [ -n "${STAGING_DATABASE_ADMIN_URL:-}" ]; then
+            rest="${STAGING_DATABASE_ADMIN_URL#*://}"
+            creds="${rest%%@*}"
+            pass="${creds#*:}"
+            if [ -n "$pass" ] && [ "$pass" != "$creds" ]; then echo "::add-mask::$pass"; fi
+            CI_DB_URL="postgres://${creds}@localhost:${PROXY_PORT}/postgres?sslmode=disable"
+            echo "::add-mask::$CI_DB_URL"
+
+            flyctl proxy "${PROXY_PORT}:5432" --app "$PG_APP" &
+            PROXY_PID=$!
+            trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
+            for _ in $(seq 1 30); do
+              if pg_isready -h localhost -p "$PROXY_PORT" >/dev/null 2>&1; then break; fi
+              sleep 1
+            done
+
+            mapfile -t db_prs < <(
+              psql "$CI_DB_URL" -tAc "SELECT datname FROM pg_database WHERE datname ~ '^nn_pr_[0-9]+$'" \
+                | sed -E 's/^nn_pr_//'
+            )
+          fi
+
+          declare -A prs
+          for n in "${app_prs[@]:-}"; do if [ -n "$n" ]; then prs[$n]=1; fi; done
+          for n in "${db_prs[@]:-}"; do if [ -n "$n" ]; then prs[$n]=1; fi; done
+
+          if [ ${#prs[@]} -eq 0 ]; then
+            echo "No preview resources found."
+            exit 0
+          fi
+
+          reaped=0; kept=0; skipped=0
+          err_file=$(mktemp)
+
+          for pr in "${!prs[@]}"; do
+            # Distinguish a genuine 404 (PR doesn't exist → safe to reap) from a
+            # transient error (rate limit, auth, network → leave resources alone).
+            if state=$(gh api "repos/$GH_REPO/pulls/$pr" --jq '.state' 2>"$err_file"); then
+              :
+            elif grep -q "HTTP 404" "$err_file"; then
+              state="missing"
+            else
+              echo "::warning::PR #$pr: gh api failed (not 404) — leaving resources in place. $(tr -d '\n' < "$err_file")"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            if [ "$state" = "open" ]; then
+              echo "PR #$pr: open — keeping"
+              kept=$((kept + 1))
+              continue
+            fi
+
+            echo "PR #$pr: $state — reaping preview resources"
+            flyctl apps destroy "nearest-neighbor-pr-$pr" --yes || echo "  app already gone"
+            if [ -n "$CI_DB_URL" ]; then
+              psql "$CI_DB_URL" -c "DROP DATABASE IF EXISTS \"nn_pr_$pr\" WITH (FORCE)" || true
+            fi
+            reaped=$((reaped + 1))
+          done
+
+          echo ""
+          echo "Summary: reaped=$reaped kept=$kept skipped=$skipped"
