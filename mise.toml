@@ -479,12 +479,12 @@ dir = "{{config_root}}"
 # ───────────────────────────────────────────────
 
 [tasks."fly:deploy:staging"]
-description = "Deploy nearest-neighbor-staging (API + SPA, single app)"
+description = "Deploy nearest-neighbor-staging (API + web, single app)"
 run = "flyctl deploy --config apps/web/fly.staging.toml --app nearest-neighbor-staging --remote-only"
 dir = "{{config_root}}"
 
 [tasks."fly:deploy:production"]
-description = "Deploy nearest-neighbor-production (API + SPA, single app, bluegreen)"
+description = "Deploy nearest-neighbor-production (API + web, single app, bluegreen)"
 run = "flyctl deploy --config apps/web/fly.production.toml --app nearest-neighbor-production --remote-only"
 dir = "{{config_root}}"
 

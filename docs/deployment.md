@@ -7,8 +7,8 @@ operations, and rollback.
 
 ## Environments
 
-Each environment is a **single Fly app** that serves both the SPA (`/`) and the
-API (`/v1`, `/health`, `/docs`). There is no separate web app.
+Each environment is a **single Fly app** that serves both the web app (`/`) and
+the API (`/v1`, `/health`, `/docs`). There is no separate web app.
 
 | Env        | Fly app                       | URL                                | Triggered by                                             | Strategy  |
 | ---------- | ----------------------------- | ---------------------------------- | -------------------------------------------------------- | --------- |

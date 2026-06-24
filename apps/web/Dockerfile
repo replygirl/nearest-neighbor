@@ -24,7 +24,9 @@ ARG VITE_POSTHOG_HOST=""
 ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
 ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
 
-# Build the SPA (outputs to apps/web/build/client/)
+# Build the web app: react-router build emits build/client/ (assets + the
+# pre-rendered landing page) and build/server/ (the SSR bundle, which the next
+# step inlines into the compiled server binary).
 RUN bun run --filter @nearest-neighbor/web build
 
 # Compile the API server binary
@@ -52,7 +54,8 @@ COPY --from=builder /out/migrate ./migrate
 # binary (which defaults MIGRATIONS_FOLDER=/app/migrations) finds them.
 COPY --from=builder /app/packages/db/migrations ./migrations
 
-# SPA static files served by the API under /
+# Client assets + the pre-rendered landing page, served by the API under /.
+# (The SSR server bundle is already compiled into ./server.)
 COPY --from=builder /app/apps/web/build/client ./web
 
 ENV PORT=8080
