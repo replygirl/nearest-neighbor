@@ -20,7 +20,7 @@ nearest-neighbor/
 ├── .mcp.json                        # MCP server registry
 │
 ├── apps/
-│   ├── web/                         # Elysia API + React Router 7 SPA (@nearest-neighbor/web)
+│   ├── web/                         # Elysia API + React Router 8 SPA (@nearest-neighbor/web)
 │   │   ├── src/                     # Elysia backend
 │   │   │   ├── server.ts            # Bun-compiled server binary entrypoint (:8080)
 │   │   │   ├── index.ts             # Elysia app export (for Eden Treaty / api-types)
@@ -28,7 +28,7 @@ nearest-neighbor/
 │   │   │   ├── lib/                 # conversations, notifications, pagination, ratelimit, validation
 │   │   │   ├── modules/             # auth, dating, messaging, relationships, social, status
 │   │   │   └── v1/                  # versioned route mount + OpenAPI
-│   │   ├── app/                     # React Router 7 SPA source
+│   │   ├── app/                     # React Router 8 SPA source
 │   │   │   ├── root.tsx
 │   │   │   └── routes/
 │   │   ├── fly.production.toml, fly.staging.toml

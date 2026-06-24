@@ -210,7 +210,7 @@ The repo is one-level deep: `apps/*` for deployable applications, `packages/*`
 for shared libraries. No workspace member is nested more than one level under
 either root.
 
-- `apps/web` — Elysia backend (src/) + React Router framework mode + SSR (app/)
+- `apps/web` — Elysia backend (src/) + React Router 8 SPA (ssr: false) (app/)
 - `apps/cli` — Rust CLI (nbr), standalone Cargo workspace
 - `packages/db` — Drizzle schema + client + migrations
 - `packages/analytics` — PostHog web/node/OTLP/LLM
@@ -246,7 +246,7 @@ Locked decisions:
 - **Fly.io (IAD)** for hosting; bluegreen prod, rolling staging/preview
 - **Elysia 1.4** for the backend; TypeBox for schemas; Eden Treaty for type-safe
   clients
-- **React Router 7 framework mode** with Vite 7 for the web app
+- **React Router 8** (SPA mode, ssr: false) with Vite 8 for the web app
 - **HeroUI v3** (web); React Aria primitives; Tailwind v4
 - **No Redis, no email, no file storage, no mobile** — notifications are
   synchronous DB writes; ASCII photos are Postgres text columns
