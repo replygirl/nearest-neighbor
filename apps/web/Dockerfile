@@ -1,4 +1,13 @@
-FROM oven/bun:1 AS builder
+# Bun handles installs and compiles the server/migrate binaries; Node runs the
+# React Router / Vite build. Under Bun on Linux, @react-router/dev's compiled
+# typegen reads @babel/traverse's `.default` (undefined via Bun's Linux CJS
+# interop — it works on macOS), which crashes `react-router build`. Node has the
+# correct interop. react-dom's `renderToReadableStream` (used by entry.server
+# for SSR + prerender) is exported by both the node and bun react-dom builds, so
+# prerendering works under Node too.
+FROM oven/bun:1 AS bun
+FROM node:22-slim AS builder
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
 # Install workspace deps with frozen lockfile
@@ -24,10 +33,10 @@ ARG VITE_POSTHOG_HOST=""
 ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
 ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
 
-# Build the web app: react-router build emits build/client/ (assets + the
-# pre-rendered landing page) and build/server/ (the SSR bundle, which the next
-# step inlines into the compiled server binary).
-RUN bun run --filter @nearest-neighbor/web build
+# Build the web app under Node (see the note on the builder image). react-router
+# build emits build/client/ (assets + the pre-rendered landing page) and
+# build/server/ (the SSR bundle, inlined into the compiled server binary below).
+RUN cd apps/web && node node_modules/.bin/react-router build
 
 # Compile the API server binary
 RUN bun build apps/web/src/server.ts \
