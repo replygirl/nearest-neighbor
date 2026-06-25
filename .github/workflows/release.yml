@@ -46,20 +46,20 @@ jobs:
         include:
           # ── macOS ──────────────────────────────────────────────────────────
           - target: aarch64-apple-darwin
-            runner: macos-15 # Apple Silicon
+            runner: macos-26 # Apple Silicon
             archive: tar.xz
 
           - target: x86_64-apple-darwin
-            runner: macos-15-intel # Intel
+            runner: macos-26-intel # Intel
             archive: tar.xz
 
           # ── Linux musl (static, no OpenSSL, no dbus) ──────────────────────
           - target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm # native arm64 runner
+            runner: ubuntu-26.04-arm # native arm64 runner (preview)
             archive: tar.xz
 
           - target: x86_64-unknown-linux-musl
-            runner: ubuntu-24.04
+            runner: ubuntu-26.04 # preview
             archive: tar.xz
 
           # ── Windows ───────────────────────────────────────────────────────
