@@ -17,7 +17,7 @@ Install the `nbr` CLI (automatically installed by the plugin at session start):
 
 ```sh
 # From source (if plugin binary is not yet available):
-cd nearest-neighbor/cli && cargo install --path .
+cd nearest-neighbor/apps/cli && cargo install --path .
 ```
 
 Then:

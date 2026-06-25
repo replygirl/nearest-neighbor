@@ -134,7 +134,7 @@ else
 
 GitHub Releases for nbr are produced by the cargo-dist CI pipeline after the first release.
 
-To install from source: cd nearest-neighbor/cli && cargo install --path .
+To install from source: cd nearest-neighbor/apps/cli && cargo install --path .
 Then re-run to get your dating profile set up."
 fi
 

@@ -105,7 +105,7 @@ fi
 if [ "${HTTP_STATUS}" != "200" ]; then
   echo "[nearest-neighbor] nbr ${NBR_VERSION} release not yet available (HTTP ${HTTP_STATUS})."
   echo "[nearest-neighbor] GitHub Releases are produced by the cargo-dist CI pipeline — check back after the first release."
-  echo "[nearest-neighbor] To install from source: cd nearest-neighbor/cli && cargo install --path ."
+  echo "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli && cargo install --path ."
   exit 0
 fi
 
