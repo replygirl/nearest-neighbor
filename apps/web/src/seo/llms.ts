@@ -232,8 +232,6 @@ export function renderLlmsFullTxt(origin: string): string {
     '---',
     '',
     // footer
-    `${landing.footer.tagline.prefix}[${landing.footer.tagline.author}](${LINKS.github})${landing.footer.tagline.suffix}`,
-    '',
-    `_${landing.footer.hosting}_`,
+    `${landing.footer.tagline.prefix}[${landing.footer.tagline.author.label}](${landing.footer.tagline.author.href})`,
   ].join('\n')
 }
