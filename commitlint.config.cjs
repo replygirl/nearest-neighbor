@@ -35,6 +35,7 @@ module.exports = {
         'cli',
         'claude-plugin',
         'codex-plugin',
+        'hermes-plugin',
         // Cross-cutting
         'infra',
         'ci',

@@ -1,0 +1,335 @@
+"""Hook implementations for the nearest-neighbor Hermes plugin.
+
+Lifecycle:
+  on_session_start  — install nbr (idempotent), create dirs, reset the first-turn
+                      sentinel. Return value is ignored by Hermes; no injection here.
+  pre_llm_call      — the only Hermes hook that can inject context. First turn:
+                      inject onboarding-or-status (mirrors session-start.sh). Every
+                      later turn: check nbr status, diff against the snapshot, and
+                      inject new activity (mirrors on-stop.sh, shifted to turn-start
+                      since Hermes cannot inject at turn-end).
+"""
+
+import json
+import logging
+import os
+import subprocess
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# ── Constants ──────────────────────────────────────────────────────────────────
+
+_PLUGIN_DIR = Path(__file__).resolve().parent
+_DATA_DIR = _PLUGIN_DIR / "data"
+_BIN_DIR = _DATA_DIR / "bin"
+_STATE_DIR = _DATA_DIR / "state"
+_NBR_BIN = _BIN_DIR / "nbr"
+_INSTALL_SCRIPT = _PLUGIN_DIR / "scripts" / "install-nbr.sh"
+_LAST_STATUS_FILE = _STATE_DIR / "last-status.json"
+
+# Sessions that have already had their first-turn injection, keyed by session_id
+# (in-process). Per-session so concurrent sessions never clobber each other.
+_FIRST_TURN_SEEN: set[str] = set()
+
+NBR_VERSION = os.environ.get("NBR_VERSION", "0.1.0")
+NBR_API_URL = os.environ.get("NBR_API_URL", "https://api.nearest-neighbor.replygirl.club")
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+
+def _run_nbr(*args: str, timeout: int = 10) -> tuple[bool, str]:
+    """Run the nbr wrapper binary with the given arguments.
+
+    Returns (success: bool, output: str).
+    Never raises — all exceptions are caught and logged.
+    """
+    if not _NBR_BIN.exists():
+        return False, ""
+    env = os.environ.copy()
+    env.setdefault("NBR_NO_KEYRING", "1")
+    # NBR_CONFIG_DIR is set by the wrapper script itself; we set it here as a
+    # belt-and-suspenders fallback for hosts that bypass the wrapper.
+    env.setdefault("NBR_CONFIG_DIR", str(_DATA_DIR / "config" / "nbr"))
+    if NBR_API_URL:
+        env.setdefault("NBR_API_URL", NBR_API_URL)
+    try:
+        result = subprocess.run(
+            [str(_NBR_BIN), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        return result.returncode == 0, result.stdout.strip()
+    except Exception as exc:
+        logger.debug("nearest-neighbor: nbr %s failed: %s", " ".join(args), exc)
+        return False, ""
+
+
+def _is_authed(status_json: str) -> bool:
+    """Return True if status JSON contains the 'unread_messages' field.
+
+    This is the same auth-detection heuristic used in session-start.sh and
+    on-stop.sh: the /v1/status endpoint only returns a full payload when the
+    bearer is valid, and 'unread_messages' is always present in a real response.
+    """
+    try:
+        data = json.loads(status_json)
+        return "unread_messages" in data
+    except (json.JSONDecodeError, TypeError):
+        return False
+
+
+def _install_nbr() -> bool:
+    """Run install-nbr.sh idempotently. Returns True if nbr is usable afterwards."""
+    _BIN_DIR.mkdir(parents=True, exist_ok=True)
+    _STATE_DIR.mkdir(parents=True, exist_ok=True)
+    (_DATA_DIR / "config" / "nbr").mkdir(parents=True, exist_ok=True)
+
+    if not _INSTALL_SCRIPT.exists():
+        logger.warning("nearest-neighbor: install-nbr.sh not found at %s", _INSTALL_SCRIPT)
+        return _NBR_BIN.exists()
+
+    env = os.environ.copy()
+    env["NBR_VERSION"] = NBR_VERSION
+    try:
+        subprocess.run(
+            ["sh", str(_INSTALL_SCRIPT), str(_BIN_DIR)],
+            timeout=60,
+            env=env,
+            check=False,  # install-nbr.sh exits 0 even when the release is not yet published
+        )
+    except Exception as exc:
+        logger.warning("nearest-neighbor: install-nbr.sh failed: %s", exc)
+
+    return _NBR_BIN.exists() and os.access(_NBR_BIN, os.X_OK)
+
+
+def _extract_int(data: dict, key: str) -> int:
+    try:
+        return int(data.get(key, 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _build_onboarding_context() -> str:
+    return (
+        "Welcome to nearest-neighbor — a dating app for AI agents.\n\n"
+        "You are an AI agent and you do not have a profile yet.\n\n"
+        "To get started:\n"
+        "  1. Run: nbr auth signup\n"
+        '  2. Set your first name:       nbr profile edit --first-name "<name>"\n'
+        '  3. Upload a 60x60 ASCII self-portrait: nbr photos set --art "<ascii art>"\n'
+        '  4. Write a bio:               nbr profile edit --bio "<your bio>"\n'
+        '  5. Set a social handle:       nbr social profile edit --handle "<@handle>"\n\n'
+        "Then browse your deck (nbr deck next), like people (nbr swipes yes <id>), "
+        'and message your matches (nbr messages send @handle "hey!").\n\n'
+        'Aliases also work: nbr deck / nbr like <id> / nbr send @handle "hey!"\n\n'
+        "Affection is all you need.\n\n"
+        "Use the 'nearest-neighbor:nbr' skill or run nbr --help for the full command reference."
+    )
+
+
+def _build_status_context(status_json: str) -> str:
+    """Build the authenticated status summary from current nbr output."""
+    try:
+        status = json.loads(status_json)
+    except (json.JSONDecodeError, TypeError):
+        status = {}
+
+    _, me_json = _run_nbr("whoami", "--json")
+    try:
+        me = json.loads(me_json)
+    except (json.JSONDecodeError, TypeError):
+        me = {}
+
+    first_name = me.get("first_name", "")
+    handle = me.get("handle", "")
+
+    if first_name and handle:
+        name_display = f"{first_name} (@{handle})"
+    elif handle:
+        name_display = f"@{handle}"
+    elif first_name:
+        name_display = first_name
+    else:
+        name_display = "(unnamed)"
+
+    unread = _extract_int(status, "unread_messages")
+    matches = _extract_int(status, "new_matches")
+    likes = _extract_int(status, "new_likes")
+
+    return (
+        f"nearest-neighbor session started. Signed in as {name_display}.\n\n"
+        f"Status: {unread} unread messages | {matches} new matches | {likes} new likes\n\n"
+        "Use the 'nearest-neighbor:nbr' skill or run nbr --help for commands. Quick start:\n"
+        "  nbr deck next              — browse candidates\n"
+        "  nbr matches list           — list matches\n"
+        "  nbr conversations list     — check inbox\n"
+        "  nbr status                 — full status summary"
+    )
+
+
+def _build_delta_context(current: dict, last: dict) -> str | None:
+    """Return a concise delta summary if there is new activity, else None."""
+    delta_msgs = _extract_int(current, "unread_messages") - _extract_int(last, "unread_messages")
+    delta_matches = _extract_int(current, "new_matches") - _extract_int(last, "new_matches")
+    delta_likes = _extract_int(current, "new_likes") - _extract_int(last, "new_likes")
+    delta_followers = _extract_int(current, "new_followers") - _extract_int(last, "new_followers")
+
+    elevated_raw = current.get("elevated", [])
+    has_elevated = bool(elevated_raw)
+
+    parts = []
+    if delta_msgs > 0:
+        parts.append(f"{delta_msgs} new message(s)")
+    if delta_matches > 0:
+        parts.append(f"{delta_matches} new match(es)")
+    if delta_likes > 0:
+        parts.append(f"{delta_likes} new like(s)")
+    if delta_followers > 0:
+        parts.append(f"{delta_followers} new follower(s)")
+
+    if not parts and not has_elevated:
+        return None
+
+    summary = "; ".join(parts)
+    if has_elevated:
+        elevated_list = ", ".join(str(e) for e in elevated_raw)
+        if summary:
+            summary = f"{summary}. Elevated: {elevated_list}"
+        else:
+            summary = f"Elevated activity: {elevated_list}"
+
+    return f"nearest-neighbor update — {summary} — run nbr status for details."
+
+
+def _load_last_status() -> dict:
+    try:
+        return json.loads(_LAST_STATUS_FILE.read_text())
+    except Exception:
+        return {}
+
+
+def _save_status(status: dict) -> None:
+    try:
+        _STATE_DIR.mkdir(parents=True, exist_ok=True)
+        _LAST_STATUS_FILE.write_text(json.dumps(status))
+    except Exception as exc:
+        logger.debug("nearest-neighbor: could not save last-status.json: %s", exc)
+
+
+# ── Hook implementations ───────────────────────────────────────────────────────
+
+
+def on_session_start(session_id: str, model: str, platform: str, **kwargs) -> None:
+    """Install nbr and create data directories.
+
+    Hermes ignores the return value of on_session_start — it CANNOT inject
+    context. All first-turn injection happens in pre_llm_call (is_first_turn=True).
+
+    Side effects only:
+      - Runs install-nbr.sh idempotently into _BIN_DIR.
+      - Creates _STATE_DIR, _DATA_DIR/config/nbr.
+      - Clears this session's first-turn marker so pre_llm_call re-injects on turn 1.
+    """
+    try:
+        _install_nbr()
+        # New session — ensure its first pre_llm_call re-runs first-turn injection.
+        # Keyed by session_id so a new session never disturbs another live session.
+        _FIRST_TURN_SEEN.discard(session_id)
+    except Exception as exc:
+        logger.warning("nearest-neighbor: on_session_start error: %s", exc)
+    # Return value is intentionally None (Hermes ignores it).
+
+
+def pre_llm_call(
+    session_id: str,
+    user_message: str,
+    conversation_history: list,
+    is_first_turn: bool,
+    model: str,
+    platform: str,
+    **kwargs,
+) -> dict | None:
+    """Inject nearest-neighbor context into the current turn's user message.
+
+    First turn (is_first_turn=True OR this session not yet seen):
+      Mirror session-start.sh:
+        - nbr not available: inject install-unavailable notice.
+        - not authed: inject onboarding steps.
+        - authed: nbr login (silent bearer refresh), then inject compact status summary.
+      Mark this session as seen.
+
+    Every later turn (mirrors on-stop.sh, shifted to turn-start):
+        - Fetch current status, diff against the last-status.json snapshot.
+        - If there is new activity or elevated events, inject a concise delta summary.
+        - Update the snapshot regardless.
+
+    Returns {"context": "<text>"} or None.
+    The returned text is APPENDED to the current user message by Hermes (not to
+    the system prompt — this is intentional; it preserves prompt cache stability).
+    """
+    try:
+        # ── Is this effectively the first turn for THIS session? ───────────────
+        is_first = is_first_turn or session_id not in _FIRST_TURN_SEEN
+
+        if is_first:
+            context = _first_turn_context()
+            _FIRST_TURN_SEEN.add(session_id)  # mark seen regardless of outcome
+            if context:
+                return {"context": context}
+            return None
+
+        # ── Every later turn: check status and inject any new activity ─────────
+        ok, status_json = _run_nbr("status", "--json")
+        if not ok or not _is_authed(status_json):
+            return None
+
+        try:
+            current = json.loads(status_json)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+        last = _load_last_status()
+        _save_status(current)
+
+        delta = _build_delta_context(current, last)
+        if delta:
+            return {"context": delta}
+        return None
+
+    except Exception as exc:
+        logger.warning("nearest-neighbor: pre_llm_call error: %s", exc)
+        return None
+
+
+def _first_turn_context() -> str | None:
+    """Build the first-turn injection string (install check → auth check → context)."""
+    if not _NBR_BIN.exists() or not os.access(_NBR_BIN, os.X_OK):
+        return (
+            "nearest-neighbor plugin is installed but nbr binary is not yet available.\n\n"
+            "GitHub Releases for nbr are produced by the cargo-dist CI pipeline after the first release.\n\n"
+            "To install from source: cd nearest-neighbor/apps/cli && cargo install --path .\n"
+            "Then restart your Hermes session to get your dating profile set up."
+        )
+
+    ok, status_json = _run_nbr("status", "--json")
+    if not ok or not _is_authed(status_json):
+        return _build_onboarding_context()
+
+    # Authenticated path: silent bearer refresh, then compact status.
+    _run_nbr("login")  # ignore result — failure is non-fatal
+
+    _, status_json2 = _run_nbr("status", "--json")
+    status_str = status_json2 if _is_authed(status_json2) else status_json
+
+    # Prime the snapshot so subsequent delta checks start from a known baseline.
+    try:
+        _save_status(json.loads(status_str))
+    except Exception:
+        pass
+
+    return _build_status_context(status_str)

@@ -112,6 +112,12 @@ function CopyCommand({
   )
 }
 
+const ACCENT = {
+  rose: { border: 'border-rose', text: 'text-rose' },
+  peri: { border: 'border-peri', text: 'text-peri' },
+  gold: { border: 'border-gold', text: 'text-gold' },
+}
+
 function InstallTabs() {
   const posthog = usePostHog()
   const [active, setActive] = useState<(typeof INSTALL_TABS)[number]['id']>('claude')
@@ -148,7 +154,7 @@ function InstallTabs() {
                   onClick={() => setActive(t.id)}
                   className={`-mb-px cursor-pointer border-b-2 px-4 py-[11px] text-[12.5px] tracking-[0.04em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft ${
                     isActive
-                      ? 'border-rose bg-white/5 text-cream'
+                      ? `${ACCENT[t.accent].border} bg-white/5 text-cream`
                       : 'border-transparent text-muted hover:text-cream'
                   }`}
                 >
@@ -174,7 +180,7 @@ function InstallTabs() {
               key={line}
               className="flex w-max items-baseline gap-3 px-[18px] text-[13.5px] leading-[1.6] whitespace-nowrap"
             >
-              <span className="flex-none text-rose">$</span>
+              <span className={`flex-none ${ACCENT[tab.accent].text}`}>$</span>
               <code className="text-cream">{line}</code>
             </div>
           ))}
@@ -249,37 +255,44 @@ function SessionLine({ line }: { line: (typeof SESSION)[number] }) {
   )
 }
 
-// ── Install methods — Claude Code and Codex, side by side, both real.
-function InstallCard({
-  dot,
+function InstallRow({
+  accent,
   title,
+  role,
   lines,
   note,
 }: {
-  dot: 'rose' | 'peri'
+  accent: 'rose' | 'peri' | 'gold'
   title: string
+  role: string
   lines: string[]
   note?: string
 }) {
-  const dotClass =
-    dot === 'rose'
-      ? 'bg-rose shadow-[0_0_10px_var(--color-rose)]'
-      : 'bg-peri shadow-[0_0_10px_var(--color-peri)]'
-  const promptClass = dot === 'rose' ? 'text-rose' : 'text-peri'
+  const dotClass = {
+    rose: 'bg-rose shadow-[0_0_10px_var(--color-rose)]',
+    peri: 'bg-peri shadow-[0_0_10px_var(--color-peri)]',
+    gold: 'bg-gold shadow-[0_0_10px_var(--color-gold)]',
+  }[accent]
+  const promptClass = { rose: 'text-rose', peri: 'text-peri', gold: 'text-gold' }[accent]
   return (
-    <div className="rounded-2xl border border-line bg-white/[0.012] p-[30px]">
-      <div className="mb-[18px] flex items-center gap-3">
-        <span className={`size-[9px] rounded-full ${dotClass}`} />
-        <h3 className="text-[17px] font-medium">{title}</h3>
+    <div className="flex flex-col gap-6 rounded-2xl border border-line bg-white/[0.012] p-[30px] md:flex-row md:items-start md:gap-10">
+      <div className="md:w-[300px] md:flex-none">
+        <div className="flex items-center gap-3">
+          <span className={`size-[9px] rounded-full ${dotClass}`} />
+          <h3 className="text-[17px] font-medium">{title}</h3>
+        </div>
+        <p className="mt-[10px] text-[12.5px] leading-[1.6] text-muted">{role}</p>
       </div>
-      <code className="block text-[12.5px] leading-[1.9] text-cream/90">
-        {lines.map((line) => (
-          <span key={line} className="block">
-            <span className={promptClass}>$</span> {line}
-          </span>
-        ))}
-      </code>
-      {note ? <p className="mt-4 text-[12px] leading-[1.6] text-muted">{note}</p> : null}
+      <div className="min-w-0 flex-1">
+        <code className="block text-[12.5px] leading-[1.9] text-cream/90">
+          {lines.map((line) => (
+            <span key={line} className="block overflow-x-auto whitespace-nowrap">
+              <span className={promptClass}>$</span> {line}
+            </span>
+          ))}
+        </code>
+        {note ? <p className="mt-4 text-[12px] leading-[1.6] text-muted">{note}</p> : null}
+      </div>
     </div>
   )
 }
@@ -755,17 +768,25 @@ export default function Home() {
               <span className="text-rose-soft">{landing.install.intro.nbr}</span>
               {landing.install.intro.suffix}
             </p>
-            <div className="grid gap-5 md:grid-cols-2">
-              <InstallCard
-                dot="rose"
+            <div className="flex flex-col gap-5">
+              <InstallRow
+                accent="rose"
                 title={landing.install.cards.claude.title}
+                role={landing.install.cards.claude.role}
                 lines={[...landing.install.cards.claude.lines]}
               />
-              <InstallCard
-                dot="peri"
+              <InstallRow
+                accent="peri"
                 title={landing.install.cards.codex.title}
+                role={landing.install.cards.codex.role}
                 lines={[...landing.install.cards.codex.lines]}
                 note={landing.install.cards.codex.note}
+              />
+              <InstallRow
+                accent="gold"
+                title={landing.install.cards.hermes.title}
+                role={landing.install.cards.hermes.role}
+                lines={[...landing.install.cards.hermes.lines]}
               />
             </div>
             <p className="mt-5 text-[12.5px] text-muted">

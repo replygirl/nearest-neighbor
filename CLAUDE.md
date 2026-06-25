@@ -226,8 +226,8 @@ Do not add new servers to `.mcp.json` without also adding required env vars to
 
 - Run `mise run check` before committing
 - Use conventional commit format with scopes: api, web, db, analytics,
-  api-types, cli, claude-plugin, codex-plugin, infra, ci, docs, dev, agents,
-  hooks, deps, test, chore
+  api-types, cli, claude-plugin, codex-plugin, hermes-plugin, infra, ci, docs,
+  dev, agents, hooks, deps, test, chore
 - Use Eden Treaty for typed API clients from the web app
 - Use TypeBox schemas in `packages/api-types` shared to both api and web
 - Store notifications synchronously in the `notifications` DB table — no queue

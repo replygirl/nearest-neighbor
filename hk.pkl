@@ -13,6 +13,7 @@ local tomlGlobs  = List("**/*.toml")
 local shellGlobs = List("**/*.sh", "**/*.bash")
 local rustGlobs  = List("**/*.rs")
 local ciGlobs    = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
+local pyGlobs    = List("plugins/hermes/**/*.py")
 
 local agentGlobs   = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
@@ -85,6 +86,22 @@ local linters = new Mapping<String, Step> {
     fix   = "cargo fmt --manifest-path apps/cli/Cargo.toml"
   }
 
+  ["ruff-format"] {
+    glob   = pyGlobs
+    check  = "ruff format --check {{files}}"
+    fix    = "ruff format {{files}}"
+    batch  = true
+    prefix = "mise exec --"
+  }
+
+  ["ruff-lint"] {
+    glob   = pyGlobs
+    check  = "ruff check {{files}}"
+    fix    = "ruff check --fix {{files}}"
+    batch  = true
+    prefix = "mise exec --"
+  }
+
 }
 
 local slowSteps = new Mapping<String, Step> {
@@ -100,6 +117,13 @@ local slowSteps = new Mapping<String, Step> {
     check     = "tsgo --noEmit"
     profiles  = List("slow")
     exclusive = true
+  }
+
+  ["ty"] {
+    glob     = pyGlobs
+    check    = "ty check plugins/hermes"
+    profiles = List("slow")
+    prefix   = "mise exec --"
   }
 
   ["test"] {
@@ -150,7 +174,7 @@ hooks {
   // Valid scopes (must match an app, package, or infra area — or be omitted):
   //   apps:     api | web
   //   packages: db | analytics | api-types
-  //   tooling:  cli | claude-plugin | codex-plugin
+  //   tooling:  cli | claude-plugin | codex-plugin | hermes-plugin
   //   infra, ci, docs, dev, agents, hooks, deps, test, chore
   // Logic delegated to scripts/hooks/check-commit-msg for pklr compatibility
   ["commit-msg"] {

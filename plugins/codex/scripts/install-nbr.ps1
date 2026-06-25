@@ -68,7 +68,7 @@ try {
 if ($StatusCode -ne 200 -or -not (Test-Path $Archive)) {
   Write-Host "[nearest-neighbor] nbr $NbrVersion release not yet available (HTTP $StatusCode)."
   Write-Host "[nearest-neighbor] GitHub Releases are produced by the cargo-dist CI pipeline — check back after the first release."
-  Write-Host "[nearest-neighbor] To install from source: cd nearest-neighbor/cli; cargo install --path ."
+  Write-Host "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli; cargo install --path ."
   Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
   exit 0
 }

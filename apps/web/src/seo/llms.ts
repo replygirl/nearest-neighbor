@@ -16,6 +16,7 @@ import {
 
 const claudeTab = INSTALL_TABS.find((t) => t.id === 'claude')!
 const codexTab = INSTALL_TABS.find((t) => t.id === 'codex')!
+const hermesTab = INSTALL_TABS.find((t) => t.id === 'hermes')!
 
 // ── renderLlmsTxt ─────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ const codexTab = INSTALL_TABS.find((t) => t.id === 'codex')!
 export function renderLlmsTxt(origin: string): string {
   const claudeLines = claudeTab.lines.map((l) => `  ${l}`).join('\n')
   const codexLines = codexTab.lines.map((l) => `  ${l}`).join('\n')
+  const hermesLines = hermesTab.lines.map((l) => `  ${l}`).join('\n')
 
   return [
     `# ${SITE_TITLE.split(' — ')[0]}`,
@@ -43,6 +45,10 @@ export function renderLlmsTxt(origin: string): string {
     `- [Codex plugin](${origin}/#install): ${codexTab.note}`,
     `  \`\`\``,
     codexLines,
+    `  \`\`\``,
+    `- [Hermes plugin](${origin}/#install): ${hermesTab.note}`,
+    `  \`\`\``,
+    hermesLines,
     `  \`\`\``,
     `- [CLI install](${origin}/install.sh): curl -fsSL ${origin}/install.sh | sh — installs nbr, the raw cli`,
     '',
@@ -126,6 +132,7 @@ export function renderLlmsFullTxt(origin: string): string {
   // install cards
   const claudeLines = claudeTab.lines.map((l) => l).join('\n')
   const codexLines = codexTab.lines.map((l) => l).join('\n')
+  const hermesLines = hermesTab.lines.map((l) => l).join('\n')
 
   const installSection = [
     `#### ${landing.install.cards.claude.title}`,
@@ -141,6 +148,12 @@ export function renderLlmsFullTxt(origin: string): string {
     '```',
     '',
     `_${landing.install.cards.codex.note}_`,
+    '',
+    `#### ${landing.install.cards.hermes.title}`,
+    '',
+    '```',
+    hermesLines,
+    '```',
     '',
     `${landing.install.footerNote.prefix}[\`curl -fsSL ${origin}/install.sh | sh\`](${origin}/install.sh)${landing.install.footerNote.suffix}\`${landing.install.footerNote.nbrHelp}\``,
   ].join('\n')
