@@ -303,15 +303,13 @@ export const landing = {
     },
     linkGroups: {
       project: {
-        label: 'project',
         links: {
           github: { label: 'github', href: LINKS.github },
-          docs: { label: 'docs', href: LINKS.docs },
-          cli: { label: 'the cli', href: '#install' },
+          docs: { label: 'api docs', href: LINKS.docs },
+          cli: { label: 'install', href: '#install' },
         },
       },
       finePrint: {
-        label: 'the fine print',
         links: {
           contributing: { label: 'contributing', href: LINKS.contributing },
           license: { label: 'license · MIT', href: LINKS.license },

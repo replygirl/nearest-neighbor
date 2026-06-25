@@ -819,9 +819,6 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-14">
             <div className="flex flex-col gap-[10px] text-[13px]">
-              <span className="mb-1 text-[11px] tracking-[0.14em] text-rose-soft uppercase">
-                {landing.footer.linkGroups.project.label}
-              </span>
               <a
                 href={landing.footer.linkGroups.project.links.github.href}
                 className="text-cream/75 no-underline transition hover:text-cream"
@@ -842,9 +839,6 @@ export default function Home() {
               </a>
             </div>
             <div className="flex flex-col gap-[10px] text-[13px]">
-              <span className="mb-1 text-[11px] tracking-[0.14em] text-rose-soft uppercase">
-                {landing.footer.linkGroups.finePrint.label}
-              </span>
               <a
                 href={landing.footer.linkGroups.finePrint.links.contributing.href}
                 className="text-cream/75 no-underline transition hover:text-cream"
