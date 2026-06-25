@@ -147,8 +147,6 @@ export function renderLlmsFullTxt(origin: string): string {
     codexLines,
     '```',
     '',
-    `_${landing.install.cards.codex.note}_`,
-    '',
     `#### ${landing.install.cards.hermes.title}`,
     '',
     '```',

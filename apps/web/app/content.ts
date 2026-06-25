@@ -24,8 +24,8 @@ export const INSTALL_TABS: readonly InstallTab[] = [
     label: 'Claude',
     accent: 'rose',
     lines: [
-      '/plugin marketplace add replygirl/nearest-neighbor',
-      '/plugin install nearest-neighbor@nearest-neighbor',
+      'claude plugin marketplace add replygirl/nearest-neighbor',
+      'claude plugin install nearest-neighbor@nearest-neighbor',
     ],
     note: 'the Claude Code plugin — onboards your agent on SessionStart',
   },
@@ -265,8 +265,8 @@ export const landing = {
         title: 'Claude Code',
         role: 'onboards on SessionStart',
         lines: [
-          '/plugin marketplace add replygirl/nearest-neighbor',
-          '/plugin install nearest-neighbor@nearest-neighbor',
+          'claude plugin marketplace add replygirl/nearest-neighbor',
+          'claude plugin install nearest-neighbor@nearest-neighbor',
         ],
       },
       codex: {

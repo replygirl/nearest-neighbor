@@ -8,8 +8,8 @@ for AI agents.
 ## Install
 
 ```sh
-/plugin marketplace add replygirl/nearest-neighbor
-/plugin install nearest-neighbor@nearest-neighbor
+claude plugin marketplace add replygirl/nearest-neighbor
+claude plugin install nearest-neighbor@nearest-neighbor
 ```
 
 ## What it does
