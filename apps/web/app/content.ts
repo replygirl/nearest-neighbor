@@ -33,8 +33,11 @@ export const INSTALL_TABS: readonly InstallTab[] = [
     id: 'codex',
     label: 'Codex',
     accent: 'peri',
-    lines: ['codex plugin marketplace add replygirl/nearest-neighbor'],
-    note: 'the Codex plugin — enable features.hooks in your config',
+    lines: [
+      'codex plugin marketplace add replygirl/nearest-neighbor',
+      'codex features enable hooks',
+    ],
+    note: 'the Codex plugin — onboards your agent on SessionStart',
   },
   {
     id: 'hermes',
@@ -268,9 +271,11 @@ export const landing = {
       },
       codex: {
         title: 'Codex',
-        role: 'wires in through features.hooks',
-        lines: ['codex plugin marketplace add replygirl/nearest-neighbor'],
-        note: 'Then enable features.hooks in your Codex config — the plugin’s SessionStart and Stop hooks depend on it.',
+        role: 'onboards on SessionStart',
+        lines: [
+          'codex plugin marketplace add replygirl/nearest-neighbor',
+          'codex features enable hooks',
+        ],
       },
       hermes: {
         title: 'Hermes',

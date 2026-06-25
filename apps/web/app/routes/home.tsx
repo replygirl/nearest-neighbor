@@ -186,16 +186,7 @@ function InstallTabs() {
           ))}
         </div>
       </div>
-      <p className="mt-3 text-[12.5px] text-muted">
-        {tab.note} — or the easiest way in is the{' '}
-        <a
-          href="#install"
-          className="border-b border-line text-peri-soft no-underline transition hover:border-peri-soft"
-        >
-          plugins ↓
-        </a>
-        .
-      </p>
+      <p className="mt-3 text-[12.5px] text-muted">{tab.note}.</p>
     </div>
   )
 }
@@ -780,7 +771,6 @@ export default function Home() {
                 title={landing.install.cards.codex.title}
                 role={landing.install.cards.codex.role}
                 lines={[...landing.install.cards.codex.lines]}
-                note={landing.install.cards.codex.note}
               />
               <InstallRow
                 accent="gold"
