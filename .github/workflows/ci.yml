@@ -22,6 +22,7 @@ jobs:
       rust: ${{ steps.filter.outputs.rust || steps.all.outputs.all }}
       shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
       actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
+      python: ${{ steps.filter.outputs.python || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@v7
       # The merge queue must validate the squashed candidate in full, and
@@ -51,6 +52,11 @@ jobs:
               - 'scripts/**/*.sh'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
+            python:
+              - 'plugins/hermes/**/*.py'
+              - 'plugins/hermes/pyproject.toml'
+              - 'mise.toml'
+              - '.github/workflows/ci.yml'
             actions:
               # Workflow files and composite actions. Captures the case where a
               # PR only edits a workflow other than ci.yml (or only a composite
@@ -157,6 +163,20 @@ jobs:
         working-directory: apps/cli
         run: cargo check --target ${{ matrix.target }}
 
+  ci-python:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - name: Ruff lint
+        run: mise run lint:ci
+      - name: Ruff format check
+        run: mise run format:check
+      - name: ty type-check
+        run: mise exec -- ty check plugins/hermes
+
   ci-shell:
     needs: detect-changes
     if: needs.detect-changes.outputs.shell == 'true'
@@ -203,7 +223,7 @@ jobs:
 
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-rust, cli-cross, ci-shell, ci-actions-lint]
+    needs: [detect-changes, ci-bun, ci-rust, cli-cross, ci-python, ci-shell, ci-actions-lint]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
@@ -222,6 +242,7 @@ jobs:
             "${{ needs.ci-bun.result }}"
             "${{ needs.ci-rust.result }}"
             "${{ needs.cli-cross.result }}"
+            "${{ needs.ci-python.result }}"
             "${{ needs.ci-shell.result }}"
             "${{ needs.ci-actions-lint.result }}"
           )
