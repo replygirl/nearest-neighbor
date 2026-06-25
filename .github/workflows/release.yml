@@ -41,34 +41,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # One native runner per target (smallest/newest standard image for each
+        # OS+arch), so every triple builds natively — no cross-compilation.
         include:
           # ── macOS ──────────────────────────────────────────────────────────
           - target: aarch64-apple-darwin
-            runner: macos-latest
+            runner: macos-15 # Apple Silicon
             archive: tar.xz
-            cross: false
 
           - target: x86_64-apple-darwin
-            runner: macos-15-intel # Intel runner
+            runner: macos-15-intel # Intel
             archive: tar.xz
-            cross: false
 
           # ── Linux musl (static, no OpenSSL, no dbus) ──────────────────────
           - target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04
+            runner: ubuntu-24.04-arm # native arm64 runner
             archive: tar.xz
-            cross: true # use cross-rs for aarch64 cross-compile
 
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-24.04
             archive: tar.xz
-            cross: false
 
           # ── Windows ───────────────────────────────────────────────────────
           - target: x86_64-pc-windows-msvc
-            runner: windows-latest
+            runner: windows-2025
             archive: zip
-            cross: false
+
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm # native arm64 runner
+            archive: zip
 
     steps:
       - uses: actions/checkout@v7
@@ -81,33 +82,21 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # ── musl libc + linker (native x86_64-musl only) ───────────────────────
-      - name: Install musl tools (x86_64-musl)
-        if: matrix.target == 'x86_64-unknown-linux-musl' && !matrix.cross
+      # ── musl libc + linker (both musl targets build natively) ──────────────
+      - name: Install musl tools
+        if: endsWith(matrix.target, '-linux-musl')
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
-
-      # ── cross-rs for aarch64-musl ──────────────────────────────────────────────
-      - name: Install cross
-        if: matrix.cross
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cross
 
       # ── Cargo cache ────────────────────────────────────────────────────────
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+          workspaces: apps/cli
 
       # ── Build ──────────────────────────────────────────────────────────────
-      - name: Build (cross)
-        if: matrix.cross
-        working-directory: apps/cli
-        run: cross build --release --target ${{ matrix.target }}
-
-      - name: Build (native)
-        if: '!matrix.cross'
+      - name: Build
         working-directory: apps/cli
         run: cargo build --release --target ${{ matrix.target }}
 
