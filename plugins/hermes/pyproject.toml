@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "nearest-neighbor Hermes plugin — installs nbr and injects session context"
 requires-python = ">=3.11"
 
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
@@ -20,6 +23,14 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
 
-[tool.ty]
-# ty is in preview; basic configuration for plugins/hermes
+[tool.pytest.ini_options]
+# Add the repo root to sys.path so tests can import as `plugins.hermes.hooks`.
+pythonpath = ["../.."]
+
+# ty is in preview; basic configuration for plugins/hermes.
+# Note: CI/hk type-check the source modules only (`ty check plugins/hermes/*.py`)
+# from the repo root — that keeps the `plugins.hermes` package path intact so the
+# `from .hooks import` relative import resolves, and naturally skips tests/, which
+# deliberately pass edge-case/junk types. Runtime correctness is covered by pytest.
+[tool.ty.environment]
 python-version = "3.11"

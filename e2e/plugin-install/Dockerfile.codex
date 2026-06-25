@@ -1,0 +1,56 @@
+# Dockerfile.codex — container for the Codex plugin install test
+#
+# Base image: node:22-slim (Codex requires Node 22+; uses npm install -g).
+# The official package is @openai/codex from the npm registry.
+#
+# The test flow (driven by run.sh) is:
+#   1. `docker build` this image to get a base with node 22 + codex CLI.
+#   2. `docker run` with:
+#        --read-only bind-mount of the repo root at /repo
+#        a temp writable HOME so plugin caches land somewhere clean
+#        (no model key required — plugin ops do not need auth)
+#   3. Inside the container, the entrypoint script:
+#        a. Probes `codex plugin --help` to detect available subcommands
+#           (the install subcommand is `add` in the official ref but older/newer
+#           builds may differ — we branch defensively).
+#        b. Registers marketplace: `codex plugin marketplace add /repo --json`
+#        c. Installs plugin: `codex plugin add nearest-neighbor --json`
+#           (fallback: `codex plugin install nearest-neighbor --non-interactive --json`)
+#        d. Verifies: `codex plugin list --json | grep nearest-neighbor`
+#        e. Optionally: `codex doctor --json` (non-fatal if absent)
+#
+# NOTE: The exact subcommand form is uncertain; see entrypoint.codex.sh
+# for the defensive probing logic. The coordinator must validate live.
+
+# syntax=docker/dockerfile:1
+FROM node:22-slim
+
+# Install runtime deps:
+#   curl, ca-certificates — for any network calls the installer may make
+#   jq — optional JSON parsing; falls back to grep
+#   bash — some codex scripts may invoke bash
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        jq \
+        bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install the Codex CLI globally via npm.
+# @openai/codex@latest pins to the latest stable release at image build time.
+# We use `--ignore-scripts` to skip any postinstall scripts that may attempt
+# to phone home or set up credentials.
+RUN npm install -g @openai/codex@latest
+
+# Verify the CLI is on PATH after install
+RUN codex --version || (echo "ERROR: codex not found after install"; exit 1)
+
+# Copy the entrypoint script
+COPY entrypoint.codex.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# HOME inside the container is /root (default for root user).
+# The repo is mounted at /repo at runtime by run.sh.
+
+ENTRYPOINT ["/entrypoint.sh"]

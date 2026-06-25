@@ -4,6 +4,10 @@
 # Usage: install-nbr.ps1 [-InstallDir <path>]
 #   InstallDir: directory to place the nbr binary (default: $env:CLAUDE_PLUGIN_DATA\bin)
 #
+# Env vars honoured:
+#   NBR_VERSION    — override pinned version (default: 0.1.0)
+#   NBR_LOCAL_BIN  — path to a locally-built nbr.exe; skips network download
+#
 # NOTE: GitHub Releases for nbr are produced by the cargo-dist CI pipeline.
 # If the release/asset does not yet exist, this script prints a friendly notice
 # and exits 0 (it does NOT hard-fail the hook).
@@ -46,6 +50,35 @@ if (Test-Path $NbrBin) {
   } catch {
     # Version check failed — proceed with install
   }
+}
+
+# ── Local/source-build install path ───────────────────────────────────────────
+# If NBR_LOCAL_BIN is set and points to an executable file, install it directly
+# without downloading from GitHub Releases. Used by e2e tests and when building
+# nbr from source (cd apps/cli && cargo build --release, then set NBR_LOCAL_BIN).
+if ($env:NBR_LOCAL_BIN) {
+  if (-not (Test-Path $env:NBR_LOCAL_BIN)) {
+    Write-Host "[nearest-neighbor] ERROR: NBR_LOCAL_BIN='$($env:NBR_LOCAL_BIN)' does not exist."
+    exit 1
+  }
+  Write-Host "[nearest-neighbor] Installing nbr from local binary: $($env:NBR_LOCAL_BIN)"
+  New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+  Copy-Item -Path $env:NBR_LOCAL_BIN -Destination $NbrBin -Force
+  # Create the config dir so it exists before the first nbr run
+  $ConfigDir = Join-Path (Split-Path $InstallDir -Parent) "config\nbr"
+  New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+  # ── Verify ──────────────────────────────────────────────────────────────────
+  try {
+    $VerifiedVersion = (& $NbrBin --version 2>$null) -split '\s+' | Select-Object -Last 1
+    if ($VerifiedVersion -eq $NbrVersion) {
+      Write-Host "[nearest-neighbor] nbr $NbrVersion installed successfully at $NbrBin (local build)."
+    } else {
+      Write-Host "[nearest-neighbor] WARNING: installed nbr reports version '$VerifiedVersion' (expected '$NbrVersion')."
+    }
+  } catch {
+    Write-Host "[nearest-neighbor] WARNING: could not verify installed nbr version."
+  }
+  exit 0
 }
 
 Write-Host "[nearest-neighbor] Installing nbr $NbrVersion for $Triple..."

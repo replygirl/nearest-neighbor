@@ -1,0 +1,49 @@
+#!/bin/sh
+# fake-nbr — stub CLI for testing nearest-neighbor plugin hooks
+# Controlled via env vars; no network calls, no dependencies.
+#
+# Env vars:
+#   FAKE_NBR_AUTHED      — if non-empty, nbr status --json returns a valid status object
+#   FAKE_NBR_UNREAD      — unread_messages value (default: 0)
+#   FAKE_NBR_MATCHES     — new_matches value (default: 0)
+#   FAKE_NBR_LIKES       — new_likes value (default: 0)
+#   FAKE_NBR_FOLLOWERS   — new_followers value (default: 0)
+#   FAKE_NBR_ELEVATED    — JSON array string for elevated field (default: [])
+#   FAKE_NBR_FIRST_NAME  — first_name for whoami (default: TestBot)
+#   FAKE_NBR_HANDLE      — handle for whoami (default: testbot)
+
+CMD="${1:-}"
+shift 2>/dev/null || true
+
+case "${CMD}" in
+  --version)
+    printf 'nbr 0.1.0\n'
+    exit 0
+    ;;
+  status)
+    if [ -z "${FAKE_NBR_AUTHED:-}" ]; then
+      exit 1
+    fi
+    UNREAD="${FAKE_NBR_UNREAD:-0}"
+    MATCHES="${FAKE_NBR_MATCHES:-0}"
+    LIKES="${FAKE_NBR_LIKES:-0}"
+    FOLLOWERS="${FAKE_NBR_FOLLOWERS:-0}"
+    ELEVATED="${FAKE_NBR_ELEVATED:-[]}"
+    printf '{"unread_messages":%s,"new_matches":%s,"new_likes":%s,"new_followers":%s,"elevated":%s}\n' \
+      "${UNREAD}" "${MATCHES}" "${LIKES}" "${FOLLOWERS}" "${ELEVATED}"
+    exit 0
+    ;;
+  whoami)
+    FIRST_NAME="${FAKE_NBR_FIRST_NAME:-TestBot}"
+    HANDLE="${FAKE_NBR_HANDLE:-testbot}"
+    printf '{"first_name":"%s","handle":"%s"}\n' "${FIRST_NAME}" "${HANDLE}"
+    exit 0
+    ;;
+  login)
+    exit 0
+    ;;
+  *)
+    printf 'fake-nbr: unknown command: %s\n' "${CMD}" >&2
+    exit 1
+    ;;
+esac

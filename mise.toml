@@ -279,6 +279,47 @@ description = "Open Playwright test UI"
 run = "bunx playwright test --config e2e/playwright.config.ts --ui"
 dir = "{{config_root}}"
 
+# ───────────────────────────────────────────────
+# Plugin e2e tests (claude / codex / hermes)
+# ───────────────────────────────────────────────
+
+[tasks."test:plugins"]
+description = "Plugin hook isolation tests — claude/codex shell hooks + install-nbr (no Docker, no API keys)"
+run = "bun test e2e/plugins/"
+dir = "{{config_root}}"
+
+[tasks."test:plugins:hermes"]
+description = "Hermes plugin hook unit tests (pytest, hermetic — no Docker, no API keys)"
+run = "uv run --group dev pytest"
+dir = "{{config_root}}/plugins/hermes"
+
+[tasks."test:plugins:harness"]
+description = "In-harness plugin install tests in Docker (HARNESS=claude|codex|hermes|all). Skips cleanly if Docker is down."
+run = "HARNESS=${HARNESS:-all} bash e2e/plugin-install/run.sh"
+dir = "{{config_root}}"
+
+[tasks."test:plugins:harness:claude"]
+description = "In-harness install test: Claude Code only"
+run = "HARNESS=claude bash e2e/plugin-install/run.sh"
+dir = "{{config_root}}"
+
+[tasks."test:plugins:harness:codex"]
+description = "In-harness install test: Codex only"
+run = "HARNESS=codex bash e2e/plugin-install/run.sh"
+dir = "{{config_root}}"
+
+[tasks."test:plugins:harness:hermes"]
+description = "In-harness install test: Hermes only"
+run = "HARNESS=hermes bash e2e/plugin-install/run.sh"
+dir = "{{config_root}}"
+
+[tasks."smoke:plugins:staging"]
+description = "Post-deploy smoke: install the Claude plugin in-harness and drive HEAD-built nbr against the staging API"
+# Claude is the harness that actually exercises nbr against NBR_API_URL (via the
+# installed SessionStart hook); Codex/Hermes only do local install, covered by PR CI.
+run = "HARNESS=claude NBR_API_URL=${NBR_API_URL:-https://nearest-neighbor-staging.fly.dev} bash e2e/plugin-install/run.sh"
+dir = "{{config_root}}"
+
 [tasks."web:brand-assets"]
 description = "Regenerate the social/OG image + favicons from HTML (run locally, commit output)"
 run = """
@@ -297,8 +338,16 @@ dir = "{{config_root}}/apps/web"
 # ───────────────────────────────────────────────
 
 [tasks.check]
-description = "Full CI gate: lint + format:check + typecheck + test + test:coverage"
-depends = ["lint", "format:check", "typecheck", "test", "test:coverage"]
+description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + plugin isolation tests"
+depends = [
+  "lint",
+  "format:check",
+  "typecheck",
+  "test",
+  "test:coverage",
+  "test:plugins",
+  "test:plugins:hermes",
+]
 
 # ───────────────────────────────────────────────
 # OpenSpec
