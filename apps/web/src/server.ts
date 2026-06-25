@@ -75,7 +75,13 @@ const server = Bun.serve({
   async fetch(request) {
     const url = new URL(request.url)
     const { pathname } = url
-    const origin = url.origin
+    // Behind Fly's proxy the app is reached over plain HTTP with the public
+    // scheme/host in X-Forwarded-Proto/Host. Trust them so canonical, og:image,
+    // and the llms/robots/sitemap URLs are the real https public origin rather
+    // than the internal http one. Falls back to the request URL in local dev.
+    const fwdProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+    const fwdHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+    const origin = `${fwdProto ?? url.protocol.slice(0, -1)}://${fwdHost ?? url.host}`
 
     // ── SEO / LLMs routes ────────────────────────────────────────────────────
     // Handled before static-file lookup and SSR so they are never shadowed by
