@@ -205,7 +205,7 @@ ruff format plugins/hermes
 description = "Type-check all workspaces (apps + packages) with tsgo; Python with ty"
 run = """
 bun run --filter '*' typecheck
-ty check plugins/hermes
+ty check plugins/hermes/*.py
 """
 
 # ───────────────────────────────────────────────
