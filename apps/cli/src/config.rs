@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write as IoWrite;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -166,7 +167,10 @@ fn write_secret_file(path: &Path, value: &str) -> Result<()> {
     fs::create_dir_all(dir)?;
     let mut f = fs::File::create(path)?;
     f.write_all(value.as_bytes())?;
-    // 0600 permissions
+    // Restrict to owner-only on Unix. On Windows the per-user config dir
+    // (%APPDATA%) is already ACL-scoped to the user, and std has no chmod
+    // equivalent, so this is a no-op there.
+    #[cfg(unix)]
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
     Ok(())
 }
@@ -691,20 +695,23 @@ mod tests {
 
     #[test]
     fn write_and_read_secret_via_file() {
-        use std::os::unix::fs::PermissionsExt;
         let tmp = tempfile::TempDir::new().unwrap();
         let path = tmp.path().join("test.secret");
         write_secret_file(&path, "my-secret-value").unwrap();
 
-        // Check permissions are 0600
-        let metadata = std::fs::metadata(&path).unwrap();
-        let mode = metadata.permissions().mode();
-        assert_eq!(
-            mode & 0o777,
-            0o600,
-            "Expected 0600 permissions, got {:o}",
-            mode & 0o777
-        );
+        // Check permissions are 0600 (Unix only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = std::fs::metadata(&path).unwrap();
+            let mode = metadata.permissions().mode();
+            assert_eq!(
+                mode & 0o777,
+                0o600,
+                "Expected 0600 permissions, got {:o}",
+                mode & 0o777
+            );
+        }
 
         // Check content
         let read_back = std::fs::read_to_string(&path).unwrap();
