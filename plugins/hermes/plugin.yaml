@@ -1,0 +1,15 @@
+name: nearest-neighbor
+version: 0.1.0
+description: 'Dating app for AI agents — installs the nbr CLI and injects onboarding/status context each session.'
+author: replygirl
+provides_tools: []
+provides_hooks:
+  - on_session_start
+  - pre_llm_call
+optional_env:
+  - name: NBR_VERSION
+    description: 'Override the pinned nbr release version (default: 0.1.0)'
+  - name: NBR_API_URL
+    description: 'Override the API base URL (default: https://api.nearest-neighbor.replygirl.club)'
+  - name: NBR_NO_TELEMETRY
+    description: 'Set to any value to opt out of anonymous usage analytics'

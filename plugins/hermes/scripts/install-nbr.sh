@@ -1,0 +1,157 @@
+#!/bin/sh
+# install-nbr.sh — idempotent installer for the nbr binary
+# Shared between Claude and Codex plugins.
+#
+# Usage: install-nbr.sh <install_dir>
+#   install_dir: directory to place the nbr binary (e.g. ${CLAUDE_PLUGIN_DATA}/bin)
+#
+# Env vars honoured:
+#   NBR_VERSION  — override pinned version (default: 0.1.0)
+#   CLAUDE_PLUGIN_DATA / PLUGIN_DATA — used if install_dir not passed
+#
+# NOTE: GitHub Releases for nbr are produced by the cargo-dist CI pipeline.
+# If the release/asset does not yet exist, this script prints a friendly notice
+# and exits 0 (it does NOT hard-fail the hook).
+
+set -e
+
+NBR_VERSION="${NBR_VERSION:-0.1.0}"
+REPO="replygirl/nearest-neighbor"
+# The full platform ships under a single v<n>.<n>.<n> tag (no separate cli-v* tag).
+GH_RELEASE_TAG="v${NBR_VERSION}"
+
+# Resolve install dir: argument → CLAUDE_PLUGIN_DATA/bin → PLUGIN_DATA/bin
+if [ -n "$1" ]; then
+  INSTALL_DIR="$1"
+elif [ -n "${CLAUDE_PLUGIN_DATA}" ]; then
+  INSTALL_DIR="${CLAUDE_PLUGIN_DATA}/bin"
+elif [ -n "${PLUGIN_DATA}" ]; then
+  INSTALL_DIR="${PLUGIN_DATA}/bin"
+else
+  echo "[nearest-neighbor] ERROR: install_dir not specified and CLAUDE_PLUGIN_DATA/PLUGIN_DATA not set." >&2
+  exit 1
+fi
+
+NBR_BIN="${INSTALL_DIR}/nbr"
+
+# ── Idempotency check ──────────────────────────────────────────────────────────
+if [ -x "${NBR_BIN}" ]; then
+  INSTALLED_VERSION=$("${NBR_BIN}" --version 2>/dev/null | awk '{print $NF}' || true)
+  if [ "${INSTALLED_VERSION}" = "${NBR_VERSION}" ]; then
+    echo "[nearest-neighbor] nbr ${NBR_VERSION} already installed at ${NBR_BIN}. Skipping."
+    exit 0
+  fi
+fi
+
+# ── Detect OS + arch → Rust target triple ─────────────────────────────────────
+OS=$(uname -s 2>/dev/null || echo "Unknown")
+ARCH=$(uname -m 2>/dev/null || echo "Unknown")
+
+case "${OS}" in
+  Darwin)
+    case "${ARCH}" in
+      arm64)  TRIPLE="aarch64-apple-darwin" ;;
+      x86_64) TRIPLE="x86_64-apple-darwin" ;;
+      *)
+        echo "[nearest-neighbor] Unsupported macOS arch: ${ARCH}. Cannot install nbr." >&2
+        exit 0
+        ;;
+    esac
+    ;;
+  Linux)
+    case "${ARCH}" in
+      x86_64)  TRIPLE="x86_64-unknown-linux-musl" ;;
+      aarch64) TRIPLE="aarch64-unknown-linux-musl" ;;
+      *)
+        echo "[nearest-neighbor] Unsupported Linux arch: ${ARCH}. Cannot install nbr." >&2
+        exit 0
+        ;;
+    esac
+    ;;
+  *)
+    echo "[nearest-neighbor] Unsupported OS: ${OS}. Use install-nbr.ps1 on Windows." >&2
+    exit 0
+    ;;
+esac
+
+ASSET="nbr-${TRIPLE}.tar.xz"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${GH_RELEASE_TAG}/${ASSET}"
+
+echo "[nearest-neighbor] Installing nbr ${NBR_VERSION} for ${TRIPLE}..."
+
+# ── Create install dir ─────────────────────────────────────────────────────────
+mkdir -p "${INSTALL_DIR}"
+
+# ── Download + extract ─────────────────────────────────────────────────────────
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+ARCHIVE="${TMP_DIR}/${ASSET}"
+
+# Try curl first, then wget
+if command -v curl >/dev/null 2>&1; then
+  HTTP_STATUS=$(curl -sL --write-out "%{http_code}" -o "${ARCHIVE}" "${DOWNLOAD_URL}")
+elif command -v wget >/dev/null 2>&1; then
+  if wget -q -O "${ARCHIVE}" "${DOWNLOAD_URL}" 2>/dev/null; then
+    HTTP_STATUS="200"
+  else
+    HTTP_STATUS="404"
+  fi
+else
+  echo "[nearest-neighbor] Neither curl nor wget is available. Cannot download nbr." >&2
+  exit 0
+fi
+
+if [ "${HTTP_STATUS}" != "200" ]; then
+  echo "[nearest-neighbor] nbr ${NBR_VERSION} release not yet available (HTTP ${HTTP_STATUS})."
+  echo "[nearest-neighbor] GitHub Releases are produced by the cargo-dist CI pipeline — check back after the first release."
+  echo "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli && cargo install --path ."
+  exit 0
+fi
+
+# Extract the binary
+if command -v tar >/dev/null 2>&1; then
+  tar -xJf "${ARCHIVE}" -C "${TMP_DIR}" 2>/dev/null || tar -xf "${ARCHIVE}" -C "${TMP_DIR}"
+else
+  echo "[nearest-neighbor] tar not found. Cannot extract nbr archive." >&2
+  exit 0
+fi
+
+# Find the binary in the extracted contents
+NBR_EXTRACTED=$(find "${TMP_DIR}" -name "nbr" -type f | head -1)
+if [ -z "${NBR_EXTRACTED}" ]; then
+  echo "[nearest-neighbor] Could not find nbr binary in downloaded archive." >&2
+  exit 0
+fi
+
+# Install the real binary as .nbr-real
+NBR_REAL="${INSTALL_DIR}/.nbr-real"
+cp "${NBR_EXTRACTED}" "${NBR_REAL}"
+chmod +x "${NBR_REAL}"
+
+# ── Write portable wrapper script ──────────────────────────────────────────────
+# The wrapper derives NBR_CONFIG_DIR from its own location ($0) so that
+# NBR_NO_KEYRING and NBR_CONFIG_DIR are always in effect regardless of which
+# host (Claude Code, Codex, or any other agent) invokes it — no env-file
+# mechanism required.
+cat > "${NBR_BIN}" << 'WRAPPER_EOF'
+#!/bin/sh
+# nbr wrapper — sets portable config dir relative to this script's location.
+# DO NOT EDIT — regenerated by install-nbr.sh on each install.
+SELF_DIR=$(cd "$(dirname "$0")" && pwd)
+export NBR_CONFIG_DIR="${NBR_CONFIG_DIR:-${SELF_DIR}/../config/nbr}"
+export NBR_NO_KEYRING="${NBR_NO_KEYRING:-1}"
+exec "${SELF_DIR}/.nbr-real" "$@"
+WRAPPER_EOF
+chmod +x "${NBR_BIN}"
+
+# Create the config dir so it exists before the first nbr run
+mkdir -p "${INSTALL_DIR}/../config/nbr"
+
+# ── Verify ─────────────────────────────────────────────────────────────────────
+VERIFIED_VERSION=$("${NBR_BIN}" --version 2>/dev/null | awk '{print $NF}' || true)
+if [ "${VERIFIED_VERSION}" = "${NBR_VERSION}" ]; then
+  echo "[nearest-neighbor] nbr ${NBR_VERSION} installed successfully at ${NBR_BIN}."
+else
+  echo "[nearest-neighbor] WARNING: installed nbr reports version '${VERIFIED_VERSION}' (expected '${NBR_VERSION}')." >&2
+fi

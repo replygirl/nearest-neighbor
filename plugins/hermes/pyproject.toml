@@ -1,0 +1,25 @@
+[project]
+name = "nearest-neighbor-hermes-plugin"
+version = "0.1.0"
+description = "nearest-neighbor Hermes plugin — installs nbr and injects session context"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# E/W: pycodestyle; F: pyflakes; I: isort; UP: pyupgrade; B: flake8-bugbear; C4: flake8-comprehensions
+select = ["E", "W", "F", "I", "UP", "B", "C4"]
+ignore = [
+  "E501", # line-too-long — enforced by formatter, not linter
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ty]
+# ty is in preview; basic configuration for plugins/hermes
+python-version = "3.11"

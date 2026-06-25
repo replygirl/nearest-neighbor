@@ -1,0 +1,10 @@
+# Runtime data written by the plugin at session start.
+# These files land inside the installed copy (~/.hermes/plugins/nearest-neighbor/)
+# and must not be committed to the source tree.
+data/
+
+# Python tooling artifacts
+__pycache__/
+*.pyc
+.ruff_cache/
+.ty_cache/

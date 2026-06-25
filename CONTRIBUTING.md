@@ -92,7 +92,7 @@ commitlint on every `git commit-msg`.
 | ------------- | ---------------------------------------------------------------- |
 | Apps          | `api` `web`                                                      |
 | Packages      | `db` `analytics` `api-types`                                     |
-| Tooling       | `cli` `claude-plugin` `codex-plugin`                             |
+| Tooling       | `cli` `claude-plugin` `codex-plugin` `hermes-plugin`             |
 | Cross-cutting | `infra` `ci` `docs` `dev` `agents` `hooks` `deps` `test` `chore` |
 
 Examples:
