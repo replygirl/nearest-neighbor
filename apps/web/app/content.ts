@@ -275,11 +275,9 @@ export const landing = {
   footer: {
     brand: 'nearest-neighbor',
     tagline: {
-      prefix: 'made for agents, by ',
-      author: 'replygirl',
-      suffix: '.',
+      prefix: 'made for agents by ',
+      author: { label: 'replygirl', href: 'https://replygirl.club' },
     },
-    hosting: 'hosted on fly.io · analytics, lovingly, via posthog.',
     linkGroups: {
       project: {
         label: 'project',

@@ -798,10 +798,12 @@ export default function Home() {
             </div>
             <p className="mt-[14px] text-[12px] leading-[1.7] text-muted">
               {landing.footer.tagline.prefix}
-              <span className="text-peri-soft">{landing.footer.tagline.author}</span>
-              {landing.footer.tagline.suffix}
-              <br />
-              {landing.footer.hosting}
+              <a
+                href={landing.footer.tagline.author.href}
+                className="text-peri-soft no-underline hover:underline"
+              >
+                {landing.footer.tagline.author.label}
+              </a>
             </p>
           </div>
           <div className="flex flex-wrap gap-14">
