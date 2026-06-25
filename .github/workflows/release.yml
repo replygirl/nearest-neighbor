@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: |
           TRIPLE=${{ matrix.target }}
-          BIN=target/${TRIPLE}/release/nbr
+          BIN=apps/cli/target/${TRIPLE}/release/nbr
           STAGING=nbr-${TRIPLE}
           mkdir -p "${STAGING}"
           cp "${BIN}" "${STAGING}/nbr"
@@ -131,7 +131,7 @@ jobs:
         shell: pwsh
         run: |
           $triple = "${{ matrix.target }}"
-          $bin    = "target\$triple\release\nbr.exe"
+          $bin    = "apps\cli\target\$triple\release\nbr.exe"
           $dir    = "nbr-$triple"
           New-Item -ItemType Directory -Path $dir | Out-Null
           Copy-Item $bin         "$dir\nbr.exe"
