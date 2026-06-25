@@ -28,7 +28,13 @@ NBR_BIN_DIR="${_PLUGIN_DATA}/bin"
 NBR_BIN="${NBR_BIN_DIR}/nbr"
 
 # ── 1. Ensure nbr is installed ─────────────────────────────────────────────────
-"${_PLUGIN_ROOT}/scripts/install-nbr.sh" "${NBR_BIN_DIR}" || true
+# Invoke via `sh`, not a direct exec: plugin marketplaces ship these scripts
+# without the executable bit (644 in git and in the installed plugin cache), so
+# a direct exec fails with "permission denied" and the `|| true` would silently
+# skip the install. `sh <script>` runs regardless of the file mode.
+# Redirect installer progress to stderr: this hook's STDOUT is the JSON contract
+# (hookSpecificOutput), so installer log lines on stdout would corrupt it.
+sh "${_PLUGIN_ROOT}/scripts/install-nbr.sh" "${NBR_BIN_DIR}" 1>&2 || true
 
 # ── 2. Persist env vars into CLAUDE_ENV_FILE ───────────────────────────────────
 _ENV_FILE="${CLAUDE_ENV_FILE:-}"

@@ -1,0 +1,64 @@
+# Dockerfile.claude — container for the Claude plugin install + SessionStart hook test
+#
+# Base image: debian-slim (no Node needed; claude CLI is a standalone binary).
+# The Claude Code CLI is installed via the official install script (curl | bash).
+#
+# The test flow (driven by run.sh) is:
+#   1. `docker build` this image to get a base with curl + claude.
+#   2. `docker run` with:
+#        --read-only bind-mount of the repo root at /repo
+#        a temp writable HOME dir so plugin caches land somewhere clean
+#        NBR_LOCAL_BIN env var pointing at the head-built nbr binary (also bind-mounted)
+#   3. Inside the container, the entrypoint script:
+#        a. Registers the local marketplace (claude plugin marketplace add).
+#        b. Installs the plugin (claude plugin install nearest-neighbor@nearest-neighbor).
+#        c. Verifies registration (claude plugin list --json | grep nearest-neighbor).
+#        d. [BONUS] Attempts to fire the SessionStart hook via `claude --init-only`
+#           to exercise session-start.sh with the HEAD-built nbr and asserts that
+#           the onboarding context contains 'nearest-neighbor'/'affection is all you need'.
+#
+# The exact flag/subcommand syntax for `claude plugin` and `claude --init-only`
+# is verified at runtime with defensive probing (see entrypoint.claude.sh).
+
+# syntax=docker/dockerfile:1
+FROM debian:bookworm-slim
+
+# Install runtime deps:
+#   curl — to download the Claude installer + used by install-nbr.sh
+#   ca-certificates — TLS validation for installer and curl
+#   tar, xz-utils — install-nbr.sh needs these to unpack release tarballs
+#   jq — optional: helps parse JSON outputs in assertions (falls back to grep)
+#   bash — installer script uses bash; also needed by session-start.sh (uses #!/bin/sh)
+#   procps — ps, for debug if needed
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        tar \
+        xz-utils \
+        jq \
+        bash \
+        procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install the Claude Code CLI via the official installer script.
+# The current installer writes a native binary to ~/.local/bin/claude (= /root
+# here) and does NOT add it to PATH, so we add it explicitly below.
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Put the native install dir on PATH for both the build-time check and the
+# runtime entrypoint (ENV persists into `docker run`).
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Verify the CLI is on PATH after install
+RUN command -v claude || (echo "ERROR: claude not found after install"; exit 1)
+
+# Copy the entrypoint script
+COPY entrypoint.claude.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# HOME inside the container is /root (default for root user).
+# The repo is mounted at /repo at runtime by run.sh.
+# NBR_LOCAL_BIN is set at runtime by run.sh.
+
+ENTRYPOINT ["/entrypoint.sh"]

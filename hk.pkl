@@ -14,6 +14,7 @@ local shellGlobs = List("**/*.sh", "**/*.bash")
 local rustGlobs  = List("**/*.rs")
 local ciGlobs    = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
 local pyGlobs    = List("plugins/hermes/**/*.py")
+local pluginGlobs = List("plugins/**", "apps/cli/**", ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", "e2e/plugins/**", "e2e/plugin-install/**")
 
 local agentGlobs   = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
@@ -120,8 +121,10 @@ local slowSteps = new Mapping<String, Step> {
   }
 
   ["ty"] {
-    glob     = pyGlobs
-    check    = "ty check plugins/hermes"
+    glob = pyGlobs
+    // Source modules only (plugins/hermes/*.py): keeps the package path intact so
+    // the relative import resolves and skips tests/ (intentional junk types).
+    check    = "ty check plugins/hermes/*.py"
     profiles = List("slow")
     prefix   = "mise exec --"
   }
@@ -137,6 +140,24 @@ local slowSteps = new Mapping<String, Step> {
   // Logic delegated to scripts/hooks/check-secrets for pklr compatibility
   ["secrets-scan"] {
     check    = "bash scripts/hooks/check-secrets"
+    profiles = List("slow")
+  }
+
+  // plugin-hooks: fast hook-isolation tests (claude/codex shell hooks + install-nbr
+  // via bun, hermes via pytest). No Docker, no API keys.
+  ["plugin-hooks"] {
+    glob     = pluginGlobs
+    check    = "mise run test:plugins && mise run test:plugins:hermes"
+    profiles = List("slow")
+  }
+
+  // plugin-install: in-harness install tests in Docker (claude/codex/hermes).
+  // run.sh self-skips cleanly when no Docker daemon is reachable, so contributors
+  // without Docker can still push. Heavier (builds nbr from HEAD, pulls images);
+  // BuildKit + image caches keep repeat runs fast. Path-gated to plugin/CLI changes.
+  ["plugin-install"] {
+    glob     = pluginGlobs
+    check    = "mise run test:plugins:harness"
     profiles = List("slow")
   }
 

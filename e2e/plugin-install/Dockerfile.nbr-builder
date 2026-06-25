@@ -1,0 +1,85 @@
+# Dockerfile.nbr-builder — cross-compile the nbr Rust CLI from the repo HEAD
+# for a glibc Linux target (x86_64 or aarch64, detected at build time).
+#
+# Build context: the repo root (caller must pass `--build-context repo=<path>`
+# or set build context to repo root). The apps/cli Cargo workspace lives at
+# apps/cli/ relative to the repo root.
+#
+# BuildKit cache mounts keep cargo registry and incremental target/ artifacts
+# between rebuilds — crucial on developer machines where the binary hasn't changed.
+#
+# Output: the compiled `nbr` binary is copied to /out/nbr inside the builder
+# image so the caller can extract it with:
+#   docker create <image> && docker cp <container>:/out/nbr <host-path>
+# or via a multi-stage COPY in the calling Dockerfile.
+
+# syntax=docker/dockerfile:1
+FROM rust:1-slim AS builder
+
+# Install musl-tools + linker for a statically-linked musl binary that runs
+# without a glibc version constraint in every Debian/Ubuntu-based container.
+# musl-tools pulls musl-gcc; we rely on the Rust cross-compilation machinery.
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends musl-tools ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Detect the container's native arch and select the appropriate musl target.
+# Shell arithmetic in RUN is limited to what /bin/sh provides; we use `uname -m`.
+RUN set -e; \
+    ARCH=$(uname -m); \
+    case "${ARCH}" in \
+      x86_64)  RUST_TARGET="x86_64-unknown-linux-musl" ;; \
+      aarch64) RUST_TARGET="aarch64-unknown-linux-musl" ;; \
+      *) echo "Unsupported arch: ${ARCH}" >&2; exit 1 ;; \
+    esac; \
+    printf '%s\n' "${RUST_TARGET}" > /tmp/rust-target.txt; \
+    rustup target add "${RUST_TARGET}"
+
+WORKDIR /build
+
+# ── Copy only the manifest files first so cargo can fetch deps in a cacheable
+#    layer before we pull in the full source tree. ──────────────────────────────
+COPY apps/cli/Cargo.toml apps/cli/Cargo.lock ./apps/cli/
+# The workspace is self-contained under apps/cli/ (its own Cargo.toml is the
+# workspace root); there is no root-level Cargo.toml in the repo.
+
+# Create a dummy lib.rs and main.rs so `cargo fetch` succeeds without the real source.
+# This layer is cached as long as Cargo.toml / Cargo.lock don't change.
+RUN mkdir -p apps/cli/src && \
+    printf 'pub fn main(){}' > apps/cli/src/lib.rs && \
+    printf 'fn main(){}' > apps/cli/src/main.rs
+
+WORKDIR /build/apps/cli
+
+# Fetch (download) dependencies — separate cacheable step
+# --mount=type=cache keeps the cargo registry across builds
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    RUST_TARGET=$(cat /tmp/rust-target.txt) && \
+    cargo fetch --target "${RUST_TARGET}"
+
+# ── Now copy the real source tree and build ───────────────────────────────────
+# Remove the placeholder stubs and replace with real source
+WORKDIR /build
+COPY apps/cli/ apps/cli/
+
+WORKDIR /build/apps/cli
+
+# Build in release mode with the musl target.
+# --mount=type=cache keeps the incremental build artifacts (target/) between rebuilds.
+# The target dir is keyed by RUST_TARGET so x86 and aarch64 caches don't collide.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/apps/cli/target \
+    RUST_TARGET=$(cat /tmp/rust-target.txt) && \
+    cargo build --release --target "${RUST_TARGET}" && \
+    # Copy binary out of the cache-mounted target dir BEFORE the layer ends —
+    # cache mounts are not available in subsequent RUN steps or in COPY.
+    mkdir -p /out && \
+    cp "target/${RUST_TARGET}/release/nbr" /out/nbr && \
+    chmod +x /out/nbr
+
+# Minimal final stage: only the binary.
+# The caller (run.sh) does `docker create` + `docker cp` to pull /out/nbr to host.
+FROM scratch AS export
+COPY --from=builder /out/nbr /nbr

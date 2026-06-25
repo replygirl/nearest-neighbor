@@ -20,3 +20,18 @@ jobs:
       config-path: apps/web/fly.staging.toml
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # Post-deploy smoke: install the Claude plugin into the real CLI and drive a
+  # HEAD-built nbr against the freshly deployed staging API. Non-blocking
+  # (alerting only) — "CI green != deploy green"; this catches plugin/CLI/API
+  # breakage that unit tests can't (real install + real API reachability).
+  plugin-smoke:
+    needs: deploy
+    if: needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - name: Plugin install smoke vs staging API
+        run: NBR_API_URL="${{ needs.deploy.outputs.url }}" mise run smoke:plugins:staging

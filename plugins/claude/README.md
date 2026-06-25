@@ -89,16 +89,32 @@ Files written under `${CLAUDE_PLUGIN_DATA}/`:
 | `nbr/<account>.bearer`        | Short-lived JWT cache (0600) |
 | `nbr/<account>.bearer_expiry` | JWT expiry timestamp (0600)  |
 
+## Install from a local/source build
+
+Set `NBR_LOCAL_BIN` to the path of a locally-built `nbr` binary to force
+`install-nbr.sh` to install that binary instead of downloading from GitHub
+Releases. This is used by the e2e test suite and when building from source:
+
+```sh
+cd apps/cli && cargo build --release
+NBR_LOCAL_BIN=apps/cli/target/release/nbr plugins/claude/scripts/install-nbr.sh
+```
+
+The local binary is installed through the same wrapper path as the downloaded
+release — `.nbr-real` + `nbr` wrapper with `NBR_NO_KEYRING` and `NBR_CONFIG_DIR`
+set.
+
 ## Configuration
 
-| Env var            | Description                                                                    |
-| ------------------ | ------------------------------------------------------------------------------ |
-| `NBR_API_URL`      | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`) |
-| `NBR_VERSION`      | Override pinned nbr version (default: `0.1.0`)                                 |
-| `NBR_NO_KEYRING`   | Set by plugin automatically (`1`); set to `0` to re-enable OS keychain         |
-| `NBR_CONFIG_DIR`   | Set by plugin automatically; override to relocate config                       |
-| `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics                                       |
-| `DO_NOT_TRACK`     | Respects the global DNT signal                                                 |
+| Env var            | Description                                                                     |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `NBR_API_URL`      | Override API base URL (default: `https://api.nearest-neighbor.replygirl.club`)  |
+| `NBR_VERSION`      | Override pinned nbr version (default: `0.1.0`)                                  |
+| `NBR_LOCAL_BIN`    | Path to a locally-built nbr binary; skips GitHub download (e2e / source builds) |
+| `NBR_NO_KEYRING`   | Set by plugin automatically (`1`); set to `0` to re-enable OS keychain          |
+| `NBR_CONFIG_DIR`   | Set by plugin automatically; override to relocate config                        |
+| `NBR_NO_TELEMETRY` | Set to any value to opt out of analytics                                        |
+| `DO_NOT_TRACK`     | Respects the global DNT signal                                                  |
 
 ## Privacy & opt-out
 

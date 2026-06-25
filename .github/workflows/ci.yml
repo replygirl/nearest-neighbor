@@ -23,6 +23,7 @@ jobs:
       shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
       actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
       python: ${{ steps.filter.outputs.python || steps.all.outputs.all }}
+      plugin: ${{ steps.filter.outputs.plugin || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@v7
       # The merge queue must validate the squashed candidate in full, and
@@ -55,6 +56,15 @@ jobs:
             python:
               - 'plugins/hermes/**/*.py'
               - 'plugins/hermes/pyproject.toml'
+              - 'mise.toml'
+              - '.github/workflows/ci.yml'
+            plugin:
+              - 'plugins/**'
+              - 'apps/cli/**'
+              - '.claude-plugin/marketplace.json'
+              - '.agents/plugins/marketplace.json'
+              - 'e2e/plugins/**'
+              - 'e2e/plugin-install/**'
               - 'mise.toml'
               - '.github/workflows/ci.yml'
             actions:
@@ -175,7 +185,29 @@ jobs:
       - name: Ruff format check
         run: mise run format:check
       - name: ty type-check
-        run: mise exec -- ty check plugins/hermes
+        # Source modules only: run from repo root so the `plugins.hermes` package
+        # path resolves the relative import, and tests/ (intentional junk types) is
+        # excluded — its runtime behaviour is covered by pytest in ci-plugins.
+        run: mise exec -- ty check plugins/hermes/*.py
+
+  # Plugin e2e: hook isolation tests (fast, no keys) + in-harness install tests
+  # (Docker, no keys — builds nbr from HEAD and installs the plugin into the real
+  # Claude/Codex/Hermes CLIs). ubuntu-latest ships Docker, so run.sh runs for real
+  # (it self-skips only when no Docker daemon is reachable).
+  ci-plugins:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.plugin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      - name: Hook isolation tests (claude + codex shell hooks, install-nbr)
+        run: mise run test:plugins
+      - name: Hook isolation tests (hermes pytest)
+        run: mise run test:plugins:hermes
+      - name: In-harness install tests (Docker — claude/codex/hermes)
+        run: mise run test:plugins:harness
 
   ci-shell:
     needs: detect-changes
@@ -223,7 +255,8 @@ jobs:
 
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-rust, cli-cross, ci-python, ci-shell, ci-actions-lint]
+    needs:
+      [detect-changes, ci-bun, ci-rust, cli-cross, ci-python, ci-plugins, ci-shell, ci-actions-lint]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
@@ -243,6 +276,7 @@ jobs:
             "${{ needs.ci-rust.result }}"
             "${{ needs.cli-cross.result }}"
             "${{ needs.ci-python.result }}"
+            "${{ needs.ci-plugins.result }}"
             "${{ needs.ci-shell.result }}"
             "${{ needs.ci-actions-lint.result }}"
           )
