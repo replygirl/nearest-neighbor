@@ -87,6 +87,7 @@ jobs:
       - run: mise run lint
       - run: mise run format:check
       - run: mise run typecheck
+      - run: mise run web:brand-assets:check
       - run: mise run test
       # TODO: coverage gate is non-blocking until the test suite reaches 95%
       # threshold. Remove continue-on-error once coverage is stable.

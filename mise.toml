@@ -253,6 +253,19 @@ description = "Open Playwright test UI"
 run = "bunx playwright test --config e2e/playwright.config.ts --ui"
 dir = "{{config_root}}"
 
+[tasks."web:brand-assets"]
+description = "Regenerate the social/OG image + favicons from HTML (run locally, commit output)"
+run = """
+bunx playwright install chromium
+bun run scripts/generate-brand-assets.ts
+"""
+dir = "{{config_root}}/apps/web"
+
+[tasks."web:brand-assets:check"]
+description = "Fail if the committed OG image + favicons are stale vs source copy/palette (no render)"
+run = "bun run scripts/generate-brand-assets.ts --check"
+dir = "{{config_root}}/apps/web"
+
 # ───────────────────────────────────────────────
 # Full CI gate
 # ───────────────────────────────────────────────
