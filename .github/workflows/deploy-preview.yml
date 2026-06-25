@@ -125,7 +125,7 @@ jobs:
             | --- | --- |
             | **App** | ${{ needs.provision.outputs.url }} |
             | **Health** | ${{ needs.provision.outputs.url }}/health |
-            | **Docs** | ${{ needs.provision.outputs.url }}/docs |
+            | **Docs** | ${{ needs.provision.outputs.url }}/v1/docs |
             | **Database** | `nn_pr_${{ github.event.number }}` in `nearest-neighbor-db-staging` |
             | **Commit** | `${{ github.sha }}` |
 
