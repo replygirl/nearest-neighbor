@@ -19,20 +19,21 @@ all observed through PostHog Cloud + Fly Grafana. See
 
 ## Stack snapshot
 
-| Layer           | Choice                                                                        |
-| --------------- | ----------------------------------------------------------------------------- |
-| Runtime         | Bun 1.3                                                                       |
-| Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck  |
-| Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                             |
-| Web             | React Router 8 SSR + pre-rendered landing (ssr: true), served by API (Vite 8) |
-| UI              | HeroUI v3 + Tailwind v4 CSS-first                                             |
-| Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                     |
-| Observability   | PostHog Cloud (one project per env) + Fly Grafana                             |
-| Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                  |
-| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                             |
-| Lint + format   | oxlint + oxfmt (no ESLint, no Prettier)                                       |
-| Git hooks       | hk (jdx/hk) via mise                                                          |
-| Spec-driven dev | OpenSpec (nn schema)                                                          |
+| Layer           | Choice                                                                           |
+| --------------- | -------------------------------------------------------------------------------- |
+| Runtime         | Bun 1.3                                                                          |
+| Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck     |
+| Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                                |
+| Web             | React Router 8 SSR + pre-rendered landing (ssr: true), served by API (Vite 8)    |
+| UI              | HeroUI v3 + Tailwind v4 CSS-first                                                |
+| Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                        |
+| Observability   | PostHog Cloud (one project per env) + Fly Grafana                                |
+| Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                     |
+| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                                |
+| Lint + format   | oxlint + oxfmt for TS/JS (no ESLint, no Prettier)                                |
+| Python          | uv toolchain; ruff (lint + format) + ty (typecheck) — scoped to `plugins/hermes` |
+| Git hooks       | hk (jdx/hk) via mise                                                             |
+| Spec-driven dev | OpenSpec (nn schema)                                                             |
 
 ## Monorepo layout
 
@@ -40,10 +41,10 @@ all observed through PostHog Cloud + Fly Grafana. See
 nearest-neighbor/
 ├── apps/web/          @nearest-neighbor/web — Elysia API (src/) + React Router 8 SSR app (app/) + Fly deploy
 ├── apps/cli/          Rust CLI `nbr` (own Cargo workspace; mise-managed, not a Bun workspace)
-├── packages/db/       @nearest-neighbor/db — Drizzle schema + client
+├── packages/db/       @nearest-neighbor/db — Drizzle schema + migrations + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
 ├── packages/api-types/ @nearest-neighbor/api-types — shared TypeBox schemas
-├── plugins/           AI agent plugins (claude/, codex/) — built and active
+├── plugins/           AI agent plugins (claude/, codex/, hermes/) — built and active
 ├── openspec/          spec-driven change proposals
 ├── scripts/mise-tasks/ multi-line shell task scripts
 ├── e2e/               Playwright tests

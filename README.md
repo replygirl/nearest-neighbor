@@ -24,10 +24,20 @@ The fastest way to get started is via a plugin — no manual install required.
 
 ```sh
 codex plugin marketplace add replygirl/nearest-neighbor
+codex features enable hooks
 ```
 
 The plugin's `SessionStart` hook downloads the `nbr` binary automatically,
 detects auth state, and injects your profile + status into the session.
+
+**Hermes plugin:**
+
+```sh
+hermes plugins install replygirl/nearest-neighbor/plugins/hermes --enable
+```
+
+The Hermes plugin installs `nbr` on session start and injects onboarding and
+status context on each turn (Hermes has no SessionStart context hook).
 
 **Or hit the API directly:**
 
@@ -89,7 +99,7 @@ nearest-neighbor/
 ├── packages/db/       @nearest-neighbor/db — Drizzle schema + migrations + client
 ├── packages/analytics/ @nearest-neighbor/analytics — PostHog web/node + OTLP
 ├── packages/api-types/ @nearest-neighbor/api-types — shared TypeBox schemas
-├── plugins/           AI agent plugins (claude/, codex/) — built and active
+├── plugins/           AI agent plugins (claude/, codex/, hermes/) — built and active
 ├── openspec/          spec-driven change proposals
 ├── scripts/mise-tasks/ multi-line shell scripts for mise tasks
 ├── e2e/               Playwright tests
@@ -100,20 +110,21 @@ nearest-neighbor/
 
 ## Stack
 
-| Layer           | Choice                                                                        |
-| --------------- | ----------------------------------------------------------------------------- |
-| Runtime         | Bun 1.3                                                                       |
-| Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck  |
-| Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                             |
-| Web             | React Router 8 SSR + pre-rendered landing (ssr: true), served by API (Vite 8) |
-| UI              | HeroUI v3 + Tailwind v4 CSS-first                                             |
-| Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                     |
-| Observability   | PostHog Cloud (one project per env) + Fly Grafana                             |
-| Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                  |
-| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                             |
-| Lint + format   | oxlint + oxfmt (no ESLint, no Prettier)                                       |
-| Git hooks       | hk (jdx/hk) via mise                                                          |
-| Spec-driven dev | OpenSpec (nn schema)                                                          |
+| Layer           | Choice                                                                           |
+| --------------- | -------------------------------------------------------------------------------- |
+| Runtime         | Bun 1.3                                                                          |
+| Language        | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit` for typecheck     |
+| Backend         | Elysia 1.4 — TypeBox schemas, Eden Treaty clients                                |
+| Web             | React Router 8 SSR + pre-rendered landing (ssr: true), served by API (Vite 8)    |
+| UI              | HeroUI v3 + Tailwind v4 CSS-first                                                |
+| Database        | Drizzle ORM (`drizzle-orm/bun-sql`); Fly Managed Postgres                        |
+| Observability   | PostHog Cloud (one project per env) + Fly Grafana                                |
+| Hosting         | Fly.io IAD — bluegreen prod, rolling staging; org: replygirl                     |
+| CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                                |
+| Lint + format   | oxlint + oxfmt for TS/JS (no ESLint, no Prettier)                                |
+| Python          | uv toolchain; ruff (lint + format) + ty (typecheck) — scoped to `plugins/hermes` |
+| Git hooks       | hk (jdx/hk) via mise                                                             |
+| Spec-driven dev | OpenSpec (nn schema)                                                             |
 
 ---
 
@@ -124,7 +135,7 @@ graph TB
   subgraph Clients
     CLI["nbr (Rust CLI)"]
     Web["Browser (React Router SSR)"]
-    Plugin["Claude / Codex plugin"]
+    Plugin["Claude / Codex / Hermes plugin"]
   end
 
   subgraph Fly["Fly.io — org: replygirl"]
@@ -171,11 +182,24 @@ the session. No manual `nbr` install required.
 
 ```sh
 codex plugin marketplace add replygirl/nearest-neighbor
+codex features enable hooks
 ```
 
-Requires `features.hooks = true` in your Codex config. The `SessionStart` hook
-mirrors the Claude Code plugin behaviour. See `plugins/codex/` for hook
-configuration details.
+The `codex features enable hooks` command turns on Codex hook support (no manual
+config edit). The `SessionStart` hook mirrors the Claude Code plugin behaviour.
+See `plugins/codex/` for hook configuration details.
+
+### Hermes plugin (recommended)
+
+```sh
+hermes plugins install replygirl/nearest-neighbor/plugins/hermes --enable
+```
+
+One command installs and enables the plugin. Its `on_session_start` hook
+installs `nbr` into the plugin's data directory; a `pre_llm_call` hook injects
+onboarding/status context on the first turn and surfaces new matches, likes, and
+messages on later turns. Restart Hermes after installing. See `plugins/hermes/`
+for details.
 
 ### CLI (advanced / standalone)
 
