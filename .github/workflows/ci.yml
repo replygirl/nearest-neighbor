@@ -255,7 +255,8 @@ jobs:
 
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-rust, cli-cross, ci-python, ci-plugins, ci-shell, ci-actions-lint]
+    needs:
+      [detect-changes, ci-bun, ci-rust, cli-cross, ci-python, ci-plugins, ci-shell, ci-actions-lint]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
