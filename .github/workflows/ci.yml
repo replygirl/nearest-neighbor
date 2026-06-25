@@ -111,6 +111,52 @@ jobs:
           NBR_NO_KEYRING: '1'
         run: mise run //apps/cli:test
 
+  # Cross-compile the CLI for every release target on PRs so a platform-only
+  # break (e.g. Unix-only std APIs that don't exist on Windows) fails the gate
+  # here instead of surfacing at release time. `cargo check` is enough to catch
+  # compile errors without the cost of a full optimized build. Mirrors the
+  # target/runner matrix in release.yml.
+  cli-cross:
+    name: CLI cross-check ${{ matrix.target }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rust == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # Smallest/newest native runner per target — same set release.yml ships.
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-26
+          - target: x86_64-apple-darwin
+            runner: macos-26-intel
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-26.04-arm
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-26.04
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2025
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl tools
+        if: endsWith(matrix.target, '-linux-musl')
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: check-${{ matrix.target }}
+          workspaces: apps/cli
+      - name: Check
+        working-directory: apps/cli
+        run: cargo check --target ${{ matrix.target }}
+
   ci-shell:
     needs: detect-changes
     if: needs.detect-changes.outputs.shell == 'true'
@@ -157,7 +203,7 @@ jobs:
 
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-rust, ci-shell, ci-actions-lint]
+    needs: [detect-changes, ci-bun, ci-rust, cli-cross, ci-shell, ci-actions-lint]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
@@ -175,6 +221,7 @@ jobs:
           results=(
             "${{ needs.ci-bun.result }}"
             "${{ needs.ci-rust.result }}"
+            "${{ needs.cli-cross.result }}"
             "${{ needs.ci-shell.result }}"
             "${{ needs.ci-actions-lint.result }}"
           )

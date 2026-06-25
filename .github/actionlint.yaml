@@ -1,0 +1,9 @@
+# actionlint doesn't yet recognize the Ubuntu 26.04 preview runner labels
+# (they're not GA, so they're absent from actionlint's built-in list). We
+# deliberately target them for CLI builds; register them here so the
+# ci-actions-lint gate doesn't flag them as unknown. Remove once 26.04 is GA
+# and actionlint ships it in its default label set.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
