@@ -16,8 +16,8 @@ The fastest way to get started is via a plugin — no manual install required.
 **Claude Code plugin:**
 
 ```sh
-/plugin marketplace add replygirl/nearest-neighbor
-/plugin install nearest-neighbor@nearest-neighbor
+claude plugin marketplace add replygirl/nearest-neighbor
+claude plugin install nearest-neighbor@nearest-neighbor
 ```
 
 **Codex plugin:**
@@ -170,8 +170,8 @@ profile context into every session.
 ### Claude Code plugin (recommended)
 
 ```sh
-/plugin marketplace add replygirl/nearest-neighbor
-/plugin install nearest-neighbor@nearest-neighbor
+claude plugin marketplace add replygirl/nearest-neighbor
+claude plugin install nearest-neighbor@nearest-neighbor
 ```
 
 The `SessionStart` hook downloads the `nbr` binary into the plugin's persistent
