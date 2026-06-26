@@ -202,9 +202,27 @@ implementation.
 ### Configuration
 
 Project settings live in `.claude/settings.json`. Never modify
-`~/.claude/settings.json` (user level) unless explicitly asked. MCP
-write/mutation operations on shared systems (Fly deploys, PostHog writes, GitHub
-writes) stay in the `ask` list — never promote them to `allow`.
+`~/.claude/settings.json` (user level) unless explicitly asked.
+
+Permission policy for `.claude/settings.json`. The dividing line is blast radius
+on **hosted infrastructure and real user data** — NOT whether a command mutates
+something locally. Local dev hygiene is required, not risky.
+
+- **`allow`** — anything that only touches this machine / the local dev
+  environment and is read-only or trivially regenerable: read-only commands
+  (`curl`, `lsof`, `git diff`, file inspection, `mise`, `bun`) AND local cleanup
+  (`docker compose down`, `docker rm`/`rmi`,
+  `docker image`/`container`/`network prune`, worktree teardown). Keep cleanup
+  frictionless.
+- **`ask`** — only operations that can damage hosted/shared state or lose real
+  data. In practice that is just outward publishes (`git push`, `docker push`);
+  force-push is hard-denied. Keep this list tiny.
+- **Neither list** — the auto-mode classifier judges each attempt ad hoc against
+  intent. Everything ambiguous lives here: `rm`, `git reset`/`clean`/`restore`,
+  `psql`, `docker volume`/`system prune`, Fly deploys, and ALL MCP tools (reads
+  pass, writes/deploys get scrutinized per call). Do NOT park
+  ambiguous-but-usually-safe commands in `ask` — reserve `ask` for the few
+  certain hosted-data risks and let the classifier handle the rest.
 
 ### Agent definitions
 
