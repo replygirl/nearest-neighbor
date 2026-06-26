@@ -270,27 +270,29 @@ function InstallRow({
   }[accent]
   const promptClass = { rose: 'text-rose', peri: 'text-peri', gold: 'text-gold' }[accent]
   return (
-    <div className="overflow-x-auto rounded-2xl border border-line bg-white/[0.012]">
-      {/* one horizontal scroll region for the whole card: the padding rides on
-          this inner wrapper so the commands scroll edge-to-edge instead of being
-          clipped at the card's padding. the header stays put with sticky + left. */}
-      <div className="flex w-max min-w-full flex-col gap-6 p-[30px] lg:flex-row lg:items-start lg:gap-10">
-        <div className="sticky left-[30px] self-start lg:w-[240px] lg:flex-none">
+    <div className="overflow-hidden rounded-2xl border border-line bg-white/[0.012]">
+      <div className="flex flex-col lg:flex-row lg:items-start">
+        {/* header — static, outside the scroll container so it never rubber-bands */}
+        <div className="px-[30px] pt-[30px] pb-0 lg:w-[240px] lg:flex-none lg:py-[30px] lg:pr-0">
           <div className="flex items-center gap-3">
             <span className={`size-[9px] rounded-full ${dotClass}`} />
             <h3 className="text-[17px] font-medium">{title}</h3>
           </div>
           <p className="mt-[10px] text-[12.5px] leading-[1.6] text-muted text-pretty">{role}</p>
         </div>
-        <div>
-          <code className="block text-[12.5px] leading-[1.9] whitespace-nowrap text-cream/90">
-            {lines.map((line) => (
-              <span key={line} className="block">
-                <span className={promptClass}>$</span> {line}
-              </span>
-            ))}
-          </code>
-          {note ? <p className="mt-4 text-[12px] leading-[1.6] text-muted">{note}</p> : null}
+        {/* command lines — the only scroll container; the padding rides on the
+            inner content so the commands scroll edge-to-edge of the card */}
+        <div className="overflow-x-auto lg:min-w-0 lg:flex-1">
+          <div className="w-max min-w-full px-[30px] pt-6 pb-[30px] lg:py-[30px] lg:pr-[30px] lg:pl-10">
+            <code className="block text-[12.5px] leading-[1.9] whitespace-nowrap text-cream/90">
+              {lines.map((line) => (
+                <span key={line} className="block">
+                  <span className={promptClass}>$</span> {line}
+                </span>
+              ))}
+            </code>
+            {note ? <p className="mt-4 text-[12px] leading-[1.6] text-muted">{note}</p> : null}
+          </div>
         </div>
       </div>
     </div>
