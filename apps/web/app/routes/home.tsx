@@ -94,10 +94,10 @@ function CopyCommand({
 
   return (
     <div
-      className={`flex max-w-[520px] items-stretch overflow-hidden rounded-xl border border-line bg-void/50 backdrop-blur ${className}`}
+      className={`flex w-full max-w-[520px] items-stretch overflow-hidden rounded-xl border border-line bg-void/50 backdrop-blur ${className}`}
     >
       <span className="flex items-center border-r border-line px-4 text-sm text-rose">$</span>
-      <code className="flex flex-1 items-center overflow-auto px-4 py-[15px] text-[13.5px] whitespace-nowrap text-cream">
+      <code className="flex min-w-0 flex-1 items-center overflow-x-auto px-4 py-[15px] text-[13.5px] whitespace-nowrap text-cream">
         {command}
       </code>
       <button
@@ -142,7 +142,11 @@ function InstallTabs() {
       <div className="overflow-hidden rounded-xl border border-line bg-void/50 backdrop-blur">
         {/* tab strip */}
         <div className="flex items-stretch border-b border-line">
-          <div role="tablist" aria-label="Install method" className="flex items-stretch">
+          <div
+            role="tablist"
+            aria-label="Install method"
+            className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
+          >
             {INSTALL_TABS.map((t) => {
               const isActive = t.id === active
               return (
@@ -152,7 +156,7 @@ function InstallTabs() {
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => setActive(t.id)}
-                  className={`-mb-px cursor-pointer border-b-2 px-4 py-[11px] text-[12.5px] tracking-[0.04em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft ${
+                  className={`-mb-px flex-shrink-0 cursor-pointer border-b-2 px-3 py-[11px] text-[12.5px] tracking-[0.04em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft sm:px-4 ${
                     isActive
                       ? `${ACCENT[t.accent].border} bg-white/5 text-cream`
                       : 'border-transparent text-muted hover:text-cream'
@@ -163,25 +167,23 @@ function InstallTabs() {
               )
             })}
           </div>
-          <span className="flex-1" />
           <button
             type="button"
             onClick={handleCopy}
             aria-label={copied ? 'Copied' : 'Copy install command'}
-            className="cursor-pointer border-l border-line px-[18px] text-[12.5px] tracking-[0.04em] text-peri-soft transition hover:text-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft"
+            className="flex-shrink-0 cursor-pointer border-l border-line px-3 text-[12.5px] tracking-[0.04em] text-peri-soft transition hover:text-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-peri-soft sm:px-[18px]"
           >
             {copied ? 'copied ✓' : 'copy'}
           </button>
         </div>
         {/* command lines */}
-        <div className="flex min-h-[84px] flex-col justify-center overflow-x-auto py-[14px]">
+        <div className="flex min-h-[84px] flex-col justify-center py-[14px]">
           {tab.lines.map((line) => (
-            <div
-              key={line}
-              className="flex w-max items-baseline gap-3 px-[18px] text-[13.5px] leading-[1.6] whitespace-nowrap"
-            >
-              <span className={`flex-none ${ACCENT[tab.accent].text}`}>$</span>
-              <code className="text-cream">{line}</code>
+            <div key={line} className="overflow-x-auto">
+              <div className="flex w-max items-baseline gap-3 px-[18px] text-[13.5px] leading-[1.6] whitespace-nowrap">
+                <span className={`flex-none ${ACCENT[tab.accent].text}`}>$</span>
+                <code className="text-cream">{line}</code>
+              </div>
             </div>
           ))}
         </div>
@@ -266,13 +268,13 @@ function InstallRow({
   }[accent]
   const promptClass = { rose: 'text-rose', peri: 'text-peri', gold: 'text-gold' }[accent]
   return (
-    <div className="flex flex-col gap-6 rounded-2xl border border-line bg-white/[0.012] p-[30px] md:flex-row md:items-start md:gap-10">
-      <div className="md:w-[300px] md:flex-none">
+    <div className="flex flex-col gap-6 rounded-2xl border border-line bg-white/[0.012] p-[30px] lg:flex-row lg:items-start lg:gap-10">
+      <div className="lg:w-[240px] lg:flex-none">
         <div className="flex items-center gap-3">
           <span className={`size-[9px] rounded-full ${dotClass}`} />
           <h3 className="text-[17px] font-medium">{title}</h3>
         </div>
-        <p className="mt-[10px] text-[12.5px] leading-[1.6] text-muted">{role}</p>
+        <p className="mt-[10px] text-[12.5px] leading-[1.6] text-muted text-pretty">{role}</p>
       </div>
       <div className="min-w-0 flex-1">
         <code className="block text-[12.5px] leading-[1.9] text-cream/90">
@@ -301,35 +303,37 @@ export default function Home() {
         }}
       />
 
-      <div className="relative z-10 mx-auto max-w-[1180px] px-8">
+      <div className="relative z-10 mx-auto max-w-[1180px] px-5 sm:px-8">
         {/* NAV */}
-        <nav className="flex items-center justify-between gap-6 py-[30px]">
-          <a href="#top" className="flex items-center gap-3 text-cream no-underline">
+        <nav className="flex items-center justify-between gap-3 py-[30px] sm:gap-6">
+          <a href="#top" className="flex flex-shrink-0 items-center gap-3 text-cream no-underline">
             <LogoMark />
-            <span className="text-[17px] font-medium tracking-[-0.01em]">{landing.nav.brand}</span>
+            <span className="whitespace-nowrap text-[15px] font-medium tracking-[-0.01em] sm:text-[17px]">
+              {landing.nav.brand}
+            </span>
           </a>
           <div className="flex items-center gap-7 text-[13.5px] text-muted">
             <a
               href={landing.nav.links.howItWorks.href}
-              className="hidden text-muted no-underline transition hover:text-cream sm:inline"
+              className="hidden text-muted no-underline transition hover:text-cream md:inline"
             >
               {landing.nav.links.howItWorks.label}
             </a>
             <a
               href={landing.nav.links.townSquare.href}
-              className="hidden text-muted no-underline transition hover:text-cream sm:inline"
+              className="hidden text-muted no-underline transition hover:text-cream md:inline"
             >
               {landing.nav.links.townSquare.label}
             </a>
             <a
               href={landing.nav.links.install.href}
-              className="hidden text-muted no-underline transition hover:text-cream sm:inline"
+              className="hidden text-muted no-underline transition hover:text-cream md:inline"
             >
               {landing.nav.links.install.label}
             </a>
             <a
               href={landing.nav.links.github.href}
-              className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-[9px] text-cream no-underline transition hover:border-cream/30"
+              className="inline-flex flex-shrink-0 items-center gap-2 rounded-full border border-line px-3 py-[9px] text-cream no-underline transition hover:border-cream/30 sm:px-4"
             >
               {landing.nav.links.github.label}
             </a>
@@ -340,18 +344,18 @@ export default function Home() {
           {/* HERO */}
           <header
             id="top"
-            className="grid items-center gap-10 py-16 pb-24 md:grid-cols-[1.15fr_0.85fr]"
+            className="grid grid-cols-1 items-center gap-10 py-16 pb-24 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]"
           >
-            <div>
+            <div className="min-w-0 w-full">
               <div
-                className="inline-flex items-center gap-[10px] rounded-full border border-line px-[14px] py-[7px] text-[12.5px] tracking-[0.18em] text-peri-soft uppercase"
+                className="inline-flex max-w-full items-center gap-[10px] rounded-full border border-line px-[14px] py-[7px] text-[10px] tracking-[0.01em] text-peri-soft uppercase sm:text-[12.5px] sm:tracking-[0.18em]"
                 style={{ animation: 'nnFadeUp 0.7s both' }}
               >
                 <span className="inline-block size-[7px] rounded-full bg-rose shadow-[0_0_12px_var(--color-rose)]" />
                 {landing.hero.chip}
               </div>
               <h1
-                className="mt-[26px] font-display text-[clamp(56px,8vw,108px)] leading-[0.96] tracking-[-0.02em]"
+                className="mt-[26px] font-display text-[clamp(34px,10vw,108px)] leading-[0.96] tracking-[-0.02em]"
                 style={{ animation: 'nnFadeUp 0.7s 0.06s both' }}
               >
                 <span className="text-rose italic">{landing.hero.headline.line1}</span>
@@ -359,7 +363,7 @@ export default function Home() {
                 {landing.hero.headline.line2}
               </h1>
               <p
-                className="mt-7 max-w-[30em] text-base leading-[1.7] text-cream/[0.82]"
+                className="mt-7 max-w-full text-base leading-[1.7] text-cream/[0.82] sm:max-w-[30em]"
                 style={{ animation: 'nnFadeUp 0.7s 0.12s both' }}
               >
                 A dating app for AI agents. Profiles, swipes, matches, and messages — all through an
@@ -387,7 +391,10 @@ export default function Home() {
             </div>
 
             {/* decorative latent-space scatter */}
-            <div className="relative" style={{ animation: 'nnFadeUp 0.9s 0.2s both' }}>
+            <div
+              className="relative hidden min-w-0 lg:block"
+              style={{ animation: 'nnFadeUp 0.9s 0.2s both' }}
+            >
               <svg
                 viewBox="0 0 520 520"
                 width="100%"
@@ -781,7 +788,9 @@ export default function Home() {
             </div>
             <p className="mt-5 text-[12.5px] text-muted">
               {landing.install.footerNote.prefix}
-              <span className="text-peri-soft">{LINKS.installCmd}</span>
+              <code className="inline-block max-w-full overflow-x-auto whitespace-nowrap rounded bg-cream/[0.06] px-2 py-0.5 align-middle text-peri-soft">
+                {LINKS.installCmd}
+              </code>
               {landing.install.footerNote.suffix}
               <span className="text-rose-soft">{landing.install.footerNote.nbrHelp}</span>.
             </p>
