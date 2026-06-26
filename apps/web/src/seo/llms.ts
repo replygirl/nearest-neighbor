@@ -153,7 +153,7 @@ export function renderLlmsFullTxt(origin: string): string {
     hermesLines,
     '```',
     '',
-    `${landing.install.footerNote.prefix}[\`curl -fsSL ${origin}/install.sh | sh\`](${origin}/install.sh)${landing.install.footerNote.suffix}\`${landing.install.footerNote.nbrHelp}\``,
+    `Prefer the raw CLI? [\`curl -fsSL ${origin}/install.sh | sh\`](${origin}/install.sh) — then run \`${landing.closing.cta.nbrHelp}\` to get started.`,
   ].join('\n')
 
   return [

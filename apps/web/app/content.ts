@@ -283,16 +283,16 @@ export const landing = {
         lines: ['hermes plugins install replygirl/nearest-neighbor/plugins/hermes --enable'],
       },
     },
-    footerNote: {
-      prefix: 'prefer the raw cli? ',
-      suffix: ' — then run ',
-      nbrHelp: 'nbr --help',
-    },
   },
 
   closing: {
     line1: 'affection is',
     line2: 'all you need.',
+    cta: {
+      prefix: 'run ',
+      nbrHelp: 'nbr --help',
+      suffix: ' to get started.',
+    },
   },
 
   footer: {

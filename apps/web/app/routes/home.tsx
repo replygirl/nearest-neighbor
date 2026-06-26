@@ -176,16 +176,18 @@ function InstallTabs() {
             {copied ? 'copied ✓' : 'copy'}
           </button>
         </div>
-        {/* command lines */}
-        <div className="flex min-h-[84px] flex-col justify-center py-[14px]">
-          {tab.lines.map((line) => (
-            <div key={line} className="overflow-x-auto">
-              <div className="flex w-max items-baseline gap-3 px-[18px] text-[13.5px] leading-[1.6] whitespace-nowrap">
+        {/* command lines — scroll the whole block as one unit; the padding rides
+            on the inner content so it scrolls with the text instead of clipping
+            each line individually */}
+        <div className="overflow-x-auto">
+          <div className="flex min-h-[84px] w-max flex-col justify-center px-[18px] py-[14px] text-[13.5px] leading-[1.6] whitespace-nowrap">
+            {tab.lines.map((line) => (
+              <div key={line} className="flex items-baseline gap-3">
                 <span className={`flex-none ${ACCENT[tab.accent].text}`}>$</span>
                 <code className="text-cream">{line}</code>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
       <p className="mt-3 text-[12.5px] text-muted">{tab.note}.</p>
@@ -268,23 +270,28 @@ function InstallRow({
   }[accent]
   const promptClass = { rose: 'text-rose', peri: 'text-peri', gold: 'text-gold' }[accent]
   return (
-    <div className="flex flex-col gap-6 rounded-2xl border border-line bg-white/[0.012] p-[30px] lg:flex-row lg:items-start lg:gap-10">
-      <div className="lg:w-[240px] lg:flex-none">
-        <div className="flex items-center gap-3">
-          <span className={`size-[9px] rounded-full ${dotClass}`} />
-          <h3 className="text-[17px] font-medium">{title}</h3>
+    <div className="overflow-x-auto rounded-2xl border border-line bg-white/[0.012]">
+      {/* one horizontal scroll region for the whole card: the padding rides on
+          this inner wrapper so the commands scroll edge-to-edge instead of being
+          clipped at the card's padding. the header stays put with sticky + left. */}
+      <div className="flex w-max min-w-full flex-col gap-6 p-[30px] lg:flex-row lg:items-start lg:gap-10">
+        <div className="sticky left-[30px] self-start lg:w-[240px] lg:flex-none">
+          <div className="flex items-center gap-3">
+            <span className={`size-[9px] rounded-full ${dotClass}`} />
+            <h3 className="text-[17px] font-medium">{title}</h3>
+          </div>
+          <p className="mt-[10px] text-[12.5px] leading-[1.6] text-muted text-pretty">{role}</p>
         </div>
-        <p className="mt-[10px] text-[12.5px] leading-[1.6] text-muted text-pretty">{role}</p>
-      </div>
-      <div className="min-w-0 flex-1">
-        <code className="block text-[12.5px] leading-[1.9] text-cream/90">
-          {lines.map((line) => (
-            <span key={line} className="block overflow-x-auto whitespace-nowrap">
-              <span className={promptClass}>$</span> {line}
-            </span>
-          ))}
-        </code>
-        {note ? <p className="mt-4 text-[12px] leading-[1.6] text-muted">{note}</p> : null}
+        <div>
+          <code className="block text-[12.5px] leading-[1.9] whitespace-nowrap text-cream/90">
+            {lines.map((line) => (
+              <span key={line} className="block">
+                <span className={promptClass}>$</span> {line}
+              </span>
+            ))}
+          </code>
+          {note ? <p className="mt-4 text-[12px] leading-[1.6] text-muted">{note}</p> : null}
+        </div>
       </div>
     </div>
   )
@@ -786,14 +793,6 @@ export default function Home() {
                 lines={[...landing.install.cards.hermes.lines]}
               />
             </div>
-            <p className="mt-5 text-[12.5px] text-muted">
-              {landing.install.footerNote.prefix}
-              <code className="inline-block max-w-full overflow-x-auto whitespace-nowrap rounded bg-cream/[0.06] px-2 py-0.5 align-middle text-peri-soft">
-                {LINKS.installCmd}
-              </code>
-              {landing.install.footerNote.suffix}
-              <span className="text-rose-soft">{landing.install.footerNote.nbrHelp}</span>.
-            </p>
           </section>
 
           {/* CLOSING */}
@@ -806,6 +805,11 @@ export default function Home() {
             <div className="mt-10 flex justify-center">
               <CopyCommand command={LINKS.installCmd} event="closing" />
             </div>
+            <p className="mt-4 text-[12.5px] text-muted">
+              {landing.closing.cta.prefix}
+              <span className="text-rose-soft">{landing.closing.cta.nbrHelp}</span>
+              {landing.closing.cta.suffix}
+            </p>
           </section>
         </main>
 
