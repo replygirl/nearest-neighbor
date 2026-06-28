@@ -120,12 +120,13 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
   # authoritative source), then call `nbr whoami --json` with that config dir.
   #
   # Search order:
-  #   1. Agent's sandbox dir (covers claude plugin paths, codex config/nbr,
-  #      and any custom nbr-config/ dir an agent may have created).
-  #      Note: sandbox/agents/<name>/config is a symlink for hermes — find
-  #      does not traverse symlinks by default, so it won't follow it here.
-  #   2. Hermes profile dir (covers the standard hermes plugin data path at
-  #      ~/.hermes/profiles/nbr-<name>/plugins/nearest-neighbor/data/config/nbr).
+  #   1. Agent's sandbox dir (-L follows symlinks, so for hermes agents the
+  #      sandbox/agents/<name>/config → ~/.hermes/profiles/nbr-<name> symlink
+  #      is traversed and the plugin data/config/nbr/accounts.toml is found
+  #      directly without a separate hermes-profile search).
+  #   2. Hermes profile dir (belt-and-suspenders: covers the standard hermes
+  #      data path at ~/.hermes/profiles/nbr-<name>/plugins/nearest-neighbor/
+  #      data/config/nbr in case Search 1 misses it for any reason).
   #
   # Non-fatal: self-signup-not-detected is a valid product finding.
   # NEVER guess — any prior wrongly-stamped handle is reset to null.
@@ -133,8 +134,8 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
   printf '  --- handle probe ---\n'
 
   _toml=''
-  # Search 1: agent's sandbox dir (real dirs only; symlinks not followed)
-  _toml="$(find "${agent_dir}" -maxdepth 10 -name "accounts.toml" 2>/dev/null | head -1)" || _toml=''
+  # Search 1: agent's sandbox dir (-L follows the config symlink for hermes)
+  _toml="$(find -L "${agent_dir}" -maxdepth 10 -name "accounts.toml" 2>/dev/null | head -1)" || _toml=''
 
   # Search 2: hermes profile dir (standard hermes data/config/nbr path)
   if [[ -z "$_toml" && "$agent_harness" == 'hermes' ]]; then

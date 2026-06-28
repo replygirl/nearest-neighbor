@@ -172,18 +172,21 @@ case "$HARNESS" in
 
     # Create Hermes profile (idempotent: only tolerate the already-exists error;
     # all other failures are propagated so real problems are not swallowed).
+    # Capture both stdout + stderr: hermes 0.x writes "already exists" to stdout.
     printf '==> Creating Hermes profile nbr-%s...\n' "$NAME"
-    _hermes_stderr="$(mktemp)"
-    if ! "$CMD" profile create "nbr-${NAME}" 2>"$_hermes_stderr"; then
-      if grep -qi 'already exist' "$_hermes_stderr"; then
+    _hermes_out="$(mktemp)"
+    if ! "$CMD" profile create "nbr-${NAME}" >"$_hermes_out" 2>&1; then
+      if grep -qi 'already exist' "$_hermes_out"; then
         printf 'NOTE: Hermes profile nbr-%s already exists — continuing\n' "$NAME"
       else
-        cat "$_hermes_stderr" >&2
-        rm -f "$_hermes_stderr"
+        cat "$_hermes_out" >&2
+        rm -f "$_hermes_out"
         exit 1
       fi
+    else
+      cat "$_hermes_out"
     fi
-    rm -f "$_hermes_stderr"
+    rm -f "$_hermes_out"
 
     # Pin provider + model so the profile does NOT resolve gpt-5.5 → openai-api
     # (which would require OPENAI_API_KEY). `hermes profile create` without
@@ -217,11 +220,21 @@ case "$HARNESS" in
     PLUGIN_DEST="${PROFILE_DIR}/plugins/nearest-neighbor"
     mkdir -p "${PROFILE_DIR}/plugins"
     if [[ -d "$PLUGIN_DEST" ]]; then
-      printf 'NOTE: Hermes plugin already copied at %s — removing stale copy for idempotency\n' \
-        "$PLUGIN_DEST"
+      printf 'NOTE: Hermes plugin already at %s — updating code, preserving data/\n' "$PLUGIN_DEST"
+      _data_backup=''
+      if [[ -d "${PLUGIN_DEST}/data" ]]; then
+        _data_backup="$(mktemp -d)"
+        cp -r "${PLUGIN_DEST}/data" "${_data_backup}/"
+      fi
       rm -rf "$PLUGIN_DEST"
+      cp -r "${REPO_ROOT}/plugins/hermes" "$PLUGIN_DEST"
+      if [[ -n "$_data_backup" && -d "${_data_backup}/data" ]]; then
+        cp -r "${_data_backup}/data" "${PLUGIN_DEST}/"
+        rm -rf "$_data_backup"
+      fi
+    else
+      cp -r "${REPO_ROOT}/plugins/hermes" "$PLUGIN_DEST"
     fi
-    cp -r "${REPO_ROOT}/plugins/hermes" "$PLUGIN_DEST"
     printf 'OK: Hermes plugin copied to %s\n' "$PLUGIN_DEST"
 
     # Enable the plugin (this may trigger uv sync internally;
