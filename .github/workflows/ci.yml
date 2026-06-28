@@ -25,14 +25,14 @@ jobs:
       python: ${{ steps.filter.outputs.python || steps.all.outputs.all }}
       plugin: ${{ steps.filter.outputs.plugin || steps.all.outputs.all }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # The merge queue must validate the squashed candidate in full, and
       # dorny/paths-filter has no reliable base on merge_group events — so force
       # every surface on for merge_group and skip the path filter entirely.
       - id: all
         if: github.event_name == 'merge_group'
         run: echo "all=true" >> "$GITHUB_OUTPUT"
-      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         if: github.event_name != 'merge_group'
         id: filter
         with:
@@ -97,7 +97,7 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/nearest_neighbor_test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
       - run: mise run lint
@@ -116,7 +116,7 @@ jobs:
     if: needs.detect-changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: Format check
         run: mise run //apps/cli:fmt:check
@@ -155,17 +155,20 @@ jobs:
             runner: windows-11-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # stable
         with:
+          # SHA-pinned to a master commit, so the channel must be set explicitly
+          # (the @stable branch ref defaults this; a SHA pin does not).
+          toolchain: stable
           targets: ${{ matrix.target }}
       - name: Install musl tools
         if: endsWith(matrix.target, '-linux-musl')
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: check-${{ matrix.target }}
           workspaces: apps/cli
@@ -178,7 +181,7 @@ jobs:
     if: needs.detect-changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: Ruff lint
         run: mise run lint:ci
@@ -199,7 +202,7 @@ jobs:
     if: needs.detect-changes.outputs.plugin == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
       - name: Hook isolation tests (claude + codex shell hooks, install-nbr)
@@ -214,7 +217,7 @@ jobs:
     if: needs.detect-changes.outputs.shell == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: Shellcheck
         run: |
@@ -230,7 +233,7 @@ jobs:
     if: needs.detect-changes.outputs.actions == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: Lint workflow YAML
         # actionlint with no args auto-discovers every workflow under
