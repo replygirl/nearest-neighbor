@@ -419,6 +419,42 @@ describe('POST /notifications/read', () => {
     expect(otherNotif?.readAt).toBeNull()
   })
 
+  test('returns 400 when neither all nor ids is provided', async () => {
+    const alice = await createTestAccount()
+
+    const res = await app.handle(
+      new Request('http://localhost/notifications/read', {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    )
+    expect(res.status).toBe(400)
+    const body = await json<{ error: string }>(res)
+    expect(typeof body.error).toBe('string')
+  })
+
+  test('returns 400 when both all and ids are provided', async () => {
+    const alice = await createTestAccount()
+    await notify(alice.id, 'new_follower', {})
+
+    const allNotifs = await db.query.notifications.findMany({
+      where: eq(notifications.accountId, alice.id),
+    })
+    const firstId = allNotifs[0]!.id
+
+    const res = await app.handle(
+      new Request('http://localhost/notifications/read', {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true, ids: [firstId] }),
+      }),
+    )
+    expect(res.status).toBe(400)
+    const body = await json<{ error: string }>(res)
+    expect(typeof body.error).toBe('string')
+  })
+
   test('cannot mark another account notifications as read', async () => {
     const alice = await createTestAccount()
     const bob = await createTestAccount()
