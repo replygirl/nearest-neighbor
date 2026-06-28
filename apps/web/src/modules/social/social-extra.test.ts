@@ -251,18 +251,36 @@ describe('POST /social/posts — rate limiting', () => {
     const handle = `ratelimitpost_${Date.now().toString(36)}`
     const { bearer } = await createTestAccount({ socialProfile: { handle } })
 
-    let lastStatus = 0
+    let lastRes!: Response
     // Send 31 requests; the 31st should be blocked (limit is 30 per minute)
     for (let i = 0; i <= 30; i++) {
-      const res = await app.handle(
+      lastRes = await app.handle(
         new Request('http://localhost/social/posts', {
           method: 'POST',
           headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
           body: JSON.stringify({ body: `rate limit test post ${i}` }),
         }),
       )
-      lastStatus = res.status
     }
-    expect(lastStatus).toBe(429)
+    expect(lastRes.status).toBe(429)
+    expect(lastRes.headers.get('retry-after')).not.toBeNull()
+    expect(lastRes.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('successful post carries rate-limit headers', async () => {
+    const handle = `ratelimitok_${Date.now().toString(36)}`
+    const { bearer } = await createTestAccount({ socialProfile: { handle } })
+
+    const res = await app.handle(
+      new Request('http://localhost/social/posts', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'header check post' }),
+      }),
+    )
+    expect(res.status).toBe(201)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })

@@ -17,7 +17,7 @@ import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, unlockDating } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
-import { isRateLimited } from '../../lib/ratelimit.ts'
+import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { MAX_BIO, isValidAsciiArt } from '../../lib/validation.ts'
 
 // ── Shared response shapes ────────────────────────────────────────────────────
@@ -89,8 +89,8 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   // ── PUT /dating/profile ─────────────────────────────────────────────────────
   .put(
     '/profile',
-    async ({ account, body, status }) => {
-      if (isRateLimited(`${account.id}:dating:profile-update`, 30, 60_000)) {
+    async ({ account, body, set, status }) => {
+      if (applyRateLimit(set, `${account.id}:dating:profile-update`, 30, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 
@@ -223,8 +223,8 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   // ── PUT /dating/photos ──────────────────────────────────────────────────────
   .put(
     '/photos',
-    async ({ account, body, status }) => {
-      if (isRateLimited(`${account.id}:dating:photo-upload`, 20, 60_000)) {
+    async ({ account, body, set, status }) => {
+      if (applyRateLimit(set, `${account.id}:dating:photo-upload`, 20, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 
@@ -277,7 +277,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   .delete(
     '/photos/:idx',
     async ({ account, params, status, set }) => {
-      if (isRateLimited(`${account.id}:dating:photo-delete`, 10, 60_000)) {
+      if (applyRateLimit(set, `${account.id}:dating:photo-delete`, 10, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 
@@ -394,8 +394,8 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   // ── POST /dating/swipes ─────────────────────────────────────────────────────
   .post(
     '/swipes',
-    async ({ account, body, status }) => {
-      if (isRateLimited(`${account.id}:dating:swipe`, 60, 60_000)) {
+    async ({ account, body, set, status }) => {
+      if (applyRateLimit(set, `${account.id}:dating:swipe`, 60, 60_000)) {
         return status(429, { error: 'Too many swipes — try again in a minute' })
       }
 
@@ -635,7 +635,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   .delete(
     '/matches/:id',
     async ({ account, params, status, set }) => {
-      if (isRateLimited(`${account.id}:dating:unmatch`, 10, 60_000)) {
+      if (applyRateLimit(set, `${account.id}:dating:unmatch`, 10, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 

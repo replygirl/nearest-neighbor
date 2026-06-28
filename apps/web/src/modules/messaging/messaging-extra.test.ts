@@ -77,6 +77,32 @@ describe('POST /conversations/:id/messages — rate limiting', () => {
     expect(lastRes!.status).toBe(429)
     const body = await json<{ error: string }>(lastRes!)
     expect(typeof body.error).toBe('string')
+    expect(lastRes!.headers.get('retry-after')).not.toBeNull()
+    expect(lastRes!.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('emits RateLimit-* headers on successful message send', async () => {
+    const alice = await createTestAccount({
+      socialProfile: { handle: `rl_hdr_alice_${Date.now().toString(36)}` },
+    })
+    const bob = await createTestAccount({
+      socialProfile: { handle: `rl_hdr_bob_${Date.now().toString(36)}` },
+    })
+
+    const conv = await getOrCreateConversation(alice.id, bob.id)
+    await unlockSocial(alice.id, bob.id)
+
+    const res = await app.handle(
+      new Request(`http://localhost/conversations/${conv.id}/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'header check' }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })
 

@@ -52,6 +52,16 @@ describe('POST /auth/signup', () => {
     }
     const res = await app.handle(new Request('http://localhost/auth/signup', { method: 'POST' }))
     expect(res.status).toBe(429)
+    expect(res.headers.get('retry-after')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('emits RateLimit-* headers on a successful signup', async () => {
+    const res = await app.handle(new Request('http://localhost/auth/signup', { method: 'POST' }))
+    expect(res.status).toBe(201)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })
 
@@ -108,6 +118,27 @@ describe('POST /auth/login', () => {
       }),
     )
     expect(res.status).toBe(429)
+    expect(res.headers.get('retry-after')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('emits RateLimit-* headers on a successful login', async () => {
+    const signupRes = await app.handle(
+      new Request('http://localhost/auth/signup', { method: 'POST' }),
+    )
+    const { secret } = await json<{ secret: string }>(signupRes)
+
+    const res = await app.handle(
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 
   test('updates last_used_at on successful login', async () => {
@@ -258,6 +289,23 @@ describe('POST /auth/tokens', () => {
       }),
     )
     expect(res.status).toBe(429)
+    expect(res.headers.get('retry-after')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('emits RateLimit-* headers on a successful token create', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await app.handle(
+      new Request('http://localhost/auth/tokens', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    )
+    expect(res.status).toBe(201)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })
 

@@ -11,7 +11,7 @@ import {
   secretPrefix,
   verifySecret,
 } from '../../auth/tokens.ts'
-import { getClientIp, isRateLimited } from '../../lib/ratelimit.ts'
+import { applyRateLimit, getClientIp } from '../../lib/ratelimit.ts'
 
 export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
   .use(authMacro)
@@ -21,7 +21,7 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
     '/signup',
     async ({ request, set }) => {
       const ip = getClientIp(request)
-      if (isRateLimited(`${ip}:signup`)) {
+      if (applyRateLimit(set, `${ip}:signup`)) {
         set.status = 429
         return { error: 'Too many requests' }
       }
@@ -57,7 +57,7 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
     '/login',
     async ({ body, request, status, set }) => {
       const ip = getClientIp(request)
-      if (isRateLimited(`${ip}:login`)) {
+      if (applyRateLimit(set, `${ip}:login`)) {
         set.status = 429
         return { error: 'Too many requests' }
       }
@@ -168,7 +168,7 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
   .post(
     '/tokens',
     async ({ body, account, set }) => {
-      if (isRateLimited(`${account.id}:tokens:create`, 10, 60_000)) {
+      if (applyRateLimit(set, `${account.id}:tokens:create`, 10, 60_000)) {
         set.status = 429
         return { error: 'Too many requests' }
       }

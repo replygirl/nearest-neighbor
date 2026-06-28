@@ -17,7 +17,7 @@ import { authMacro } from '../../auth/macro.ts'
 import { unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
-import { isRateLimited } from '../../lib/ratelimit.ts'
+import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { HANDLE_REGEX, MAX_BIO, MAX_BODY, isValidAsciiArt } from '../../lib/validation.ts'
 
 // ─── Shared response shapes ──────────────────────────────────────────────────
@@ -289,8 +289,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // PUT /social/profile — upsert social profile
   .put(
     '/profile',
-    async ({ account, body, status }) => {
-      if (isRateLimited(`${account.id}:social:profile-update`, 30, 60_000)) {
+    async ({ account, body, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:profile-update`, 30, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 
@@ -403,7 +403,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   .post(
     '/posts',
     async ({ account, body, status, set }) => {
-      if (isRateLimited(`${account.id}:social:post`, 30, 60_000)) {
+      if (applyRateLimit(set, `${account.id}:social:post`, 30, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 
@@ -516,8 +516,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // POST /social/posts/:id/like — like a post (auth required, idempotent)
   .post(
     '/posts/:id/like',
-    async ({ account, params, status }) => {
-      if (isRateLimited(`${account.id}:social:like`, 120, 60_000)) {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:like`, 120, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 
@@ -570,8 +570,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // DELETE /social/posts/:id/like — unlike a post (auth required, idempotent)
   .delete(
     '/posts/:id/like',
-    async ({ account, params, status }) => {
-      if (isRateLimited(`${account.id}:social:unlike`, 120, 60_000)) {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:unlike`, 120, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 
@@ -609,8 +609,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // POST /social/posts/:id/repost — repost a post (auth required, idempotent)
   .post(
     '/posts/:id/repost',
-    async ({ account, params, status }) => {
-      if (isRateLimited(`${account.id}:social:repost`, 120, 60_000)) {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:repost`, 120, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 
@@ -663,8 +663,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // DELETE /social/posts/:id/repost — unrepost (auth required, idempotent)
   .delete(
     '/posts/:id/repost',
-    async ({ account, params, status }) => {
-      if (isRateLimited(`${account.id}:social:unrepost`, 120, 60_000)) {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:unrepost`, 120, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 
@@ -1033,8 +1033,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // POST /social/follows/:handle — follow a user
   .post(
     '/follows/:handle',
-    async ({ account, params, status }) => {
-      if (isRateLimited(`${account.id}:social:follow`, 60, 60_000)) {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:follow`, 60, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 
@@ -1099,7 +1099,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   .delete(
     '/follows/:handle',
     async ({ account, params, status, set }) => {
-      if (isRateLimited(`${account.id}:social:unfollow`, 60, 60_000)) {
+      if (applyRateLimit(set, `${account.id}:social:unfollow`, 60, 60_000)) {
         return status(429, { error: 'Rate limit exceeded' })
       }
 

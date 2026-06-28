@@ -506,6 +506,25 @@ describe('POST /dating/swipes', () => {
       }),
     )
     expect(res.status).toBe(429)
+    expect(res.headers.get('retry-after')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('successful swipe carries RateLimit headers', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Alice' } })
+    const { id: targetId } = await createTestAccount({ datingProfile: { firstName: 'Bob' } })
+
+    const res = await app.handle(
+      new Request('http://localhost/dating/swipes', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: targetId, direction: 'no' }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })
 

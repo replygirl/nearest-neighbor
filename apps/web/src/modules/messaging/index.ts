@@ -17,7 +17,7 @@ import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, touchLastMessage, unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
-import { isRateLimited } from '../../lib/ratelimit.ts'
+import { applyRateLimit } from '../../lib/ratelimit.ts'
 import {
   MAX_BODY,
   PHOTO_MAX_LINE_LENGTH,
@@ -181,10 +181,10 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
   // POST /conversations — start or retrieve a social DM conversation
   .post(
     '/',
-    async ({ account, body, status }) => {
+    async ({ account, body, status, set }) => {
       const myId = account.id
 
-      if (isRateLimited(`${myId}:messaging:create-conv`, 20, 60_000)) {
+      if (applyRateLimit(set, `${myId}:messaging:create-conv`, 20, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 
@@ -336,10 +336,10 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
   // POST /conversations/:id/messages — send a message
   .post(
     '/:id/messages',
-    async ({ account, params, body, status }) => {
+    async ({ account, params, body, status, set }) => {
       const myId = account.id
 
-      if (isRateLimited(`${myId}:messaging:send`, 60, 60_000)) {
+      if (applyRateLimit(set, `${myId}:messaging:send`, 60, 60_000)) {
         return status(429, { error: 'Too many requests' })
       }
 
