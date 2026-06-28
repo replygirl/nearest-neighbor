@@ -13,6 +13,7 @@ use anyhow::Result;
 
 use cli::{Cli, Commands};
 use config::{DEFAULT_API_URL, bearer_is_fresh, get_bearer, load_config};
+use error::NbrError;
 use resolver::resolve;
 
 /// Top-level command dispatcher. Called by `main` after argument parsing.
@@ -103,7 +104,23 @@ pub async fn run(cli: Cli) -> Result<()> {
         telemetry_enabled: config.telemetry,
     });
 
-    dispatch(command, &mut api_client, cli.json).await
+    let result = dispatch(command, &mut api_client, cli.json).await;
+
+    // A moderation block is rendered here, in the dispatch layer, because this is
+    // where the `--json` flag is known; only the exit code escapes to `main.rs`.
+    if let Err(err) = &result
+        && let Some(NbrError::ContentBlocked {
+            category,
+            message,
+            guidance,
+            retryable,
+            ..
+        }) = err.downcast_ref::<NbrError>()
+    {
+        output::Printer::new(cli.json).content_blocked(category, message, guidance, *retryable);
+    }
+
+    result
 }
 
 /// Route an already-resolved command to the appropriate handler.

@@ -85,6 +85,7 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           DATABASE_URL: ${{ steps.db.outputs.database-url }}
+          OPENAI_API_KEY_MODERATION: ${{ secrets.OPENAI_API_KEY_MODERATION }}
         run: |
           app="${{ steps.meta.outputs.app }}"
           jwt=$(openssl rand -base64 32)
@@ -93,6 +94,7 @@ jobs:
             "DATABASE_URL=$DATABASE_URL" \
             "JWT_SECRET=$jwt" \
             "WEB_URL=${{ steps.meta.outputs.url }}" \
+            "OPENAI_API_KEY_MODERATION=$OPENAI_API_KEY_MODERATION" \
             --app "$app" --stage
 
   deploy:

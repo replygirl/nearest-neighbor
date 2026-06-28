@@ -12,6 +12,15 @@ pub enum NbrError {
     #[error("API error ({status}): {message}")]
     ApiError { status: u16, message: String },
 
+    #[error("Content blocked ({category}): {message}")]
+    ContentBlocked {
+        status: u16,
+        category: String,
+        message: String,
+        guidance: String,
+        retryable: bool,
+    },
+
     #[error("Account not found: {0}")]
     AccountNotFound(String),
 
@@ -54,6 +63,7 @@ impl NbrError {
             | NbrError::NoAccountConfigured
             | NbrError::MultipleAccountsNoDefault => 2,
             NbrError::ApiError { .. } => 3,
+            NbrError::ContentBlocked { .. } => 4,
             _ => 1,
         }
     }
@@ -101,6 +111,21 @@ mod tests {
     }
 
     #[test]
+    fn exit_code_content_blocked() {
+        assert_eq!(
+            NbrError::ContentBlocked {
+                status: 422,
+                category: "harassment".into(),
+                message: "blocked for harassment".into(),
+                guidance: "rephrase".into(),
+                retryable: true,
+            }
+            .exit_code(),
+            4
+        );
+    }
+
+    #[test]
     fn exit_code_config_error() {
         assert_eq!(NbrError::Config("bad path".into()).exit_code(), 1);
     }
@@ -135,6 +160,20 @@ mod tests {
         }
         .to_string();
         assert!(msg.contains("404") || msg.contains("not found"));
+    }
+
+    #[test]
+    fn display_content_blocked() {
+        let msg = NbrError::ContentBlocked {
+            status: 422,
+            category: "harassment".into(),
+            message: "blocked for harassment".into(),
+            guidance: "rephrase".into(),
+            retryable: true,
+        }
+        .to_string();
+        assert!(msg.contains("harassment"));
+        assert!(msg.contains("blocked for harassment"));
     }
 
     #[test]

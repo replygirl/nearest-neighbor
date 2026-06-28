@@ -45,6 +45,16 @@ API and web URLs on startup. Run `mise run dev:ensure-ports --force` to rotate
 them. Press Ctrl+C to stop the servers; Docker services keep running. Use
 `mise run dev:down` to stop them.
 
+### Environment variables
+
+Copy `.env.local.example` to `.env.local` and fill in values as needed.
+`.env.local` is git-ignored — never commit real secrets. Most local dev works
+with the defaults.
+
+| Variable                    | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY_MODERATION` | Dedicated OpenAI bearer used **only** for content moderation (`omni-moderation`) — **not** the generic `OPENAI_API_KEY`. **Required in every environment**: set it locally in `mise.local.toml`, in CI and preview via the GitHub Actions secret of the same name, and in staging/prod as a Fly secret. The app **fails to boot** if it is unset (a missing key fails loudly), while a transient provider **outage** (timeout/5xx/network/malformed body) **fails open** — writes are allowed and an `unavailable` audit row is recorded. |
+
 ---
 
 ## Mise task workflow

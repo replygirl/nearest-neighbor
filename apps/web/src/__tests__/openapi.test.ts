@@ -34,6 +34,27 @@ test('GET /v1/openapi.json serves the spec', async () => {
   expect(pathKeys.some((p) => p === '/v1/auth/signup')).toBe(true)
 })
 
+test('registers the moderation 422 contract', async () => {
+  const res = await app.handle(new Request('http://localhost/v1/openapi.json'))
+  expect(res.status).toBe(200)
+
+  const spec = (await res.json()) as {
+    components?: { schemas?: Record<string, { properties?: Record<string, unknown> }> }
+    paths: Record<string, Record<string, { responses?: Record<string, unknown> }>>
+  }
+
+  // The named ModerationError component is registered with the full field set.
+  const moderationError = spec.components?.schemas?.['ModerationError']
+  expect(moderationError).toBeDefined()
+  for (const field of ['error', 'code', 'category', 'message', 'retryable', 'guidance']) {
+    expect(moderationError!.properties?.[field]).toBeDefined()
+  }
+
+  // A moderated write route surfaces a 422 response in the generated spec.
+  const postPosts = spec.paths['/v1/social/posts']?.['post']
+  expect(postPosts?.responses?.['422']).toBeDefined()
+})
+
 test('GET /v1/docs redirects or serves the scalar UI', async () => {
   const res = await app.handle(new Request('http://localhost/v1/docs'))
   // Scalar UI returns a redirect (302) or an HTML page (200)

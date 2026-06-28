@@ -400,7 +400,73 @@ pub struct PostRepostResponse {
 
 // ── Error response ────────────────────────────────────────────────────────────
 
+/// API error envelope. The base contract is `{ error: string }`; a moderation
+/// block extends it with the sibling fields below. All extension fields are
+/// optional (`#[serde(default)]`) so both legacy `{ error }` bodies and the new
+/// structured `content_blocked` bodies deserialize cleanly.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
+    /// Stable machine discriminator — `"content_blocked"` for a moderation block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Coarse snake_case category family (e.g. `harassment`, `sexual_minors`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// One-sentence explanation that names the category.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Whether the agent may retry with rephrased content.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retryable: Option<bool>,
+    /// One-sentence rephrase hint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guidance: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_response_deserializes_legacy_body() {
+        let e: ErrorResponse = serde_json::from_str(r#"{"error":"nope"}"#).unwrap();
+        assert_eq!(e.error, "nope");
+        assert!(e.code.is_none());
+        assert!(e.category.is_none());
+        assert!(e.message.is_none());
+        assert!(e.retryable.is_none());
+        assert!(e.guidance.is_none());
+    }
+
+    #[test]
+    fn error_response_deserializes_moderation_body() {
+        let body = r#"{
+            "error":"blocked",
+            "code":"content_blocked",
+            "category":"sexual_minors",
+            "message":"This content was blocked.",
+            "retryable":true,
+            "guidance":"Rephrase the content."
+        }"#;
+        let e: ErrorResponse = serde_json::from_str(body).unwrap();
+        assert_eq!(e.error, "blocked");
+        assert_eq!(e.code.as_deref(), Some("content_blocked"));
+        assert_eq!(e.category.as_deref(), Some("sexual_minors"));
+        assert_eq!(e.message.as_deref(), Some("This content was blocked."));
+        assert_eq!(e.retryable, Some(true));
+        assert_eq!(e.guidance.as_deref(), Some("Rephrase the content."));
+    }
+
+    #[test]
+    fn error_response_partial_moderation_body() {
+        // code present but category/guidance/message/retryable absent.
+        let e: ErrorResponse =
+            serde_json::from_str(r#"{"error":"blocked","code":"content_blocked"}"#).unwrap();
+        assert_eq!(e.code.as_deref(), Some("content_blocked"));
+        assert!(e.category.is_none());
+        assert!(e.guidance.is_none());
+        assert!(e.message.is_none());
+        assert!(e.retryable.is_none());
+    }
 }

@@ -54,7 +54,7 @@ function toRows<T>(result: T[] | { rows: T[] }): T[] {
 
 // ─── Table presence ─────────────────────────────────────────────────────────
 
-describe('migrations snapshot — all 15 tables exist', () => {
+describe('migrations snapshot — all 16 tables exist', () => {
   test('all application tables are present', async () => {
     const result = await db.execute<TableRow>(sql`
       SELECT table_name
@@ -74,6 +74,7 @@ describe('migrations snapshot — all 15 tables exist', () => {
       'follows',
       'matches',
       'messages',
+      'moderation_verdicts',
       'notifications',
       'post_likes',
       'posts',
@@ -87,9 +88,9 @@ describe('migrations snapshot — all 15 tables exist', () => {
       expect(names).toContain(table)
     }
 
-    // Exactly 15 app tables (no stray tables)
+    // Exactly 16 app tables (no stray tables)
     const appTables = names.filter((n) => !n.startsWith('_'))
-    expect(appTables.length).toBe(15)
+    expect(appTables.length).toBe(16)
   })
 })
 
@@ -112,6 +113,8 @@ describe('migrations snapshot — FK and expression indexes', () => {
       'idx_matches_account_a_id',
       'idx_matches_account_b_id',
       'idx_messages_conversation_id_created_at',
+      'idx_moderation_verdicts_account_id',
+      'idx_moderation_verdicts_decision',
       'idx_notifications_account_id_read_at',
       'idx_post_likes_post_id',
       'idx_posts_author_id_created_at',
@@ -522,6 +525,30 @@ describe('migrations snapshot — FK cascades on post_likes and reposts', () => 
     expect(accountFk!.delete_rule).toBe('CASCADE')
     expect(postFk).toBeDefined()
     expect(postFk!.delete_rule).toBe('CASCADE')
+  })
+
+  test('moderation_verdicts has ON DELETE CASCADE FK to accounts', async () => {
+    const result = await db.execute<{
+      column_name: string
+      delete_rule: string
+      foreign_table_name: string
+    }>(sql`
+      SELECT kcu.column_name, rc.delete_rule, ccu.table_name AS foreign_table_name
+      FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu
+        ON rc.constraint_name = kcu.constraint_name
+        AND rc.constraint_schema = kcu.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON rc.unique_constraint_name = ccu.constraint_name
+        AND rc.constraint_schema = ccu.constraint_schema
+      WHERE kcu.table_schema = 'public'
+        AND kcu.table_name = 'moderation_verdicts'
+    `)
+    const rows = toRows(result)
+    const accountFk = rows.find((r) => r.foreign_table_name === 'accounts')
+    expect(accountFk).toBeDefined()
+    expect(accountFk!.column_name).toBe('account_id')
+    expect(accountFk!.delete_rule).toBe('CASCADE')
   })
 })
 

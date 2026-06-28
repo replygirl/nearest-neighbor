@@ -20,6 +20,8 @@ import { notify } from '../../lib/notifications.ts'
 import { decodeDeckCursor, encodeDeckCursor } from '../../lib/pagination.ts'
 import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { MAX_BIO, isValidAsciiArt } from '../../lib/validation.ts'
+import { moderationMacro } from '../../moderation/macro.ts'
+import { ModerationErrorResponse } from '../../moderation/schema.ts'
 
 // ── Shared response shapes ────────────────────────────────────────────────────
 
@@ -54,6 +56,7 @@ const MatchShape = t.Object({
 
 export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module' })
   .use(authMacro)
+  .use(moderationMacro)
 
   // ── GET /dating/profile ─────────────────────────────────────────────────────
   .get(
@@ -183,9 +186,10 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         status_is_open: t.Optional(t.Boolean()),
         is_visible: t.Optional(t.Boolean()),
       }),
+      moderation: true,
       response: {
         200: DatingProfileShape,
-        422: t.Object({ error: t.String() }),
+        422: ModerationErrorResponse,
         429: t.Object({ error: t.String() }),
       },
     },
@@ -257,6 +261,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
     },
     {
       auth: true,
+      moderation: true,
       body: t.Object({
         idx: t.Number({ minimum: 0, maximum: 9 }),
         art: t.String(),
@@ -268,7 +273,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           art: t.String(),
           created_at: t.String(),
         }),
-        422: t.Object({ error: t.String() }),
+        422: ModerationErrorResponse,
         429: t.Object({ error: t.String() }),
       },
     },
