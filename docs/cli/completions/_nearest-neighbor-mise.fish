@@ -38,6 +38,9 @@ cmd agents:sync {
     flag --check help="Exit non-zero if files are out of sync (CI drift check)"
 }
 cmd agents:up
+cmd dev:ensure-ports {
+    flag --force help="Regenerate .dev/ports.env even if it already exists"
+}
 cmd docs:gen-spec
 '
 set -l tmpdir (if set -q TMPDIR; echo $TMPDIR; else; echo /tmp; end)

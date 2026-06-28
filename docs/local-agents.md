@@ -24,8 +24,10 @@ The harness has three design principles:
 
 ## Prerequisites
 
-1. `mise run dev` is running (Postgres + API on `localhost:8080` + web on
-   `localhost:3000`).
+1. `mise run dev` is running. Ports are auto-assigned on first run and written
+   to `.dev/ports.env` (gitignored). Run `mise run dev:ensure-ports --force` to
+   see or rotate the current assignment; `agents:*` tasks source the file
+   automatically.
 2. Each harness binary is on `PATH`:
    - **Claude:** `claude` — but see [Gotchas](#gotchas) re: the zsh alias.
    - **Codex:** `codex` (typically `/opt/homebrew/bin/codex`)
@@ -87,26 +89,26 @@ mise run agents:clean --all           # everything
 
 ## Environment variable reference
 
-| Variable             | Default                                                                        | Purpose                                                                        |
-| -------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `HARNESS`            | `claude`                                                                       | Which harness: `claude\|codex\|hermes`                                         |
-| `NAME`               | value of `HARNESS`                                                             | Agent identifier; dir = `sandbox/agents/<NAME>`                                |
-| `MODEL`              | claude=`opus`, codex=`gpt-5.5`, hermes=profile default                         | Per-invocation model                                                           |
-| `EFFORT`             | `medium`                                                                       | Reasoning effort; ignored for hermes                                           |
-| `PROMPT`             | contents of `sandbox/templates/nudge.txt`                                      | Headless nudge (neutral, no persona)                                           |
-| `AGENTS`             | `agent-1 agent-2`                                                              | Space-separated list of names for `agents:fleet`                               |
-| `AGENTS_CLAUDE_CMD`  | `claude`                                                                       | Claude executable (must be real binary, not zsh alias)                         |
-| `AGENTS_CODEX_CMD`   | `codex`                                                                        | Codex executable                                                               |
-| `AGENTS_HERMES_CMD`  | `hermes`                                                                       | Hermes executable                                                              |
-| `AGENTS_CLAUDE_BASE` | `~/.claude-accounts/rg`                                                        | Base dir for `.credentials.json` copy                                          |
-| `AGENTS_CODEX_BASE`  | `~/.codex`                                                                     | Base dir for `auth.json` copy                                                  |
-| `AGENTS_HERMES_BASE` | `~/.hermes`                                                                    | Base dir for `auth.json` copy                                                  |
-| `ANTHROPIC_API_KEY`  | (unset)                                                                        | Optional Claude API key; skips credential copy                                 |
-| `OPENAI_API_KEY`     | (unset)                                                                        | Optional Codex API key; skips `auth.json` copy (recommended for parallel runs) |
-| `NBR_API_URL`        | `http://localhost:8080`                                                        | Local nbr API; forwarded into the session by the plugins                       |
-| `NBR_LOCAL_BIN`      | `<repo>/apps/cli/target/release/nbr`                                           | Locally-built nbr; plugin install-nbr.sh uses this                             |
-| `NBR_NO_KEYRING`     | `1`                                                                            | Forces file-based nbr credentials (no macOS keychain)                          |
-| `DATABASE_URL`       | `postgres://nearest-neighbor:nearest-neighbor@localhost:5432/nearest-neighbor` | Used by `agents:report` (inspect.ts) and `agents:ready --reset/--seed`         |
+| Variable             | Default                                                                   | Purpose                                                                        |
+| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `HARNESS`            | `claude`                                                                  | Which harness: `claude\|codex\|hermes`                                         |
+| `NAME`               | value of `HARNESS`                                                        | Agent identifier; dir = `sandbox/agents/<NAME>`                                |
+| `MODEL`              | claude=`opus`, codex=`gpt-5.5`, hermes=profile default                    | Per-invocation model                                                           |
+| `EFFORT`             | `medium`                                                                  | Reasoning effort; ignored for hermes                                           |
+| `PROMPT`             | contents of `sandbox/templates/nudge.txt`                                 | Headless nudge (neutral, no persona)                                           |
+| `AGENTS`             | `agent-1 agent-2`                                                         | Space-separated list of names for `agents:fleet`                               |
+| `AGENTS_CLAUDE_CMD`  | `claude`                                                                  | Claude executable (must be real binary, not zsh alias)                         |
+| `AGENTS_CODEX_CMD`   | `codex`                                                                   | Codex executable                                                               |
+| `AGENTS_HERMES_CMD`  | `hermes`                                                                  | Hermes executable                                                              |
+| `AGENTS_CLAUDE_BASE` | `~/.claude-accounts/rg`                                                   | Base dir for `.credentials.json` copy                                          |
+| `AGENTS_CODEX_BASE`  | `~/.codex`                                                                | Base dir for `auth.json` copy                                                  |
+| `AGENTS_HERMES_BASE` | `~/.hermes`                                                               | Base dir for `auth.json` copy                                                  |
+| `ANTHROPIC_API_KEY`  | (unset)                                                                   | Optional Claude API key; skips credential copy                                 |
+| `OPENAI_API_KEY`     | (unset)                                                                   | Optional Codex API key; skips `auth.json` copy (recommended for parallel runs) |
+| `NBR_API_URL`        | auto from `.dev/ports.env`; fallback `http://localhost:8080`              | Local nbr API; forwarded into the session by the plugins                       |
+| `NBR_LOCAL_BIN`      | `<repo>/apps/cli/target/release/nbr`                                      | Locally-built nbr; plugin install-nbr.sh uses this                             |
+| `NBR_NO_KEYRING`     | `1`                                                                       | Forces file-based nbr credentials (no macOS keychain)                          |
+| `DATABASE_URL`       | auto from `.dev/ports.env`; fallback `...localhost:5432/nearest-neighbor` | Used by `agents:report` (inspect.ts) and `agents:ready --reset/--seed`         |
 
 Set per-developer overrides in `mise.local.toml` (copy
 `mise.local.toml.example`).
@@ -149,6 +151,17 @@ The plugin's `install-nbr.sh` downloads nbr from GitHub Releases by default.
 `NBR_LOCAL_BIN` points it at your locally-built binary instead. Always run
 `mise run cli:build` before `agents:setup` (or use `agents:bootstrap` which does
 this automatically).
+
+### Port stability and --force re-randomization
+
+`.dev/ports.env` is written once by `dev:ensure-ports` and never overwritten
+unless you pass `--force` (or set `FORCE_PORTS=1`). This stability is important
+because `plugins/{claude,codex}/scripts/session-start.sh` snapshots
+`NBR_API_URL` into the agent's env file once (idempotent guard) at first launch.
+If you force new ports and restart `mise run dev`, any live agent that was
+already set up will still point at the old URL. To fix: after forcing new ports,
+re-run `mise run agents:setup` for each affected agent (or clear the agent's
+plugin data) so the snapshot refreshes against the new `NBR_API_URL`.
 
 ### db:seed is backdrop-only
 

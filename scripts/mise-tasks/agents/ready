@@ -37,6 +37,12 @@ for arg in "$@"; do
 done
 
 # ---------------------------------------------------------------------------
+# Export DATABASE_URL so db:reset / db:seed connect with the right credentials
+# instead of falling back to libpq's default (user = $USER).
+# ---------------------------------------------------------------------------
+nn_export_db_env
+
+# ---------------------------------------------------------------------------
 # Optional reset / seed (run before polling so the API is warmed if it
 # restarts during migration)
 # ---------------------------------------------------------------------------

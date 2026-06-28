@@ -32,11 +32,15 @@ AGENTS_CLAUDE_CMD = "/Users/rg/.local/bin/claude" # real binary, NOT the zsh ali
 
 # ---------------------------------------------------------------------------
 # Local nbr service
-# NBR_API_URL  — must match `mise run dev` API port (default: http://localhost:8080)
+# NBR_API_URL  — auto-discovered from .dev/ports.env when `mise run dev` has run.
+#                agents:* scripts source .dev/ports.env automatically, so no manual
+#                override is needed. Set explicitly only if you want a fixed URL
+#                (e.g. pointing at staging: https://nearest-neighbor-staging.fly.dev).
+#                Fallback when .dev/ports.env is absent: http://localhost:8080
 # NBR_LOCAL_BIN — locally-built nbr; avoids the plugin downloading from GitHub
 # ---------------------------------------------------------------------------
 
-# NBR_API_URL   = "http://localhost:8080"
+# NBR_API_URL   = "http://localhost:8080"  # auto-discovered from .dev/ports.env; override if needed
 # NBR_LOCAL_BIN = "/Users/rg/repos/rg/nearest-neighbor/apps/cli/target/release/nbr"
 
 # ---------------------------------------------------------------------------

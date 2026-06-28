@@ -91,16 +91,22 @@ includes = []
 # Core tasks
 # ───────────────────────────────────────────────
 
+[tasks."dev:ensure-ports"]
+description = "Pick random free ports for the dev stack and write them to .dev/ports.env (idempotent — skips when file exists)"
+run = "bash scripts/mise-tasks/dev/ensure-ports"
+
 [tasks.dev]
-description = "Start full local dev: postgres + migrations + api (8080) + web (3000)"
-depends = ["dev:free-ports"]
+description = "Start full local dev: postgres + migrations + api + web (ports auto-assigned in .dev/ports.env)"
+depends = ["dev:ensure-ports"]
 run = """
 set -euo pipefail
 
-# Apply local dev defaults if .env.local is absent / vars are blank.
-# Docker Compose creates postgres with these credentials.
-export DATABASE_URL="${DATABASE_URL:-postgres://nearest-neighbor:nearest-neighbor@localhost:5432/nearest-neighbor}"
-export DATABASE_DIRECT_URL="${DATABASE_DIRECT_URL:-$DATABASE_URL}"
+# Load auto-assigned ports written by dev:ensure-ports
+# shellcheck source=.dev/ports.env
+. "${MISE_PROJECT_ROOT}/.dev/ports.env"
+
+# DATABASE_DIRECT_URL defaults to DATABASE_URL if not separately overridden
+export DATABASE_DIRECT_URL="${DATABASE_DIRECT_URL:-${DATABASE_URL}}"
 
 # 1. Start backing services and wait for healthchecks
 docker compose -f docker-compose.dev.yml up -d --wait
@@ -112,8 +118,8 @@ bun run packages/db/src/migrate.ts
 if [ "${DEV_SEED:-0}" = "1" ]; then bun run packages/db/src/seed.ts; fi
 
 # 4. Start api + web in parallel with hot reload
-echo "[dev] api  → http://localhost:8080"
-echo "[dev] web  → http://localhost:3000"
+echo "[dev] api  → http://localhost:${PORT}"
+echo "[dev] web  → http://localhost:${E2E_WEB_PORT}"
 echo "[dev] Press Ctrl+C to stop api + web (docker services stay running; use mise run dev:down to stop them)"
 
 trap 'echo "[dev] shutting down..."; jobs -p | xargs -r kill 2>/dev/null || true; wait 2>/dev/null || true' INT TERM
@@ -135,11 +141,20 @@ docker compose -f docker-compose.dev.yml down -v
 """
 
 [tasks."dev:free-ports"]
-description = "Kill any process holding the dev ports (idempotent; no-op when ports are clean)"
+description = "Kill any process holding the dev ports (reads .dev/ports.env; falls back to 8080/3000/5432)"
 run = """
-for port in 8080 3000 5432; do
-  pid="$(lsof -t -i :$port 2>/dev/null || true)"
-  if [ -n "$pid" ]; then echo "freeing $port (pid $pid)"; kill -9 $pid 2>/dev/null || true; fi
+# Source auto-assigned ports if available; fall back to historical defaults
+PORTS_FILE="${MISE_PROJECT_ROOT}/.dev/ports.env"
+if [ -f "$PORTS_FILE" ]; then
+  # shellcheck source=/dev/null
+  . "$PORTS_FILE"
+fi
+API_PORT="${PORT:-8080}"
+WEB_PORT="${E2E_WEB_PORT:-3000}"
+PG_PORT="${POSTGRES_PORT:-5432}"
+for port in "$API_PORT" "$WEB_PORT" "$PG_PORT"; do
+  pid="$(lsof -t -i :"$port" 2>/dev/null || true)"
+  if [ -n "$pid" ]; then echo "freeing $port (pid $pid)"; kill -9 "$pid" 2>/dev/null || true; fi
 done
 """
 

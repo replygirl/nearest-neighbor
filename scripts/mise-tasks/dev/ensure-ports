@@ -1,0 +1,95 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "dev:ensure-ports"
+#USAGE flag "--force" help="Regenerate .dev/ports.env even if it already exists"
+
+# Assigns random free ports to the local dev stack and writes them to
+# .dev/ports.env (gitignored). Idempotent: exits 0 immediately when the file
+# already exists and --force / FORCE_PORTS=1 are not set.
+#
+# Wired as a `depends` of dev, so it runs once per worktree lifetime and then
+# becomes a no-op on every subsequent `mise run dev`.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+PORTS_FILE="${REPO_ROOT}/.dev/ports.env"
+FORCE=false
+
+for arg in "$@"; do
+  [[ "$arg" == "--force" ]] && FORCE=true
+done
+[[ "${FORCE_PORTS:-0}" == "1" ]] && FORCE=true
+
+# Idempotency: skip when the file already exists and --force is not set.
+# This is the hot path — every `mise run <task>` that depends on dev:ensure-ports
+# exits here after the first successful run.
+if [[ -f "$PORTS_FILE" && "$FORCE" == false ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Port helpers
+# ---------------------------------------------------------------------------
+
+port_is_free() {
+  ! lsof -ti :"$1" >/dev/null 2>&1
+}
+
+pick_free_port() {
+  local min="$1"
+  local max="$2"
+  local range=$(( max - min + 1 ))
+  if [[ $range -le 0 ]]; then
+    printf 'ERROR: dev:ensure-ports: pick_free_port: invalid range %d-%d (range=%d)\n' \
+      "$min" "$max" "$range" >&2
+    return 1
+  fi
+  local port
+  local attempts=0
+  while true; do
+    port=$(( min + RANDOM % range ))
+    if port_is_free "$port"; then
+      printf '%d\n' "$port"
+      return 0
+    fi
+    attempts=$(( attempts + 1 ))
+    if [[ $attempts -ge 50 ]]; then
+      printf 'ERROR: dev:ensure-ports: no free port found in %d-%d after 50 attempts\n' \
+        "$min" "$max" >&2
+      return 1
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Pick ports
+# ---------------------------------------------------------------------------
+
+API_PORT="$(pick_free_port 17000 17999)"
+WEB_PORT="$(pick_free_port 19000 19999)"
+PG_PORT="$(pick_free_port 15400 15499)"
+
+COMPOSE_NAME="nn-$(basename "$REPO_ROOT")"
+DB_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:${PG_PORT}/nearest-neighbor"
+
+# ---------------------------------------------------------------------------
+# Write .dev/ports.env
+# ---------------------------------------------------------------------------
+
+mkdir -p "${REPO_ROOT}/.dev"
+
+cat > "$PORTS_FILE" <<PORTS_EOF
+export PORT=${API_PORT}
+export E2E_WEB_PORT=${WEB_PORT}
+export POSTGRES_PORT=${PG_PORT}
+export DATABASE_URL="${DB_URL}"
+export DATABASE_DIRECT_URL="${DB_URL}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_NAME}"
+export NBR_API_URL="http://localhost:${API_PORT}"
+PORTS_EOF
+
+printf '[dev:ensure-ports] api  → http://localhost:%d\n' "$API_PORT"
+printf '[dev:ensure-ports] web  → http://localhost:%d\n' "$WEB_PORT"
+printf '[dev:ensure-ports] postgres → localhost:%d\n'   "$PG_PORT"

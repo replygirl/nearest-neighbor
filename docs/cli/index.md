@@ -17,4 +17,5 @@
 - [`stdin agents:setup`](/agents:setup.md)
 - [`stdin agents:sync [--check]`](/agents:sync.md)
 - [`stdin agents:up`](/agents:up.md)
+- [`stdin dev:ensure-ports [--force]`](/dev:ensure-ports.md)
 - [`stdin docs:gen-spec`](/docs:gen-spec.md)

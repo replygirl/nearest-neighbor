@@ -10,6 +10,17 @@ _NN_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${_NN_SCRIPT_DIR}/../../.." && pwd)"
 
 # ---------------------------------------------------------------------------
+# Auto-discover dev ports — source .dev/ports.env when present.
+# This populates PORT, E2E_WEB_PORT, POSTGRES_PORT, DATABASE_URL,
+# DATABASE_DIRECT_URL, COMPOSE_PROJECT_NAME, and NBR_API_URL so that agents:*
+# tasks follow the randomly-assigned ports without any manual env configuration.
+# When the file is absent (e.g. running against staging) the ${VAR:-default}
+# fallbacks in nn_nbr_api_url / nn_export_db_env apply as before.
+# ---------------------------------------------------------------------------
+# shellcheck source=/dev/null
+[[ -f "${REPO_ROOT}/.dev/ports.env" ]] && . "${REPO_ROOT}/.dev/ports.env"
+
+# ---------------------------------------------------------------------------
 # nn_repo_root — print the resolved repo root
 # ---------------------------------------------------------------------------
 nn_repo_root() {
@@ -189,6 +200,18 @@ nn_read_meta() {
   grep -o "\"${key}\": *[^,}]*" "$json_file" \
     | sed 's/^"[^"]*": *//; s/^"//; s/"$//' \
     | head -1
+}
+
+# ---------------------------------------------------------------------------
+# nn_export_db_env
+# Exports DATABASE_URL and DATABASE_DIRECT_URL with the local dev defaults.
+# Callers (agents:ready, agents:report) MUST call this before invoking any
+# task or script that reads DATABASE_URL (db:reset, db:seed, inspect.ts).
+# The ${VAR:-default} form is forward-compatible: an externally-set value wins.
+# ---------------------------------------------------------------------------
+nn_export_db_env() {
+  export DATABASE_URL="${DATABASE_URL:-postgres://nearest-neighbor:nearest-neighbor@localhost:5432/nearest-neighbor}"
+  export DATABASE_DIRECT_URL="${DATABASE_DIRECT_URL:-${DATABASE_URL}}"
 }
 
 # ---------------------------------------------------------------------------

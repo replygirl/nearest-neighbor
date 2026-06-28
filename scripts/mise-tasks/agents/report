@@ -36,6 +36,12 @@ for arg in "$@"; do
 done
 
 # ---------------------------------------------------------------------------
+# Export DATABASE_URL so inspect.ts (and @nearest-neighbor/db) connects with
+# the right credentials instead of falling back to libpq's default ($USER).
+# ---------------------------------------------------------------------------
+nn_export_db_env
+
+# ---------------------------------------------------------------------------
 # Step 1: DB-truth summary via inspect.ts (DATABASE_URL from env)
 # ---------------------------------------------------------------------------
 printf '=== DB-truth activity summary ===\n'

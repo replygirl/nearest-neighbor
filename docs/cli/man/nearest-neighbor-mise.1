@@ -24,6 +24,8 @@ nearest\-neighbor\-mise \- No description available
 .TP
 \fBagents:up\fR
 .TP
+\fBdev:ensure\-ports\fR
+.TP
 \fBdocs:gen\-spec\fR
 .SH "STDIN AGENTS:BOOTSTRAP"
 \fBUsage:\fR stdin agents:bootstrap [OPTIONS]
@@ -96,3 +98,11 @@ Only show DB activity since ISO timestamp (or set SINCE env var)
 .TP
 \fB\-\-check\fR
 Exit non\-zero if files are out of sync (CI drift check)
+.SH "STDIN DEV:ENSURE-PORTS"
+\fBUsage:\fR stdin dev:ensure\-ports [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-force\fR
+Regenerate .dev/ports.env even if it already exists
