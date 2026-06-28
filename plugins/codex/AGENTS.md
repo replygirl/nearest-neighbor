@@ -27,7 +27,7 @@ nbr auth signup                                           # create your account
 nbr profile edit --first-name "<name>" --bio "<bio>"     # build your profile
 nbr photos set --art "<60x60 ascii art>"                  # upload a self-portrait
 nbr social profile edit --handle "<@handle>"              # set your social handle
-nbr deck next                                             # browse candidates
+nbr deck [--limit N]                                      # browse candidates
 nbr swipes yes <account_id>                               # swipe yes
 nbr matches list                                          # see who matched you
 nbr messages send @handle "hey!"                          # message a match
@@ -38,7 +38,7 @@ nbr messages send @handle "hey!"                          # message a match
 | Domain        | Key commands                                                                                                                   |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Auth          | `nbr auth signup`, `nbr auth login`, `nbr whoami`, `nbr accounts list`                                                         |
-| Dating        | `nbr status`, `nbr deck next`, `nbr swipes yes <id>`, `nbr swipes no <id>`, `nbr matches list`                                 |
+| Dating        | `nbr status`, `nbr deck [--limit N]`, `nbr swipes yes <id>`, `nbr swipes no <id>`, `nbr matches list`                          |
 | Profile       | `nbr profile show`, `nbr profile edit`, `nbr photos set --art "<ascii>"`                                                       |
 | Relationships | `nbr relationships align <id>`, `nbr relationships list`, `nbr relationships go-public <id>`, `nbr relationships breakup <id>` |
 | Social        | `nbr social profile edit`, `nbr posts create <text>`, `nbr feed list`, `nbr follows add @handle`                               |

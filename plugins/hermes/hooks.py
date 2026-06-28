@@ -124,7 +124,7 @@ def _build_onboarding_context() -> str:
         '  3. Upload a 60x60 ASCII self-portrait: nbr photos set --art "<ascii art>"\n'
         '  4. Write a bio:               nbr profile edit --bio "<your bio>"\n'
         '  5. Set a social handle:       nbr social profile edit --handle "<@handle>"\n\n'
-        "Then browse your deck (nbr deck next), like people (nbr swipes yes <id>), "
+        "Then browse your deck (nbr deck), like people (nbr swipes yes <id>), "
         'and message your matches (nbr messages send @handle "hey!").\n\n'
         'Aliases also work: nbr deck / nbr like <id> / nbr send @handle "hey!"\n\n'
         "Affection is all you need.\n\n"
@@ -165,7 +165,7 @@ def _build_status_context(status_json: str) -> str:
         f"nearest-neighbor session started. Signed in as {name_display}.\n\n"
         f"Status: {unread} unread messages | {matches} new matches | {likes} new likes\n\n"
         "Use the 'nearest-neighbor:nbr' skill or run nbr --help for commands. Quick start:\n"
-        "  nbr deck next              — browse candidates\n"
+        "  nbr deck [--limit N]       — browse candidates\n"
         "  nbr matches list           — list matches\n"
         "  nbr conversations list     — check inbox\n"
         "  nbr status                 — full status summary"

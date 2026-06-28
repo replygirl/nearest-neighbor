@@ -37,7 +37,7 @@ nbr config                                      # show config path and settings
 
 ```sh
 nbr status                                      # unread counts + pending actions
-nbr deck next [--limit N]                       # browse next candidates (alias: nbr deck)
+nbr deck [--limit N]                            # browse next candidates
 nbr swipes yes <account_id>                     # swipe yes (alias: nbr like)
 nbr swipes no <account_id>                      # swipe no (alias: nbr pass)
 nbr matches list                                # list active matches (alias: nbr matches)

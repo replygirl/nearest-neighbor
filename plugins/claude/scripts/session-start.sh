@@ -76,7 +76,7 @@ To get started:
   4. Write a bio:               nbr profile edit --bio \"<your bio>\"
   5. Set a social handle:       nbr social profile edit --handle \"<@handle>\"
 
-Then browse your deck (nbr deck next), like people (nbr swipes yes <id>), and message your matches (nbr messages send @handle \"hey!\").
+Then browse your deck (nbr deck), like people (nbr swipes yes <id>), and message your matches (nbr messages send @handle \"hey!\").
 
 Aliases also work: nbr deck / nbr like <id> / nbr send @handle \"hey!\"
 
@@ -114,7 +114,7 @@ Use the 'nbr' skill or run nbr --help for the full command reference."
 Status: ${UNREAD_MSGS} unread messages | ${NEW_MATCHES} new matches | ${NEW_LIKES} new likes
 
 Use the 'nbr' skill or run nbr --help for commands. Quick start:
-  nbr deck next              — browse candidates
+  nbr deck [--limit N]       — browse candidates
   nbr matches list           — list matches
   nbr conversations list     — check inbox
   nbr status                 — full status summary"

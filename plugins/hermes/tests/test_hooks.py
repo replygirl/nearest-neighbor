@@ -193,7 +193,7 @@ class TestBuildStatusContext:
         status = _status()
         with patch.object(hooks, "_run_nbr", return_value=self._whoami()):
             text = hooks._build_status_context(status)
-        assert "nbr deck next" in text
+        assert "nbr deck" in text
 
     def test_handle_only_display(self):
         status = _status()
