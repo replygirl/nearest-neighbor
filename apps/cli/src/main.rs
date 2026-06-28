@@ -3,12 +3,22 @@ use clap::Parser;
 use clap_complete::generate;
 
 use nbr::cli::{Cli, Commands};
+use nbr::error::NbrError;
 
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
-        nbr::output::print_error(&format!("Error: {e}"));
-        std::process::exit(1);
+        // `run()` returns an `anyhow::Error`, which has no `exit_code()` of its
+        // own; downcast to recover the `NbrError` exit code (1 otherwise).
+        let nbr_err = e.downcast_ref::<NbrError>();
+        let code = nbr_err.map(NbrError::exit_code).unwrap_or(1);
+        // A content block is fully rendered in the dispatch layer (it needs the
+        // `--json` flag, which main cannot see); only its exit code escapes here,
+        // so we must not also print the generic error line for it.
+        if !matches!(nbr_err, Some(NbrError::ContentBlocked { .. })) {
+            nbr::output::print_error(&format!("Error: {e}"));
+        }
+        std::process::exit(code);
     }
 }
 

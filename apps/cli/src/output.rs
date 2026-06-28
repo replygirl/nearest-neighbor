@@ -78,6 +78,34 @@ impl Printer {
             print_success(msg);
         }
     }
+
+    /// Render a moderation content-block to STDERR, leaving STDOUT success-only.
+    ///
+    /// Human mode prints a red `Content blocked (<category>): <message>` line and
+    /// a yellow `Try: <guidance>` line. `--json` mode prints the structured
+    /// object as JSON. Both go to STDERR; the caller is responsible for the
+    /// process exit code (`4`).
+    pub fn content_blocked(&self, category: &str, message: &str, guidance: &str, retryable: bool) {
+        if self.json {
+            let obj = serde_json::json!({
+                "code": "content_blocked",
+                "category": category,
+                "message": message,
+                "retryable": retryable,
+                "guidance": guidance,
+            });
+            match serde_json::to_string_pretty(&obj) {
+                Ok(s) => eprintln!("{s}"),
+                Err(e) => eprintln!("JSON serialization error: {e}"),
+            }
+        } else {
+            eprintln!(
+                "{}",
+                format!("Content blocked ({category}): {message}").red()
+            );
+            eprintln!("{}", format!("Try: {guidance}").yellow());
+        }
+    }
 }
 
 #[cfg(test)]
@@ -219,5 +247,17 @@ mod tests {
     fn printer_human_mode_json_call_is_no_op() {
         let p = Printer::new(false);
         p.json(&json!({"should": "not print"})); // no-op in human mode
+    }
+
+    #[test]
+    fn printer_content_blocked_human_does_not_panic() {
+        let p = Printer::new(false);
+        p.content_blocked("harassment", "blocked for harassment", "rephrase", true);
+    }
+
+    #[test]
+    fn printer_content_blocked_json_does_not_panic() {
+        let p = Printer::new(true);
+        p.content_blocked("sexual_minors", "blocked", "", false);
     }
 }

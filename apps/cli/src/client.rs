@@ -51,21 +51,40 @@ impl ApiClient {
     async fn parse<T: DeserializeOwned>(&self, resp: Response) -> Result<T> {
         let status = resp.status();
         if status.is_success() {
-            Ok(resp.json::<T>().await?)
-        } else {
-            let text = resp.text().await.unwrap_or_default();
-            let message = serde_json::from_str::<ErrorResponse>(&text)
-                .map(|e| e.error)
-                .unwrap_or(text);
-            if status == StatusCode::UNAUTHORIZED {
-                Err(NbrError::NotLoggedIn.into())
-            } else {
-                Err(NbrError::ApiError {
-                    status: status.as_u16(),
-                    message,
-                }
-                .into())
+            return Ok(resp.json::<T>().await?);
+        }
+        let text = resp.text().await.unwrap_or_default();
+        let parsed = serde_json::from_str::<ErrorResponse>(&text).ok();
+
+        // A structured `content_blocked` body (moderation block) maps to a
+        // distinct error variant + exit code regardless of HTTP status. This is
+        // centralized here so every write surface that funnels through `parse()`
+        // inherits it. Missing fields degrade gracefully (never panic).
+        if let Some(body) = parsed.as_ref()
+            && body.code.as_deref() == Some("content_blocked")
+        {
+            return Err(NbrError::ContentBlocked {
+                status: status.as_u16(),
+                category: body
+                    .category
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
+                message: body.message.clone().unwrap_or_else(|| body.error.clone()),
+                guidance: body.guidance.clone().unwrap_or_default(),
+                retryable: body.retryable.unwrap_or(true),
             }
+            .into());
+        }
+
+        let message = parsed.map(|e| e.error).unwrap_or(text);
+        if status == StatusCode::UNAUTHORIZED {
+            Err(NbrError::NotLoggedIn.into())
+        } else {
+            Err(NbrError::ApiError {
+                status: status.as_u16(),
+                message,
+            }
+            .into())
         }
     }
 
