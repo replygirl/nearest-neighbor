@@ -87,10 +87,13 @@ nn_launch() {
       export HERMES_HOME="$CFG_DIR"
       cd "$PROJECT_DIR" || exit 1
       # Hermes requires a non-empty model string; pass -m explicitly.
+      # --provider openai-codex: overrides any blank model.provider in the profile
+      # config (belt-and-suspenders alongside the agents:setup config set calls).
+      # openai-codex is a built-in OAuth provider backed by auth.json — no API key.
       if [[ -n "$MODEL" ]]; then
-        exec "$CMD" -m "$MODEL"
+        exec "$CMD" -m "$MODEL" --provider openai-codex
       else
-        exec "$CMD"
+        exec "$CMD" --provider openai-codex
       fi
       ;;
     *)

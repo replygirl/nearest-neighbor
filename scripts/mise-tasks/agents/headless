@@ -142,14 +142,17 @@ nn_launch() {
       # SessionStart runs unattended. -z is oneshot (non-interactive). Reasoning
       # effort is unsupported on hermes 0.17.0 (EFFORT ignored).
       # Hermes requires a non-empty model string; pass -m explicitly.
+      # --provider openai-codex: overrides any blank model.provider in the profile
+      # config (belt-and-suspenders alongside the agents:setup config set calls).
+      # openai-codex is a built-in OAuth provider backed by auth.json — no API key.
       (
         cd "$PROJECT_DIR" || exit 1
         if [[ -n "$MODEL" ]]; then
           HERMES_HOME="$CFG_DIR" \
-            "$CMD" -z "$PROMPT_TEXT" --yolo --accept-hooks -m "$MODEL"
+            "$CMD" -z "$PROMPT_TEXT" --yolo --accept-hooks -m "$MODEL" --provider openai-codex
         else
           HERMES_HOME="$CFG_DIR" \
-            "$CMD" -z "$PROMPT_TEXT" --yolo --accept-hooks
+            "$CMD" -z "$PROMPT_TEXT" --yolo --accept-hooks --provider openai-codex
         fi
       )
       ;;

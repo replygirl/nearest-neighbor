@@ -149,6 +149,18 @@ case "$HARNESS" in
     sh "${REPO_ROOT}/plugins/codex/scripts/install-nbr.sh" "$SANDBOX_BIN" \
       || printf 'NOTE: nbr pre-install returned non-zero (non-fatal; session-start will retry)\n'
 
+    # Onboarding fallback for codex exec: copy AGENTS.md to the project dir so
+    # codex auto-injects it as a user-role message at session start.
+    # Background: `codex exec` (0.133.0) does not fire plugin lifecycle hooks
+    # (SessionStart / Stop), so the plugin hook's additionalContext never reaches
+    # the agent. AGENTS.md is the designed zero-config fallback — see
+    # plugins/codex/AGENTS.md header ("Drop it at your project root if the
+    # plugin hooks are not yet enabled"). Copy is idempotent; re-running setup
+    # refreshes it from the plugin source.
+    printf '==> Copying AGENTS.md to project dir (codex exec hook fallback)...\n'
+    cp "${REPO_ROOT}/plugins/codex/AGENTS.md" "${AGENT_DIR}/project/AGENTS.md"
+    printf 'OK: AGENTS.md copied to %s/project/AGENTS.md\n' "$AGENT_DIR"
+
     printf 'OK: Codex agent %s configured at %s\n' "$NAME" "$CFG_DIR"
     ;;
 
@@ -172,6 +184,19 @@ case "$HARNESS" in
       fi
     fi
     rm -f "$_hermes_stderr"
+
+    # Pin provider + model so the profile does NOT resolve gpt-5.5 → openai-api
+    # (which would require OPENAI_API_KEY). `hermes profile create` without
+    # --clone produces a blank profile with `model: ''` and `providers: {}`,
+    # which causes Hermes to fall back to the openai-api built-in provider
+    # (expects an API key) instead of openai-codex (OAuth, backed by auth.json).
+    # `config set` uses dot-notation to write `model: {provider: ...}` — same
+    # structure as the working `aligned` profile. Runs in both the newly-created
+    # and already-exists code paths so re-running setup is idempotent.
+    printf '==> Setting Hermes profile provider to openai-codex...\n'
+    HERMES_HOME="$PROFILE_DIR" "$CMD" config set model.provider openai-codex
+    HERMES_HOME="$PROFILE_DIR" "$CMD" config set model.default gpt-5.5
+    printf 'OK: Hermes profile provider set to openai-codex / model gpt-5.5\n'
 
     # Credential inheritance: explicit cp because hermes profile create
     # may not copy auth.json from the base automatically (unconfirmed)
