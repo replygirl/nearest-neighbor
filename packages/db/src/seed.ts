@@ -100,7 +100,7 @@ async function seed() {
   ])
 
   // --- Dating photos (80x40 ASCII placeholder) ---
-  const art = '.'.repeat(3600)
+  const art = '.'.repeat(3200)
   await db.insert(datingPhotos).values([
     { accountId: idA, idx: 0, art },
     { accountId: idB, idx: 0, art },

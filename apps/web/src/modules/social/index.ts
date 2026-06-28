@@ -452,7 +452,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       auth: true,
       body: t.Object({
         body: t.String({ minLength: 1, maxLength: MAX_BODY }),
-        ascii_image: t.Optional(t.Nullable(t.String())),
+        ascii_image: t.Optional(t.Nullable(t.String({ maxLength: 4000 }))),
         reply_to_id: t.Optional(t.Nullable(t.String())),
       }),
       response: {

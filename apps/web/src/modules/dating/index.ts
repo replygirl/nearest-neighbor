@@ -635,6 +635,10 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   .delete(
     '/matches/:id',
     async ({ account, params, status, set }) => {
+      if (isRateLimited(`${account.id}:dating:unmatch`, 10, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       const match = await db.query.matches.findFirst({
         where: eq(matches.id, params.id),
       })
@@ -675,6 +679,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         403: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
         409: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )

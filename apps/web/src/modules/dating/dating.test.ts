@@ -118,6 +118,18 @@ describe('PUT /dating/profile', () => {
     )
     expect(res.status).toBe(401)
   })
+
+  test('rejects first_name over 100 characters', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ first_name: 'a'.repeat(101) }),
+      }),
+    )
+    expect(res.status).toBe(422)
+  })
 })
 
 // ── GET /dating/photos ───────────────────────────────────────────────────────
