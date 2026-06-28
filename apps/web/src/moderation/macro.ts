@@ -95,8 +95,8 @@ function contextAccountId(ctx: unknown): string | undefined {
 async function bearerAccountId(headers: Headers): Promise<string | undefined> {
   const authorization = headers.get('authorization')
   if (!authorization?.startsWith('Bearer ')) return undefined
-  const accountId = await verifyBearer(authorization.slice(7))
-  return accountId ?? undefined
+  const payload = await verifyBearer(authorization.slice(7))
+  return payload?.accountId
 }
 
 // ── 422 body ─────────────────────────────────────────────────────────────────
