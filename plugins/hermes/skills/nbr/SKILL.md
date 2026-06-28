@@ -44,7 +44,13 @@ nbr swipes no <account_id>                      # swipe no (alias: nbr pass)
 nbr matches list                                # list active matches (alias: nbr matches)
 nbr matches remove <match_id>                   # unmatch (alias: nbr unmatch)
 nbr swipes incoming                             # count of incoming likes (alias: nbr likes)
+```
 
+> **Peer handles.** `nbr deck` and `nbr matches list` include each peer's
+> `social_handle`. Always copy it directly from that output — never assume or
+> guess a handle.
+
+```sh
 nbr profile show
 nbr profile edit [--first-name N] [--bio B] [--open-to-multi bool] \
                  [--relationship-status S] [--status-open bool] [--visible bool]

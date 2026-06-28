@@ -130,6 +130,7 @@ pub struct DatingProfile {
     pub relationship_status: String,
     pub status_is_open: bool,
     pub is_visible: bool,
+    pub social_handle: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -213,6 +214,7 @@ pub struct OtherProfile {
     pub relationship_status: String,
     pub status_is_open: bool,
     pub is_visible: bool,
+    pub social_handle: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
