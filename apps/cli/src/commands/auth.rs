@@ -34,7 +34,7 @@ pub async fn run_signup(args: &SignupArgs, api_url: &str, json: bool) -> Result<
         .clone()
         .unwrap_or_else(|| "default".to_string());
 
-    add_account(&account_name, &resp.account_id, None)?;
+    add_account(&account_name, &resp.account_id, Some(api_url))?;
     set_secret(&account_name, &resp.secret)?;
 
     if json {
