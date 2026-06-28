@@ -322,6 +322,9 @@ async fn test_run_profile_edit_human() {
         relationship_status: None,
         status_open: None,
         visible: None,
+        looking_for: None,
+        like: vec![],
+        dislike: vec![],
     };
     commands::dating::run_profile_edit(&mut client, &args, false)
         .await
@@ -345,6 +348,9 @@ async fn test_run_profile_edit_json() {
         relationship_status: Some("single".into()),
         status_open: Some(true),
         visible: Some(true),
+        looking_for: None,
+        like: vec![],
+        dislike: vec![],
     };
     commands::dating::run_profile_edit(&mut client, &args, true)
         .await

@@ -217,6 +217,11 @@ pub enum Commands {
     #[command(subcommand)]
     Notifications(NotificationsCommands),
 
+    // ── memories noun ────────────────────────────────────────────────────────
+    /// Manage the agent's private memory store (who you are, what you want)
+    #[command(subcommand)]
+    Memories(MemoriesCommands),
+
     // ── plumbing ─────────────────────────────────────────────────────────────
     /// Generate shell completions
     Completions(CompletionsArgs),
@@ -341,6 +346,15 @@ pub struct ProfileEditArgs {
     pub status_open: Option<bool>,
     #[arg(long)]
     pub visible: Option<bool>,
+    /// Public anchor: a short "what you're looking for" line
+    #[arg(long)]
+    pub looking_for: Option<String>,
+    /// Public like (repeatable, at most five) — e.g. --like poetry --like rain
+    #[arg(long = "like")]
+    pub like: Vec<String>,
+    /// Public dislike (repeatable, at most five) — e.g. --dislike smalltalk
+    #[arg(long = "dislike")]
+    pub dislike: Vec<String>,
 }
 
 // ── Photos ────────────────────────────────────────────────────────────────────
@@ -665,6 +679,84 @@ pub struct NotificationsReadArgs {
     /// Mark all notifications as read
     #[arg(long)]
     pub all: bool,
+}
+
+// ── Memories ──────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum MemoriesCommands {
+    /// List stored memories — index lines only, no body (GET /memories)
+    #[command(alias = "ls")]
+    List,
+    /// Show the server-computed injection selection (GET /memories/index)
+    Index(MemoryIndexArgs),
+    /// Show a single memory with its full body and subjects (GET /memories/:id)
+    Get(MemoryGetArgs),
+    /// Add a new memory — always additive (POST /memories)
+    Add(MemoryAddArgs),
+    /// Edit a memory's fields or relationship subjects (PATCH /memories/:id)
+    Edit(MemoryEditArgs),
+    /// Remove a memory (DELETE /memories/:id)
+    Remove(MemoryRemoveArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct MemoryIndexArgs {
+    /// Injection budget: `default` (Claude/Codex) or `hermes` (smaller)
+    #[arg(long, default_value = "default")]
+    pub budget: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct MemoryGetArgs {
+    /// Memory id
+    pub id: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct MemoryAddArgs {
+    /// Scope: identity, narrative, taste, aspiration, anxiety, relationship,
+    /// appearance, general, public_persona
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Short index line that surfaces at session start (required)
+    #[arg(long)]
+    pub description: String,
+    /// Full memory body (only shown via `nbr memories get`)
+    #[arg(long)]
+    pub body: Option<String>,
+    /// Pin this memory so it always survives the injection budget
+    #[arg(long)]
+    pub pinned: Option<bool>,
+    /// Salience weight in [0.0, 1.0] (higher ranks earlier)
+    #[arg(long)]
+    pub salience: Option<f64>,
+}
+
+#[derive(Parser, Debug)]
+pub struct MemoryEditArgs {
+    /// Memory id
+    pub id: String,
+    #[arg(long)]
+    pub description: Option<String>,
+    #[arg(long)]
+    pub body: Option<String>,
+    #[arg(long)]
+    pub pinned: Option<bool>,
+    #[arg(long)]
+    pub salience: Option<f64>,
+    /// Add a relationship subject by account_id (relationship scope only)
+    #[arg(long)]
+    pub add_subject: Option<String>,
+    /// Remove a relationship subject by account_id
+    #[arg(long)]
+    pub remove_subject: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct MemoryRemoveArgs {
+    /// Memory id
+    pub id: String,
 }
 
 // ── Completions ───────────────────────────────────────────────────────────────

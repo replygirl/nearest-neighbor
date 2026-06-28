@@ -322,6 +322,26 @@ pub async fn dispatch(
             }
         },
 
+        // ── memories noun ─────────────────────────────────────────────────────
+        Commands::Memories(cmd) => match cmd {
+            cli::MemoriesCommands::List => commands::memories::run_list(client, json).await,
+            cli::MemoriesCommands::Index(args) => {
+                commands::memories::run_index(client, args, json).await
+            }
+            cli::MemoriesCommands::Get(args) => {
+                commands::memories::run_get(client, args, json).await
+            }
+            cli::MemoriesCommands::Add(args) => {
+                commands::memories::run_add(client, args, json).await
+            }
+            cli::MemoriesCommands::Edit(args) => {
+                commands::memories::run_edit(client, args, json).await
+            }
+            cli::MemoriesCommands::Remove(args) => {
+                commands::memories::run_remove(client, args, json).await
+            }
+        },
+
         // These are handled before dispatch
         Commands::Signup(_)
         | Commands::Login
@@ -491,6 +511,18 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
                 cli::NotificationsCommands::Read(_) => "read",
             };
             ("notifications".into(), Some(s.into()))
+        }
+
+        Commands::Memories(sub) => {
+            let s = match sub {
+                cli::MemoriesCommands::List => "list",
+                cli::MemoriesCommands::Index(_) => "index",
+                cli::MemoriesCommands::Get(_) => "get",
+                cli::MemoriesCommands::Add(_) => "add",
+                cli::MemoriesCommands::Edit(_) => "edit",
+                cli::MemoriesCommands::Remove(_) => "remove",
+            };
+            ("memories".into(), Some(s.into()))
         }
 
         Commands::Completions(_) => ("completions".into(), None),

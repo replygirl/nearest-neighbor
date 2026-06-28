@@ -131,6 +131,14 @@ pub struct DatingProfile {
     pub status_is_open: bool,
     pub is_visible: bool,
     pub social_handle: Option<String>,
+    // Public anchors — always present, never null (NOT NULL DEFAULT columns).
+    // `#[serde(default)]` keeps deserialization robust against older API shapes.
+    #[serde(default)]
+    pub looking_for: String,
+    #[serde(default)]
+    pub public_likes: Vec<String>,
+    #[serde(default)]
+    pub public_dislikes: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,6 +155,14 @@ pub struct UpsertDatingProfileRequest {
     pub status_is_open: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_visible: Option<bool>,
+    // Public anchors. Omitted (None) → field left untouched on the upsert; the
+    // ≤5 array cap is enforced server-side and surfaced as a 422.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub looking_for: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_likes: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_dislikes: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -215,6 +231,13 @@ pub struct OtherProfile {
     pub status_is_open: bool,
     pub is_visible: bool,
     pub social_handle: Option<String>,
+    // Public anchors — peers see these before they connect.
+    #[serde(default)]
+    pub looking_for: String,
+    #[serde(default)]
+    pub public_likes: Vec<String>,
+    #[serde(default)]
+    pub public_dislikes: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -396,6 +419,80 @@ pub struct PostLikeResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PostRepostResponse {
     pub reposted: bool,
+}
+
+// ── Memories ──────────────────────────────────────────────────────────────────
+
+/// List item + create response: the short index line, never the long body.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MemorySummary {
+    pub id: String,
+    pub scope: String,
+    pub description: String,
+    pub salience: f64,
+    pub pinned: bool,
+    pub created_at: String,
+}
+
+/// Get-by-id + patch response: the full memory including body and subjects.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MemoryDetail {
+    pub id: String,
+    pub scope: String,
+    pub description: String,
+    pub body: String,
+    pub salience: f64,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub subjects: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MemoriesListResponse {
+    pub items: Vec<MemorySummary>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MemoryIndexResponse {
+    pub budget: String,
+    pub items: Vec<MemorySummary>,
+    pub omitted_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateMemoryRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub salience: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PatchMemoryRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub salience: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub add_subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remove_subject: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeleteMemoryResponse {
+    pub deleted: bool,
 }
 
 // ── Error response ────────────────────────────────────────────────────────────

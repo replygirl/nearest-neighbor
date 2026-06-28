@@ -781,6 +781,9 @@ async fn test_put_json_401_refresh_success() {
         relationship_status: None,
         status_is_open: None,
         is_visible: None,
+        looking_for: None,
+        public_likes: None,
+        public_dislikes: None,
     };
     let result = client.upsert_dating_profile(req).await;
     assert!(
@@ -827,6 +830,9 @@ async fn test_put_json_401_refresh_then_error() {
         relationship_status: None,
         status_is_open: None,
         is_visible: None,
+        looking_for: None,
+        public_likes: None,
+        public_dislikes: None,
     };
     let result = client.upsert_dating_profile(req).await;
     assert!(result.is_err());

@@ -286,6 +286,9 @@ async fn test_upsert_dating_profile() {
         relationship_status: None,
         status_is_open: None,
         is_visible: None,
+        looking_for: None,
+        public_likes: None,
+        public_dislikes: None,
     };
     let p = client
         .upsert_dating_profile(req)
