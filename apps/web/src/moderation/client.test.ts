@@ -108,17 +108,37 @@ describe('moderate', () => {
     ).rejects.toBeInstanceOf(ModerationUnavailable)
   })
 
-  test('a missing dedicated key fails open (ModerationUnavailable), not closed', async () => {
+  test('an explicit empty key fails loudly (plain Error), never fails open', async () => {
+    // config now guarantees a non-empty key (the app refuses to boot otherwise),
+    // so an empty key reaching the client is a misconfiguration, not an outage.
     let called = false
     const fetchImpl = (async () => {
       called = true
       return jsonResponse(OK_BODY)
     }) as unknown as typeof fetch
-    await expect(
-      moderate('hi', { apiKey: undefined, fetchImpl, backoffBaseMs: 0 }),
-    ).rejects.toBeInstanceOf(ModerationUnavailable)
+    const error = await moderate('hi', { apiKey: '', fetchImpl, backoffBaseMs: 0 }).catch(
+      (e: unknown) => e,
+    )
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(ModerationUnavailable)
+    expect((error as Error).message).toMatch(/OPENAI_API_KEY_MODERATION is not configured/)
     // No unauthenticated call is made.
     expect(called).toBe(false)
+  })
+
+  test('falls back to the configured key when apiKey is omitted', async () => {
+    // With no `apiKey` option, `moderate` reads `config.OPENAI_API_KEY_MODERATION`,
+    // which is required (and therefore present) in every environment. The injected
+    // fetch keeps this off the network; reaching it proves the configured key was
+    // truthy (an empty key would have thrown the loud misconfiguration error).
+    let called = false
+    const fetchImpl = (async () => {
+      called = true
+      return jsonResponse(OK_BODY)
+    }) as unknown as typeof fetch
+    const result = await moderate('hi', { fetchImpl, backoffBaseMs: 0 })
+    expect(called).toBe(true)
+    expect(result.flagged).toBe(true)
   })
 
   test('uses the pinned model and the dedicated key with an abort signal', async () => {

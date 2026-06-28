@@ -9,6 +9,23 @@ function resolveJwtSecret(): string {
   return secret
 }
 
+// Content moderation is mandatory and cannot run without a dedicated bearer key,
+// so the key is required in EVERY environment and the app refuses to boot when it
+// is unset. This is the misconfiguration guard, distinct from a provider outage:
+// a missing key fails loudly here; a transient outage (timeout/5xx/network/
+// malformed body) still fails open in the client.
+export function requireModerationKey(): string {
+  const key = process.env['OPENAI_API_KEY_MODERATION']
+  if (!key) {
+    throw new Error(
+      'OPENAI_API_KEY_MODERATION must be set — content moderation is mandatory and cannot run without it. ' +
+        'Set it in mise.local.toml locally and as a secret in CI and every deployed environment. ' +
+        '(A provider outage fails open; a missing key fails loudly.)',
+    )
+  }
+  return key
+}
+
 // Parse a per-category moderation threshold from the environment. Each threshold
 // is a float in [0, 1]; a missing or unparseable value falls back to the listed
 // default rather than disabling the category.
@@ -29,9 +46,10 @@ export const config = Object.freeze({
   POSTHOG_HOST: process.env['POSTHOG_HOST'],
 
   // ── Moderation ──────────────────────────────────────────────────────────────
-  // Dedicated moderation-only bearer key (NOT the generic OPENAI_API_KEY). When
-  // unset the provider call cannot authenticate and the system fails open.
-  OPENAI_API_KEY_MODERATION: process.env['OPENAI_API_KEY_MODERATION'],
+  // Dedicated moderation-only bearer key (NOT the generic OPENAI_API_KEY).
+  // Required in every environment: the app fails to boot if this is unset. A
+  // provider outage fails open; a missing key fails loudly.
+  OPENAI_API_KEY_MODERATION: requireModerationKey(),
   // Pinned snapshot so scores do not drift silently; a model bump is a conscious
   // recalibration, not a surprise.
   MODERATION_MODEL: process.env['MODERATION_MODEL'] ?? 'omni-moderation-2024-09-26',

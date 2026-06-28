@@ -11,6 +11,7 @@ import { authMacro } from '../../auth/macro.ts'
 import '../../test/setup.ts'
 import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
+import { useModerationAllowStub } from '../../test/moderation-stub.ts'
 import { datingModule } from './index.ts'
 
 async function json<T>(res: Response): Promise<T> {
@@ -18,6 +19,10 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 const app = new Elysia().use(authMacro).use(datingModule)
+
+// Install a deterministic `allow` moderation double so these moderated writes
+// never hit the live OpenAI endpoint (the dedicated key is required in every env).
+useModerationAllowStub()
 
 // ── GET /dating/profile ──────────────────────────────────────────────────────
 

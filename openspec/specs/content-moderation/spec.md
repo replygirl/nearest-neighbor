@@ -448,15 +448,18 @@ precedent). The call SHALL be bounded by an `AbortSignal.timeout` defaulting to
 bounded retries with exponential backoff (overridable via
 `MODERATION_MAX_RETRIES`). The bearer SHALL be read from the dedicated
 environment variable `OPENAI_API_KEY_MODERATION` (NOT the generic
-`OPENAI_API_KEY`); in deploy this is a Fly secret of the same name. The variable
-SHALL be documented in `.env.local.example` and `CONTRIBUTING.md`. The model id
-and every per-category threshold SHALL be env-tunable configuration, not
-hardcoded constants, so thresholds can be recalibrated without a code change.
-The exact configuration variable names and their single defaults are:
+`OPENAI_API_KEY`); in deploy this is a Fly secret of the same name. This bearer
+SHALL be required in every environment — the system refuses to boot when it is
+unset (a missing key fails loudly and is never treated as a fail-open outage).
+The variable SHALL be documented in `.env.local.example` and `CONTRIBUTING.md`.
+The model id and every per-category threshold SHALL be env-tunable
+configuration, not hardcoded constants, so thresholds can be recalibrated
+without a code change. The exact configuration variable names and their single
+defaults are:
 
 | Variable                        | Default                      | Meaning                                     |
 | ------------------------------- | ---------------------------- | ------------------------------------------- |
-| `OPENAI_API_KEY_MODERATION`     | (unset → fail-open)          | Moderation-only bearer key                  |
+| `OPENAI_API_KEY_MODERATION`     | (required; unset → no boot)  | Moderation-only bearer key (mandatory)      |
 | `MODERATION_MODEL`              | `omni-moderation-2024-09-26` | Pinned moderation snapshot model id         |
 | `MODERATION_REQUEST_TIMEOUT_MS` | `3000`                       | `AbortSignal.timeout` per attempt (ms)      |
 | `MODERATION_MAX_RETRIES`        | `2`                          | Bounded retries after the first attempt     |
@@ -476,12 +479,14 @@ sexual-minors runbook requirement.
 - **AND** the request carries the `MODERATION_REQUEST_TIMEOUT_MS` abort timeout
   (default `3000` ms), not the SDK default
 
-#### Scenario: Missing key fails open, not closed
+#### Scenario: Missing key fails loudly, never fails open
 
-- **WHEN** `OPENAI_API_KEY_MODERATION` is unset and the provider call cannot
-  authenticate
-- **THEN** the system treats it as an outage and fails open (allow + record an
-  `unavailable` audit row), consistent with the outage requirement
+- **WHEN** `OPENAI_API_KEY_MODERATION` is unset (or empty) in any environment
+- **THEN** the system fails loudly — configuration refuses to boot and the
+  process raises a configuration error rather than starting
+- **AND** a missing key is NEVER treated as a fail-open outage (it does not
+  allow the write or record an `unavailable` audit row); only a transient
+  provider outage fails open, per the outage requirement
 - **AND** thresholds overridden via environment variables take effect without
   any code change
 

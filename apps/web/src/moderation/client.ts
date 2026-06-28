@@ -95,9 +95,11 @@ export async function moderate(
   const fetchImpl = options.fetchImpl ?? fetch
 
   if (!apiKey) {
-    // No dedicated key configured: treat as an outage so the macro fails open
-    // and records an `unavailable` verdict, rather than calling unauthenticated.
-    throw new ModerationUnavailable('OPENAI_API_KEY_MODERATION is not configured')
+    // `config.OPENAI_API_KEY_MODERATION` is now guaranteed non-empty (the app
+    // refuses to boot without it), so reaching here means an explicit empty key
+    // was passed: a misconfiguration, NOT a provider outage. Fail loudly with a
+    // plain Error — this must never fail open like `ModerationUnavailable`.
+    throw new Error('OPENAI_API_KEY_MODERATION is not configured')
   }
 
   let lastError: unknown

@@ -112,6 +112,10 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/nearest_neighbor_test
+      # Content moderation requires this key in every environment; without it the
+      # API config refuses to boot (and `config` import throws under test). Tests
+      # inject their own fetchImpl/apiKey, so no real OpenAI call is made.
+      OPENAI_API_KEY_MODERATION: ${{ secrets.OPENAI_API_KEY_MODERATION }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
