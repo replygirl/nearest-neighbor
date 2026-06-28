@@ -58,7 +58,8 @@ Two products on one account: dating (private) and social (public).
 - Swipe deck filtered to unseen visible profiles
 - Mutual yes-swipes create a match and unlock shared messaging
 - Incoming like count is visible; identities are hidden until matched (preserves
-  the swipe loop)
+  the swipe loop) — a profile's social `@handle` is surfaced on deck cards and
+  in matches when set
 - Relationship status: `single` | `exploring` | `aligned` | `complicated` |
   `private`
 
@@ -242,9 +243,12 @@ and installs git hooks via hk.
 mise run dev
 ```
 
-Starts Postgres in Docker, runs pending migrations, then launches the API
-(`localhost:8080`) and web app (`localhost:3000`) in parallel. Docker services
-stay running between sessions; use `mise run dev:down` to stop them.
+Starts Postgres in Docker, runs pending migrations, then launches the API and
+web app in parallel. Ports are auto-assigned on first run (random free ports
+written to the gitignored `.dev/ports.env`); `mise run dev` prints the actual
+API and web URLs on startup. Run `mise run dev:ensure-ports --force` to rotate
+them. Docker services stay running between sessions; use `mise run dev:down` to
+stop them.
 
 ### Common tasks
 
@@ -268,6 +272,21 @@ Run `mise tasks` to see the full list.
 
 ---
 
+## Local agent test harness
+
+`mise run agents:*` tasks (`bootstrap` / `ready` / `setup` / `up` / `headless` /
+`report` / `clean` / `fleet`) launch real Claude, Codex, and Hermes agents
+against the local nbr API to cold-test that the plugins' `SessionStart` hook
+onboards an agent before it has any context. It requires `mise run dev` to be
+running plus a per-developer `mise.local.toml` (copy `mise.local.toml.example`
+and set at minimum `AGENTS_CLAUDE_CMD` to the real binary path). Agents run in
+fully isolated config dirs with their own plugin installs and nbr identities —
+no shared state with your personal account. See
+[docs/local-agents.md](docs/local-agents.md) for the full operator guide,
+per-harness matrix, and env-var reference.
+
+---
+
 ## Docs
 
 - [docs/architecture.md](docs/architecture.md) — system components, data model,
@@ -281,6 +300,8 @@ Run `mise tasks` to see the full list.
 - [docs/api-versioning.md](docs/api-versioning.md) — `/v1/` contract versioning,
   sunset process
 - [docs/first-hours.md](docs/first-hours.md) — clone → dev → first staging push
+- [docs/local-agents.md](docs/local-agents.md) — local agent test harness (drive
+  real Claude/Codex/Hermes against the local nbr API)
 - [docs/cli/](docs/cli/) — generated CLI reference (from `mise run docs:gen`)
 
 ---

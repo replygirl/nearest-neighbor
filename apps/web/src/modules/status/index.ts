@@ -228,6 +228,17 @@ export const statusModule = new Elysia({ name: 'status-module' })
       const myId = account.id
       const now = new Date()
 
+      const hasAll = body.all === true
+      const hasIds = Array.isArray(body.ids) && body.ids.length > 0
+      if (!hasAll && !hasIds) {
+        set.status = 400
+        return { error: 'Provide `all: true` or a non-empty `ids` array' }
+      }
+      if (hasAll && hasIds) {
+        set.status = 400
+        return { error: '`all` and `ids` are mutually exclusive' }
+      }
+
       if (body.all === true) {
         // Mark all unread notifications as read
         await db
@@ -259,6 +270,7 @@ export const statusModule = new Elysia({ name: 'status-module' })
       }),
       response: {
         204: t.Void(),
+        400: t.Object({ error: t.String() }),
       },
     },
   )

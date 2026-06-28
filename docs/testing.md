@@ -51,6 +51,12 @@ Postgres instance for local integration runs.
 
 ### Local integration suite
 
+If `mise run dev` is already running, `source .dev/ports.env` to pick up
+`DATABASE_URL` on the worktree's auto-assigned Postgres port (and its
+per-worktree container name), then skip straight to step 3. The literal 5432 URL
+in step 2 applies only to a standalone `docker compose up -d postgres` started
+without those env vars (5432 is the fallback, not a guarantee).
+
 ```sh
 # 1. Start Postgres
 docker compose -f docker-compose.dev.yml up -d postgres

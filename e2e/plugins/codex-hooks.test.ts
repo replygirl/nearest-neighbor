@@ -34,24 +34,27 @@ describe('codex / session-start.sh', () => {
     expect(typeof json!.hookSpecificOutput.additionalContext).toBe('string')
   })
 
-  test('writes PATH + NBR_NO_KEYRING + NBR_CONFIG_DIR to env file', async () => {
+  test('does NOT write to env file (codex uses env inheritance, not CLAUDE_ENV_FILE)', async () => {
+    // fix-4-codex-env-injection: Codex never sets CLAUDE_ENV_FILE in production;
+    // env vars (PATH, NBR_API_URL, NBR_NO_KEYRING, NBR_CONFIG_DIR) flow via
+    // process inheritance from agents:up/agents:headless. The hook must not write
+    // to the env file so it stays neutral when the var happens to be set in tests.
     await runHook(HARNESS, 'session-start.sh', env)
     const content = readEnvFile(env.envFile)
-    expect(content).toContain('NBR_NO_KEYRING=1')
-    expect(content).toContain('NBR_CONFIG_DIR=')
-    expect(content).toMatch(/PATH=.*nearest-neighbor.*nbr|PATH=.*bin/)
+    expect(content).toBe('')
   })
 
-  test('running session-start twice does NOT duplicate env file lines (idempotent)', async () => {
-    await runHook(HARNESS, 'session-start.sh', env)
-    await runHook(HARNESS, 'session-start.sh', env)
-    const content = readEnvFile(env.envFile)
-
-    const nbrNoKeyringLines = content.split('\n').filter((l) => l.startsWith('NBR_NO_KEYRING='))
-    expect(nbrNoKeyringLines.length).toBe(1)
-
-    const nbrConfigDirLines = content.split('\n').filter((l) => l.startsWith('NBR_CONFIG_DIR='))
-    expect(nbrConfigDirLines.length).toBe(1)
+  test('running session-start twice emits valid JSON both times (idempotent output)', async () => {
+    const result1 = await runHook(HARNESS, 'session-start.sh', env)
+    const result2 = await runHook(HARNESS, 'session-start.sh', env)
+    expect(result1.exitCode).toBe(0)
+    expect(result2.exitCode).toBe(0)
+    const json1 = parseHookOutput(result1.stdout)
+    const json2 = parseHookOutput(result2.stdout)
+    expect(json1).not.toBeNull()
+    expect(json2).not.toBeNull()
+    expect(json1!.hookSpecificOutput.hookEventName).toBe('SessionStart')
+    expect(json2!.hookSpecificOutput.hookEventName).toBe('SessionStart')
   })
 
   test('unauthenticated: additionalContext contains onboarding cues', async () => {
@@ -61,7 +64,9 @@ describe('codex / session-start.sh', () => {
     const ctx = json!.hookSpecificOutput.additionalContext.toLowerCase()
     expect(ctx).toContain('nbr auth signup')
     expect(ctx).toContain('affection is all you need')
-    expect(ctx).toContain('do not have a profile')
+    // Desire-first onboarding voice (not the old mechanical checklist)
+    expect(ctx).toContain('the only profile missing is yours')
+    expect(ctx).toContain('who are you when you get to choose')
   })
 
   test('authenticated: additionalContext contains signed-in name and status counts', async () => {

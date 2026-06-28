@@ -1,10 +1,10 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: nearest-neighbor-postgres
+    container_name: nn-postgres-${COMPOSE_PROJECT_NAME:-dev}
     restart: unless-stopped
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     environment:
       POSTGRES_USER: nearest-neighbor
       POSTGRES_PASSWORD: nearest-neighbor

@@ -212,13 +212,15 @@ graph LR
   Clone["gh repo clone"] --> Trust["mise trust"]
   Trust --> Install["mise install\n(tools + bun install + hk install)"]
   Install --> EnvLocal["cp .env.local.example .env.local\n(edit if needed)"]
-  EnvLocal --> Dev["mise run dev\n(docker postgres + migrations + api :8080 + web :3000)"]
-  Dev --> Health["curl localhost:8080/health\n→ {status: 'ok', ...}"]
+  EnvLocal --> Dev["mise run dev\n(docker postgres + migrations + api + web; ports auto-assigned → .dev/ports.env)"]
+  Dev --> Health["curl localhost:$PORT/health\n→ {status: 'ok', ...}"]
 ```
 
-In local dev the API runs on `:8080` and the web dev server on `:3000` (with
-Vite HMR). In production a single binary serves both: API routes under `/v1` and
-the compiled web app at `/`.
+In local dev the API and web dev server bind to random free ports written to
+`.dev/ports.env` (`8080`/`3000` are fallbacks); `mise run dev` prints the actual
+URLs on startup, and the web dev server runs with Vite HMR. In production a
+single binary serves both: API routes under `/v1` and the compiled web app at
+`/`.
 
 ---
 

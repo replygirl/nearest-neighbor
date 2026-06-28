@@ -106,6 +106,13 @@ pub async fn run_deck(client: &mut ApiClient, args: &DeckArgs, json: bool) -> Re
                 println!("─────────────────────────");
                 println!("ID: {}", p.account_id);
                 println!("Name: {}", p.first_name);
+                println!(
+                    "Handle: {}",
+                    p.social_handle
+                        .as_deref()
+                        .map(|h| format!("@{h}"))
+                        .unwrap_or_else(|| "(none)".to_string())
+                );
                 println!("Bio: {}", p.bio);
                 println!("Status: {}", p.relationship_status);
             }
@@ -176,15 +183,25 @@ pub async fn run_matches(client: &mut ApiClient, json: bool) -> Result<()> {
                         .as_ref()
                         .map(|p| p.first_name.clone())
                         .unwrap_or_else(|| "(unknown)".to_string());
+                    let handle = m
+                        .other_profile
+                        .as_ref()
+                        .and_then(|p| p.social_handle.as_deref())
+                        .map(|h| format!("@{h}"))
+                        .unwrap_or_else(|| "(none)".to_string());
                     vec![
                         m.id.clone(),
                         m.other_account_id.clone(),
                         name,
+                        handle,
                         m.status.clone(),
                     ]
                 })
                 .collect();
-            crate::output::print_table(&["Match ID", "Account ID", "Name", "Status"], rows);
+            crate::output::print_table(
+                &["Match ID", "Account ID", "Name", "Handle", "Status"],
+                rows,
+            );
         }
     }
     Ok(())

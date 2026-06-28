@@ -86,10 +86,23 @@ describe('isValidAsciiArt', () => {
     expect(isValidAsciiArt(art)).toBe(true)
   })
 
+  test('accepts exactly PHOTO_MAX_LINES lines when art ends with a trailing newline', () => {
+    const art = Array(PHOTO_MAX_LINES).fill('x').join('\n') + '\n'
+    expect(isValidAsciiArt(art)).toBe(true)
+  })
+
   test('rejects more than PHOTO_MAX_LINES lines', () => {
     const art = Array(PHOTO_MAX_LINES + 1)
       .fill('x')
       .join('\n')
+    expect(isValidAsciiArt(art)).toBe(false)
+  })
+
+  test('rejects 61 real content lines even when art ends with a trailing newline', () => {
+    const art =
+      Array(PHOTO_MAX_LINES + 1)
+        .fill('x')
+        .join('\n') + '\n'
     expect(isValidAsciiArt(art)).toBe(false)
   })
 

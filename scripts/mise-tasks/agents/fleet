@@ -1,0 +1,180 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:fleet"
+#USAGE flag "--reset" help="Pass --reset to agents:ready (run db:reset first)"
+#USAGE flag "--seed"  help="Pass --seed to agents:ready (run db:seed after reset)"
+
+# Fleet orchestrator: provisions and launches a set of agents in parallel,
+# waits for all to complete, then runs agents:report.
+#
+# Reads env vars:
+#   AGENTS  — space-separated list of agent names (default: "agent-1 agent-2")
+#   HARNESS — harness for all agents: claude|codex|hermes (default: claude)
+#   MODEL   — model override for all agents (default: harness default)
+#   EFFORT  — effort override for all agents (default: medium; ignored for hermes)
+#   PROMPT  — prompt text override (default: sandbox/templates/nudge.txt)
+#   RESET   — boolean: pass --reset to agents:ready (also --reset flag)
+#   SEED    — boolean: pass --seed to agents:ready (also --seed flag)
+#
+# PARALLEL OAUTH CONTENTION (C3 / Codex issue #15410):
+#   Copying one account's OAuth credentials into multiple isolated config dirs
+#   and running them in parallel can race on single-use refresh tokens.
+#   Mitigations already in place:
+#     (1) Launches are staggered by 2 s to reduce contention.
+#     (2) For Codex, set OPENAI_API_KEY (or CODEX_API_KEY) to bypass OAuth.
+#   See docs/local-agents.md for the full risk + mitigation details.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Parse boolean flags (honor both --flag and env-var forms per C1)
+# ---------------------------------------------------------------------------
+RESET="${RESET:-false}"
+SEED="${SEED:-false}"
+
+for arg in "$@"; do
+  [[ "$arg" == '--reset' ]] && RESET=true
+  [[ "$arg" == '--seed' ]]  && SEED=true
+done
+
+if [[ "$RESET" == '1' || "$RESET" == 'yes' ]]; then RESET=true; fi
+if [[ "$SEED"  == '1' || "$SEED"  == 'yes' ]]; then SEED=true;  fi
+
+# ---------------------------------------------------------------------------
+# Resolve env inputs
+# ---------------------------------------------------------------------------
+AGENTS="${AGENTS:-agent-1 agent-2}"
+HARNESS="${HARNESS:-claude}"
+
+_default_model="$(nn_default_model "$HARNESS")"
+MODEL="${MODEL:-${_default_model}}"
+EFFORT="${EFFORT:-$(nn_default_effort)}"
+
+PROMPT_TEXT="${PROMPT:-}"
+if [[ -z "$PROMPT_TEXT" ]]; then
+  NUDGE_FILE="${REPO_ROOT}/sandbox/templates/nudge.txt"
+  if [[ ! -f "$NUDGE_FILE" ]]; then
+    printf 'ERROR: PROMPT env var not set and nudge.txt not found at %s\n' "$NUDGE_FILE" >&2
+    exit 1
+  fi
+  PROMPT_TEXT="$(cat "$NUDGE_FILE")"
+fi
+
+# Split AGENTS string into an array (read -ra is shellcheck-approved; no SC2086)
+declare -a AGENT_NAMES=()
+read -ra AGENT_NAMES <<< "$AGENTS"
+
+printf '==> agents:fleet  harness=%s  model=%s  effort=%s\n' "$HARNESS" "$MODEL" "$EFFORT"
+printf '    agents: %s\n' "${AGENT_NAMES[*]}"
+
+# ---------------------------------------------------------------------------
+# Step 1: Gate on a healthy local API (honoring RESET/SEED)
+# ---------------------------------------------------------------------------
+printf '\n--- Step 1: agents:ready ---\n'
+RESET="$RESET" SEED="$SEED" mise run agents:ready
+
+# ---------------------------------------------------------------------------
+# Step 2: Create timestamped run directory under sandbox/logs/
+# ---------------------------------------------------------------------------
+RUN_TS="$(date +%Y%m%d-%H%M%S)"
+RUN="${REPO_ROOT}/sandbox/logs/${RUN_TS}"
+mkdir -p "$RUN"
+printf '\n--- Fleet run dir: %s ---\n' "$RUN"
+
+# ---------------------------------------------------------------------------
+# Step 3: For each agent: idempotent setup, then background headless launch
+#
+# Launches are staggered by 2 s to reduce OAuth refresh-token contention
+# when multiple agents share the same copied credential file (C3 / #15410).
+# For Codex, set OPENAI_API_KEY to bypass OAuth entirely in parallel runs.
+#
+# $! after a pipeline captures the PID of tee (last command). When tee
+# exits, the headless subshell has already finished. agents:report provides
+# the authoritative outcome via DB inspection; per-agent session logs in
+# sandbox/agents/<name>/logs/ are the detailed transcript.
+# ---------------------------------------------------------------------------
+declare -a PIDS=()
+LAUNCH_COUNT=0
+
+printf '\n--- Step 3: setup + headless launch ---\n'
+
+for name in "${AGENT_NAMES[@]}"; do
+  printf '\n==> Setting up agent: %s\n' "$name"
+  NAME="$name" HARNESS="$HARNESS" MODEL="$MODEL" EFFORT="$EFFORT" \
+    mise run agents:setup
+
+  # Stagger all but the first launch to reduce OAuth refresh-token contention
+  if [[ "$LAUNCH_COUNT" -gt 0 ]]; then
+    sleep 2
+  fi
+  LAUNCH_COUNT=$((LAUNCH_COUNT + 1))
+
+  printf '==> Launching agent headless: %s -> %s/%s.log\n' \
+    "$name" "$RUN" "$name"
+
+  # Background: headless writes its own session.{jsonl,txt} internally;
+  # tee here captures the combined stdout+stderr to the fleet run dir.
+  # The exit code is written to ${name}.exit inside the subshell (before tee
+  # sees EOF) because $! captures tee's PID and tee always exits 0 on success,
+  # masking a non-zero headless exit from the wait loop below.
+  (
+    _headless_exit=0
+    NAME="$name" HARNESS="$HARNESS" MODEL="$MODEL" EFFORT="$EFFORT" \
+      PROMPT="$PROMPT_TEXT" \
+      mise run agents:headless || _headless_exit="$?"
+    printf '%d\n' "$_headless_exit" > "${RUN}/${name}.exit"
+    exit "$_headless_exit"
+  ) 2>&1 | tee "${RUN}/${name}.log" &
+  PIDS+=("$!")
+done
+
+# ---------------------------------------------------------------------------
+# Step 4: Wait for all background processes
+# ---------------------------------------------------------------------------
+printf '\n--- Step 4: waiting for %s agent(s) ---\n' "${#AGENT_NAMES[@]}"
+
+FLEET_EXIT=0
+for pid in "${PIDS[@]}"; do
+  if ! wait "$pid"; then
+    FLEET_EXIT=1
+    printf 'WARN: background process PID %s exited non-zero\n' "$pid" >&2
+  fi
+done
+
+# Check per-agent exit files: tee always exits 0 on success, so the wait loop
+# above cannot detect a crashed headless run. Read the exit codes written by
+# each subshell before it closed its stdout (i.e. before tee saw EOF).
+printf '\n--- Checking per-agent exit codes ---\n'
+for name in "${AGENT_NAMES[@]}"; do
+  _exit_file="${RUN}/${name}.exit"
+  if [[ ! -f "$_exit_file" ]]; then
+    printf 'WARN: no exit file for agent %s — treating as failure\n' "$name" >&2
+    FLEET_EXIT=1
+  else
+    _agent_exit="$(cat "$_exit_file")"
+    if [[ "$_agent_exit" -ne 0 ]]; then
+      FLEET_EXIT=1
+      printf 'WARN: agent %s exited non-zero (%s) — check %s/%s.log\n' \
+        "$name" "$_agent_exit" "$RUN" "$name" >&2
+    else
+      printf 'OK: agent %s exited 0\n' "$name"
+    fi
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# Step 5: Generate report and save summary to run dir
+# ---------------------------------------------------------------------------
+printf '\n--- Step 5: agents:report ---\n'
+mise run agents:report 2>&1 | tee "${RUN}/report.txt"
+
+printf '\nFleet run complete. Run dir: %s\n' "$RUN"
+if [[ "$FLEET_EXIT" -ne 0 ]]; then
+  printf 'WARN: one or more agents exited non-zero — check logs in %s\n' "$RUN" >&2
+fi
+
+exit "$FLEET_EXIT"

@@ -71,7 +71,7 @@ impl Drop for ConfigDirGuard {
 fn test_run_config_human() {
     let tmp = tempfile::TempDir::new().unwrap();
     let _guard = ConfigDirGuard::new(tmp.path());
-    let result = commands::auth::run_config(false);
+    let result = commands::auth::run_config(None, false);
     assert!(result.is_ok(), "run_config should succeed: {:?}", result);
 }
 
@@ -80,7 +80,7 @@ fn test_run_config_human() {
 fn test_run_config_json() {
     let tmp = tempfile::TempDir::new().unwrap();
     let _guard = ConfigDirGuard::new(tmp.path());
-    let result = commands::auth::run_config(true);
+    let result = commands::auth::run_config(None, true);
     assert!(
         result.is_ok(),
         "run_config json should succeed: {:?}",
@@ -286,7 +286,6 @@ async fn test_run_signup_happy_path_human() {
 
     let _guard = ConfigDirGuard::new(tmp.path());
     let args = nbr::cli::SignupArgs {
-        handle: None,
         name: None,
         account_name: Some("newsignup".into()),
     };
@@ -298,6 +297,10 @@ async fn test_run_signup_happy_path_human() {
     assert_eq!(config.accounts.len(), 1);
     assert_eq!(config.accounts[0].name, "newsignup");
     assert_eq!(config.accounts[0].account_id, "acc-new-signup-001");
+    assert_eq!(
+        config.accounts[0].api_url.as_deref(),
+        Some(server.uri().as_str())
+    );
 }
 
 #[tokio::test]
@@ -316,7 +319,6 @@ async fn test_run_signup_happy_path_json() {
 
     let _guard = ConfigDirGuard::new(tmp.path());
     let args = nbr::cli::SignupArgs {
-        handle: None,
         name: None,
         account_name: None, // should default to "default"
     };
@@ -326,6 +328,10 @@ async fn test_run_signup_happy_path_json() {
 
     let config = nbr::config::load_config().unwrap();
     assert_eq!(config.accounts[0].name, "default");
+    assert_eq!(
+        config.accounts[0].api_url.as_deref(),
+        Some(server.uri().as_str())
+    );
 }
 
 #[tokio::test]
@@ -341,7 +347,6 @@ async fn test_run_signup_api_error_does_not_write_config() {
 
     let _guard = ConfigDirGuard::new(tmp.path());
     let args = nbr::cli::SignupArgs {
-        handle: None,
         name: None,
         account_name: Some("signup-err-test".into()),
     };

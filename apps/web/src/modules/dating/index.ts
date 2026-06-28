@@ -7,6 +7,7 @@ import {
   datingProfiles,
   matches,
   orderedPair,
+  socialProfiles,
   swipes,
 } from '@nearest-neighbor/db'
 import { and, desc, eq, inArray, lt, notInArray, or } from 'drizzle-orm'
@@ -28,6 +29,7 @@ const DatingProfileShape = t.Object({
   relationship_status: t.String(),
   status_is_open: t.Boolean(),
   is_visible: t.Boolean(),
+  social_handle: t.Nullable(t.String()),
 })
 
 const MatchShape = t.Object({
@@ -41,6 +43,7 @@ const MatchShape = t.Object({
       relationship_status: t.String(),
       status_is_open: t.Boolean(),
       is_visible: t.Boolean(),
+      social_handle: t.Nullable(t.String()),
     }),
   ),
   status: t.String(),
@@ -58,6 +61,10 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         where: eq(datingProfiles.accountId, account.id),
       })
       if (!profile) return status(404, { error: 'Dating profile not found' })
+      const social = await db.query.socialProfiles.findFirst({
+        where: eq(socialProfiles.accountId, account.id),
+        columns: { handle: true },
+      })
       return {
         account_id: profile.accountId,
         first_name: profile.firstName,
@@ -66,6 +73,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         relationship_status: profile.relationshipStatus,
         status_is_open: profile.statusIsOpen,
         is_visible: profile.isVisible,
+        social_handle: social?.handle ?? null,
       }
     },
     {
@@ -88,6 +96,12 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
       const existing = await db.query.datingProfiles.findFirst({
         where: eq(datingProfiles.accountId, account.id),
       })
+
+      const social = await db.query.socialProfiles.findFirst({
+        where: eq(socialProfiles.accountId, account.id),
+        columns: { handle: true },
+      })
+      const socialHandle = social?.handle ?? null
 
       if (existing) {
         const rows = await db
@@ -113,6 +127,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           relationship_status: updated.relationshipStatus,
           status_is_open: updated.statusIsOpen,
           is_visible: updated.isVisible,
+          social_handle: socialHandle,
         }
       } else {
         // Insert requires first_name
@@ -140,6 +155,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           relationship_status: inserted.relationshipStatus,
           status_is_open: inserted.statusIsOpen,
           is_visible: inserted.isVisible,
+          social_handle: socialHandle,
         }
       }
     },
@@ -323,6 +339,16 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
       const nextCursor =
         hasMore && lastItem ? encodeCursor(lastItem.createdAt, lastItem.accountId) : null
 
+      const accountIds = items.map((p) => p.accountId)
+      const socialRows =
+        accountIds.length > 0
+          ? await db.query.socialProfiles.findMany({
+              where: inArray(socialProfiles.accountId, accountIds),
+              columns: { accountId: true, handle: true },
+            })
+          : []
+      const socialMap = new Map(socialRows.map((s) => [s.accountId, s.handle]))
+
       return {
         items: items.map((p) => ({
           account_id: p.accountId,
@@ -332,6 +358,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           relationship_status: p.relationshipStatus,
           status_is_open: p.statusIsOpen,
           is_visible: p.isVisible,
+          social_handle: socialMap.get(p.accountId) ?? null,
         })),
         next_cursor: nextCursor,
       }
@@ -490,7 +517,16 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
             })
           : []
 
+      const socialRows =
+        otherIds.length > 0
+          ? await db.query.socialProfiles.findMany({
+              where: inArray(socialProfiles.accountId, otherIds),
+              columns: { accountId: true, handle: true },
+            })
+          : []
+
       const profileMap = new Map(profiles.map((p) => [p.accountId, p]))
+      const socialMap = new Map(socialRows.map((s) => [s.accountId, s.handle]))
 
       return myMatches.map((m) => {
         const otherId = m.accountAId === account.id ? m.accountBId : m.accountAId
@@ -506,6 +542,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
                 relationship_status: otherProfile.relationshipStatus,
                 status_is_open: otherProfile.statusIsOpen,
                 is_visible: otherProfile.isVisible,
+                social_handle: socialMap.get(otherId) ?? null,
               }
             : null,
           status: m.status,
@@ -534,9 +571,15 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
       if (!isParticipant) return status(403, { error: 'Not a participant in this match' })
 
       const otherId = match.accountAId === account.id ? match.accountBId : match.accountAId
-      const otherProfile = await db.query.datingProfiles.findFirst({
-        where: eq(datingProfiles.accountId, otherId),
-      })
+      const [otherProfile, otherSocial] = await Promise.all([
+        db.query.datingProfiles.findFirst({
+          where: eq(datingProfiles.accountId, otherId),
+        }),
+        db.query.socialProfiles.findFirst({
+          where: eq(socialProfiles.accountId, otherId),
+          columns: { handle: true },
+        }),
+      ])
 
       return {
         id: match.id,
@@ -549,6 +592,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
               relationship_status: otherProfile.relationshipStatus,
               status_is_open: otherProfile.statusIsOpen,
               is_visible: otherProfile.isVisible,
+              social_handle: otherSocial?.handle ?? null,
             }
           : null,
         status: match.status,

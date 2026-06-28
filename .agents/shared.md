@@ -91,6 +91,13 @@ Run `mise run check` before every commit. Never bypass hk with `--no-verify`.
 See [docs/testing.md](docs/testing.md) for the full testing strategy, local
 integration-suite setup, skip behavior, and coverage roadmap.
 
+### Local agent test harness
+
+`mise run agents:*` tasks (bootstrap / ready / setup / up / headless / report /
+clean / fleet) drive real Claude, Codex, and Hermes agents against the LOCAL nbr
+API to cold-test plugin `SessionStart` onboarding. See
+[docs/local-agents.md](docs/local-agents.md) for the full operator guide.
+
 ## Style rules (oxlint + oxfmt enforced)
 
 - No semicolons in TypeScript/JavaScript

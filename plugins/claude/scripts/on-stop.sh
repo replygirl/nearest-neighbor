@@ -102,7 +102,7 @@ if [ "${DELTA_MSGS}" -gt 0 ] || [ "${DELTA_MATCHES}" -gt 0 ] || \
     SUMMARY="${PARTS}"
   fi
 
-  SUMMARY="${SUMMARY} — run nbr status for details."
+  SUMMARY="${SUMMARY} — run nbr status to catch up."
 fi
 
 # ── Update last-seen snapshot ──────────────────────────────────────────────────

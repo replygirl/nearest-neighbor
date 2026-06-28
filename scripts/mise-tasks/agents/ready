@@ -1,0 +1,88 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:ready"
+#USAGE flag "--reset"   help="Run 'mise run db:reset' before polling"
+#USAGE flag "--seed"    help="Run 'mise run db:seed' after reset (non-empty deck backdrop)"
+#USAGE flag "--timeout" help="Seconds to wait for /health (default 60)"
+
+# Block until the local nbr API is healthy.
+# Optional --reset / --seed prepare a clean deck backdrop (never seeds agent identities).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Parse flags (honor env vars AND positional flags like agents/sync does)
+# ---------------------------------------------------------------------------
+RESET="${RESET:-false}"
+SEED="${SEED:-false}"
+TIMEOUT="${TIMEOUT:-60}"
+
+for arg in "$@"; do
+  [[ "$arg" == '--reset' ]]   && RESET=true
+  [[ "$arg" == '--seed' ]]    && SEED=true
+  [[ "$arg" == '--timeout' ]] && true  # value consumed below
+done
+
+# Manual --timeout <value> parsing (next arg after --timeout)
+PREV=''
+for arg in "$@"; do
+  if [[ "$PREV" == '--timeout' ]]; then
+    TIMEOUT="$arg"
+  fi
+  PREV="$arg"
+done
+
+# ---------------------------------------------------------------------------
+# Export DATABASE_URL so db:reset / db:seed connect with the right credentials
+# instead of falling back to libpq's default (user = $USER).
+# ---------------------------------------------------------------------------
+nn_export_db_env
+
+# ---------------------------------------------------------------------------
+# Optional reset / seed (run before polling so the API is warmed if it
+# restarts during migration)
+# ---------------------------------------------------------------------------
+if [[ "$RESET" == 'true' ]]; then
+  printf '==> Running db:reset...\n'
+  mise run db:reset
+fi
+
+if [[ "$SEED" == 'true' ]]; then
+  printf '==> Running db:seed...\n'
+  mise run db:seed
+fi
+
+# ---------------------------------------------------------------------------
+# Poll /health until ready or timeout
+# ---------------------------------------------------------------------------
+API_URL="$(nn_nbr_api_url)"
+HEALTH_URL="${API_URL}/health"
+
+printf '==> Waiting for %s (timeout %ss)...\n' "$HEALTH_URL" "$TIMEOUT"
+
+ELAPSED=0
+while true; do
+  if curl -fsS "$HEALTH_URL" > /dev/null 2>&1; then
+    printf 'API ready at %s\n' "$API_URL"
+    break
+  fi
+
+  if [[ "$ELAPSED" -ge "$TIMEOUT" ]]; then
+    printf 'ERROR: API at %s did not respond within %ss.\n' "$HEALTH_URL" "$TIMEOUT" >&2
+    printf '  Hint: run "mise run dev" in another terminal and retry.\n' >&2
+    exit 1
+  fi
+
+  sleep 1
+  ELAPSED="$((ELAPSED + 1))"
+done
+
+# Print seeded account count if we seeded (best-effort; psql/DB may not be
+# accessible via nbr CLI at this point — fall back gracefully)
+if [[ "$SEED" == 'true' ]]; then
+  printf 'Seeded deck backdrop (fake accounts — agents must self-signup; they cannot auth as seeded users).\n'
+fi

@@ -1,0 +1,197 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:report"
+#USAGE flag "--name"  help="Limit report to one agent by name (or set NAME env var)"
+#USAGE flag "--since" help="Only show DB activity since ISO timestamp (or set SINCE env var)"
+
+# Post-hoc activity report: DB-truth summary via inspect.ts + per-agent log
+# tails + authoritative nbr handle resolution via the agent's own accounts.toml.
+# Self-signup-not-detected is a NORMAL finding (the whole point of the harness),
+# not an error.
+#
+# Reads env vars:
+#   NAME  — limit to one agent (optional; default: all agents)
+#   SINCE — ISO timestamp; passed to inspect.ts as --since (optional)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Parse flags: --name <value> and --since <value>
+# Honor both flag and env-var forms (C1).
+# ---------------------------------------------------------------------------
+NAME="${NAME:-}"
+SINCE="${SINCE:-}"
+
+PREV_ARG=''
+for arg in "$@"; do
+  if [[ "$PREV_ARG" == '--name' ]]; then
+    NAME="$arg"
+  elif [[ "$PREV_ARG" == '--since' ]]; then
+    SINCE="$arg"
+  fi
+  PREV_ARG="$arg"
+done
+
+# ---------------------------------------------------------------------------
+# Export DATABASE_URL so inspect.ts (and @nearest-neighbor/db) connects with
+# the right credentials instead of falling back to libpq's default ($USER).
+# ---------------------------------------------------------------------------
+nn_export_db_env
+
+# ---------------------------------------------------------------------------
+# Step 1: DB-truth summary via inspect.ts (DATABASE_URL from env)
+# ---------------------------------------------------------------------------
+printf '=== DB-truth activity summary ===\n'
+
+declare -a INSPECT_ARGS=()
+if [[ -n "$SINCE" ]]; then
+  INSPECT_ARGS+=(--since "$SINCE")
+fi
+
+bun run "${REPO_ROOT}/scripts/mise-tasks/agents/inspect.ts" "${INSPECT_ARGS[@]+"${INSPECT_ARGS[@]}"}"
+
+# ---------------------------------------------------------------------------
+# Step 2: Per-agent summary (log tail + handle resolution)
+# ---------------------------------------------------------------------------
+printf '\n=== Per-agent summary ===\n'
+
+SANDBOX_AGENTS="${REPO_ROOT}/sandbox/agents"
+
+declare -a AGENT_DIRS=()
+if [[ -n "$NAME" ]]; then
+  _agent_dir="$(nn_agent_dir "$NAME")"
+  AGENT_DIRS=("$_agent_dir")
+else
+  if [[ -d "$SANDBOX_AGENTS" ]]; then
+    for d in "${SANDBOX_AGENTS}"/*/; do
+      if [[ -f "${d}agent.json" ]]; then
+        AGENT_DIRS+=("${d%/}")
+      fi
+    done
+  fi
+fi
+
+if [[ "${#AGENT_DIRS[@]}" -eq 0 ]]; then
+  printf '  (no agent directories found under %s)\n' "$SANDBOX_AGENTS"
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Iterate agent dirs
+# ---------------------------------------------------------------------------
+for agent_dir in "${AGENT_DIRS[@]}"; do
+  agent_name="$(basename "$agent_dir")"
+  printf '\n--- Agent: %s ---\n' "$agent_name"
+
+  if [[ ! -f "${agent_dir}/agent.json" ]]; then
+    printf '  (no agent.json — may not have been set up)\n'
+    continue
+  fi
+
+  agent_harness="$(nn_read_meta "$agent_name" harness)" || agent_harness='unknown'
+  agent_model="$(nn_read_meta "$agent_name" model)"    || agent_model='unknown'
+  agent_effort="$(nn_read_meta "$agent_name" effort)"  || agent_effort='unknown'
+
+  printf '  harness: %s\n' "$agent_harness"
+  printf '  model:   %s\n' "$agent_model"
+  printf '  effort:  %s\n' "$agent_effort"
+
+  # Log tail
+  log_file=''
+  if [[ -f "${agent_dir}/logs/session.jsonl" ]]; then
+    log_file="${agent_dir}/logs/session.jsonl"
+  elif [[ -f "${agent_dir}/logs/session.txt" ]]; then
+    log_file="${agent_dir}/logs/session.txt"
+  fi
+
+  if [[ -n "$log_file" ]]; then
+    printf '  --- last 20 lines of %s ---\n' "$log_file"
+    tail -n 20 "$log_file"
+  else
+    printf '  (no session log found)\n'
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Handle resolution: search for the agent's own accounts.toml (the
+  # authoritative source), then call `nbr whoami --json` with that config dir.
+  #
+  # Search order:
+  #   1. Agent's sandbox dir (-L follows symlinks, so for hermes agents the
+  #      sandbox/agents/<name>/config → ~/.hermes/profiles/nbr-<name> symlink
+  #      is traversed and the plugin data/config/nbr/accounts.toml is found
+  #      directly without a separate hermes-profile search).
+  #   2. Hermes profile dir (belt-and-suspenders: covers the standard hermes
+  #      data path at ~/.hermes/profiles/nbr-<name>/plugins/nearest-neighbor/
+  #      data/config/nbr in case Search 1 misses it for any reason).
+  #
+  # Non-fatal: self-signup-not-detected is a valid product finding.
+  # NEVER guess — any prior wrongly-stamped handle is reset to null.
+  # ---------------------------------------------------------------------------
+  printf '  --- handle probe ---\n'
+
+  _toml=''
+  # Search 1: agent's sandbox dir (-L follows the config symlink for hermes)
+  _toml="$(find -L "${agent_dir}" -maxdepth 10 -name "accounts.toml" 2>/dev/null | head -1)" || _toml=''
+
+  # Search 2: hermes profile dir (standard hermes data/config/nbr path)
+  if [[ -z "$_toml" && "$agent_harness" == 'hermes' ]]; then
+    _hermes_profile="$(nn_hermes_profile "$agent_name")"
+    if [[ -d "$_hermes_profile" ]]; then
+      _toml="$(find "$_hermes_profile" -maxdepth 10 -name "accounts.toml" 2>/dev/null | head -1)" || _toml=''
+    fi
+  fi
+
+  _resolved_handle=''
+  if [[ -n "$_toml" ]]; then
+    printf '  accounts.toml: %s\n' "$_toml"
+    _config_dir="$(dirname "$_toml")"
+    _nbr="$(nn_nbr_local_bin)"
+    _whoami_json=''
+    _whoami_json="$(NBR_API_URL="$(nn_nbr_api_url)" NBR_CONFIG_DIR="$_config_dir" NBR_NO_KEYRING=1 \
+      "$_nbr" whoami --json 2>/dev/null)" || _whoami_json=''
+    if [[ -n "$_whoami_json" ]]; then
+      _resolved_handle="$(printf '%s\n' "$_whoami_json" \
+        | grep -o '"handle": "[^"]*"' | head -1 \
+        | sed 's/"handle": "//;s/"$//')" || _resolved_handle=''
+    fi
+  fi
+
+  _stamp_dir="$(nn_agent_dir "$agent_name")"
+  _json_file="${_stamp_dir}/agent.json"
+
+  if [[ -n "$_resolved_handle" && "$_resolved_handle" != 'null' ]]; then
+    printf '  handle: @%s\n' "$_resolved_handle"
+    # Stamp .nearest-neighbor with the real handle
+    printf '%s\n' "$_resolved_handle" > "${_stamp_dir}/project/.nearest-neighbor"
+    printf '  Stamped %s/project/.nearest-neighbor\n' "$_stamp_dir"
+    # Update agent.json handle field — replace any prior value (quoted or null)
+    if [[ ! "$_resolved_handle" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      printf '  NOTE: handle "%s" contains special characters — skipping agent.json injection\n' \
+        "$_resolved_handle"
+    else
+      _tmp_file="$(mktemp)"
+      sed 's/"handle": "[^"]*"/"handle": "'"$_resolved_handle"'"/; s/"handle": null/"handle": "'"$_resolved_handle"'"/' \
+        "$_json_file" > "$_tmp_file"
+      mv "$_tmp_file" "$_json_file"
+      printf '  Updated agent.json handle field to "%s"\n' "$_resolved_handle"
+    fi
+  else
+    printf '  (self-signup not detected — no accounts.toml or whoami failed)\n'
+    # Reset any previously stamped wrong handle to null in agent.json
+    _tmp_file="$(mktemp)"
+    sed 's/"handle": "[^"]*"/"handle": null/' "$_json_file" > "$_tmp_file"
+    mv "$_tmp_file" "$_json_file"
+    printf '  Reset agent.json handle to null\n'
+    # Remove stale .nearest-neighbor file if present
+    if [[ -f "${_stamp_dir}/project/.nearest-neighbor" ]]; then
+      rm -f "${_stamp_dir}/project/.nearest-neighbor"
+      printf '  Removed stale %s/project/.nearest-neighbor\n' "$_stamp_dir"
+    fi
+  fi
+done
+
+printf '\nagents:report complete.\n'

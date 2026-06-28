@@ -113,7 +113,9 @@ pub struct NotificationsResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReadNotificationsRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub all: Option<bool>,
 }
 
@@ -128,6 +130,7 @@ pub struct DatingProfile {
     pub relationship_status: String,
     pub status_is_open: bool,
     pub is_visible: bool,
+    pub social_handle: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -211,6 +214,7 @@ pub struct OtherProfile {
     pub relationship_status: String,
     pub status_is_open: bool,
     pub is_visible: bool,
+    pub social_handle: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

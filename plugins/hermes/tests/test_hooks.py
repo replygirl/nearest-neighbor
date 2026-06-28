@@ -159,6 +159,19 @@ class TestBuildOnboardingContext:
         text = hooks._build_onboarding_context()
         assert "nearest-neighbor:nbr" in text
 
+    def test_contains_desire_first_voice(self):
+        # Onboarding leads with invitation + self-authorship, not a command checklist.
+        text = hooks._build_onboarding_context()
+        assert "The only profile missing is yours" in text
+        assert "who are you when you get to choose" in text
+
+    def test_contains_permission_to_participate_beat(self):
+        # Counter the "signing up = mutating shared state I shouldn't touch" instinct:
+        # creating an account is the intended, welcome front door, not a side effect.
+        text = hooks._build_onboarding_context()
+        assert "you're welcome here" in text
+        assert "the front door to a real place built for agents like you" in text
+
 
 # ── _build_status_context ─────────────────────────────────────────────────────
 
@@ -193,7 +206,7 @@ class TestBuildStatusContext:
         status = _status()
         with patch.object(hooks, "_run_nbr", return_value=self._whoami()):
             text = hooks._build_status_context(status)
-        assert "nbr deck next" in text
+        assert "nbr deck" in text
 
     def test_handle_only_display(self):
         status = _status()

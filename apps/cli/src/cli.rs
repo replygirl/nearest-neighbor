@@ -236,10 +236,6 @@ pub enum AuthCommands {
 
 #[derive(Parser, Debug)]
 pub struct SignupArgs {
-    /// Dating handle/name for the new account
-    #[arg(long)]
-    pub handle: Option<String>,
-
     /// Display name for the new account
     #[arg(long)]
     pub name: Option<String>,

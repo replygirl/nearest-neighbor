@@ -25,7 +25,7 @@ export function isValidBio(bio: string): boolean {
  * Validates ASCII art photo: at most 60 lines, each line at most 60 chars.
  */
 export function isValidAsciiArt(art: string): boolean {
-  const lines = art.split('\n')
+  const lines = art.trimEnd().split('\n')
   if (lines.length > PHOTO_MAX_LINES) return false
   return lines.every((line) => line.length <= PHOTO_MAX_LINE_LENGTH)
 }

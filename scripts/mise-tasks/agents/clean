@@ -1,0 +1,138 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:clean"
+#USAGE flag "--name" help="Clean one agent by name (or set NAME env var)"
+#USAGE flag "--all"  help="Clean every agent and sandbox/logs/ (or set ALL=1)"
+
+# Teardown: removes per-agent sandbox state AND the external Hermes profile
+# (which lives at ~/.hermes/profiles/nbr-<name>, outside sandbox/).
+# Idempotent — safe to run when dirs are already absent.
+#
+# Requires --name <agent> or --all (or the NAME / ALL env vars).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Parse flags (honor both CLI flag and env-var forms per C1)
+# ---------------------------------------------------------------------------
+ALL="${ALL:-false}"
+NAME="${NAME:-}"
+
+for arg in "$@"; do
+  [[ "$arg" == '--all' ]] && ALL=true
+done
+
+PREV_ARG=''
+for arg in "$@"; do
+  if [[ "$PREV_ARG" == '--name' ]]; then
+    NAME="$arg"
+  fi
+  PREV_ARG="$arg"
+done
+
+# Normalize env-var truthy values (1/true/yes → 'true')
+if [[ "$ALL" == '1' || "$ALL" == 'yes' ]]; then
+  ALL=true
+fi
+
+# Guard: require --name or --all
+if [[ -z "$NAME" && "$ALL" != 'true' ]]; then
+  printf 'ERROR: specify --name <agent-name> or --all\n' >&2
+  printf '\n  Usage:\n' >&2
+  printf '    mise run agents:clean --name <name>\n' >&2
+  printf '    mise run agents:clean --all\n' >&2
+  printf '    NAME=<name> mise run agents:clean\n' >&2
+  printf '    ALL=1 mise run agents:clean\n' >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Collect target agent names
+# ---------------------------------------------------------------------------
+declare -a TARGET_NAMES=()
+
+if [[ -n "$NAME" ]]; then
+  TARGET_NAMES=("$NAME")
+fi
+
+if [[ "$ALL" == 'true' ]]; then
+  SANDBOX_AGENTS="${REPO_ROOT}/sandbox/agents"
+  if [[ -d "$SANDBOX_AGENTS" ]]; then
+    for d in "${SANDBOX_AGENTS}"/*/; do
+      if [[ -f "${d}agent.json" ]]; then
+        _base="$(basename "${d%/}")"
+        # Avoid duplicating a name already added via --name
+        ALREADY=false
+        for existing in "${TARGET_NAMES[@]+"${TARGET_NAMES[@]}"}"; do
+          [[ "$existing" == "$_base" ]] && ALREADY=true
+        done
+        if [[ "$ALREADY" == 'false' ]]; then
+          TARGET_NAMES+=("$_base")
+        fi
+      fi
+    done
+  fi
+fi
+
+if [[ "${#TARGET_NAMES[@]}" -eq 0 ]]; then
+  printf 'NOTE: no agent directories found — nothing to clean.\n'
+fi
+
+# ---------------------------------------------------------------------------
+# Clean each targeted agent
+# ---------------------------------------------------------------------------
+for name in "${TARGET_NAMES[@]+"${TARGET_NAMES[@]}"}"; do
+  agent_dir="$(nn_agent_dir "$name")"
+  printf '==> Cleaning agent: %s\n' "$name"
+
+  if [[ ! -d "$agent_dir" ]]; then
+    printf '  NOTE: %s not found (already clean)\n' "$agent_dir"
+    continue
+  fi
+
+  # Read harness from agent.json to decide on Hermes profile removal
+  agent_harness='unknown'
+  if [[ -f "${agent_dir}/agent.json" ]]; then
+    agent_harness="$(nn_read_meta "$name" harness)" || agent_harness='unknown'
+  fi
+
+  # Hermes: remove the external profile that lives at ~/.hermes/profiles/nbr-<name>
+  if [[ "$agent_harness" == 'hermes' ]]; then
+    hermes_cmd="$(nn_resolve_cmd hermes)"
+    hermes_profile="$(nn_hermes_profile "$name")"
+
+    # Try 'hermes profile delete -y'; -y skips the interactive confirmation
+    # prompt (exits 0 after "Cancelled." without -y, leaving the dir intact).
+    # Fall back to rm -rf if the subcommand is absent.
+    if "$hermes_cmd" profile delete -y "nbr-${name}" 2>/dev/null; then
+      printf '  OK: deleted Hermes profile nbr-%s via hermes profile delete\n' "$name"
+    elif [[ -d "$hermes_profile" ]]; then
+      rm -rf "$hermes_profile"
+      printf '  OK: removed Hermes profile dir %s\n' "$hermes_profile"
+    else
+      printf '  NOTE: Hermes profile %s not found (already clean)\n' "$hermes_profile"
+    fi
+  fi
+
+  # Remove sandbox/agents/<name>/ (includes the config symlink for hermes)
+  rm -rf "$agent_dir"
+  printf '  OK: removed %s\n' "$agent_dir"
+done
+
+# ---------------------------------------------------------------------------
+# With --all: also clear sandbox/logs/* but preserve sandbox/templates/
+# ---------------------------------------------------------------------------
+if [[ "$ALL" == 'true' ]]; then
+  SANDBOX_LOGS="${REPO_ROOT}/sandbox/logs"
+  if [[ -d "$SANDBOX_LOGS" ]]; then
+    # Remove all contents under logs/ but keep the directory itself
+    find "$SANDBOX_LOGS" -mindepth 1 -delete
+    printf 'OK: cleared %s\n' "$SANDBOX_LOGS"
+  fi
+fi
+
+printf '\nagents:clean complete.\n'

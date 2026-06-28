@@ -1,0 +1,106 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:up"
+
+# COLD interactive launch in the agent's project dir with NO prompt/persona.
+# The human drives; the harness inherits the current TTY.
+# nn_launch is isolated so a future tmux capture wrapper can wrap it (D8).
+#
+# Reads env vars:
+#   NAME    — agent identifier (default: claude)
+#   HARNESS — override harness read from agent.json (optional)
+#   MODEL   — override model read from agent.json (optional)
+#   EFFORT  — override effort read from agent.json (optional; ignored for hermes)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Resolve inputs
+# ---------------------------------------------------------------------------
+NAME="${NAME:-claude}"
+AGENT_DIR="$(nn_agent_dir "$NAME")"
+
+if [[ ! -f "${AGENT_DIR}/agent.json" ]]; then
+  printf 'ERROR: %s/agent.json not found.\n' "$AGENT_DIR" >&2
+  printf '  Hint: run "HARNESS=<h> NAME=%s mise run agents:setup" first.\n' "$NAME" >&2
+  exit 1
+fi
+
+HARNESS="${HARNESS:-$(nn_read_meta "$NAME" harness)}"
+MODEL="${MODEL:-$(nn_read_meta "$NAME" model)}"
+EFFORT="${EFFORT:-$(nn_read_meta "$NAME" effort)}"
+
+# Treat JSON null as empty — fall back to harness default.
+if [[ "$MODEL" == 'null' ]]; then
+  MODEL="$(nn_default_model "$HARNESS")"
+fi
+
+CMD="$(nn_resolve_cmd "$HARNESS")"
+PROJECT_DIR="${AGENT_DIR}/project"
+CFG_DIR="$(nn_config_dir "$NAME" "$HARNESS")"
+
+printf '==> agents:up  name=%s  harness=%s  model=%s  effort=%s\n' \
+  "$NAME" "$HARNESS" "$MODEL" "$EFFORT"
+printf '    project=%s\n' "$PROJECT_DIR"
+
+# ---------------------------------------------------------------------------
+# Build outer env (exported so the exec-replaced process inherits them)
+# ---------------------------------------------------------------------------
+export NBR_API_URL
+NBR_API_URL="$(nn_nbr_api_url)"
+export NBR_LOCAL_BIN
+NBR_LOCAL_BIN="$(nn_nbr_local_bin)"
+export NBR_NO_KEYRING=1
+
+# ---------------------------------------------------------------------------
+# nn_launch — isolated so a future tmux capture wrapper can wrap it (D8).
+# Uses exec to replace the bash process, inheriting the TTY cleanly.
+# The interactive commands never pass -p/--prompt (cold launch, human drives).
+# ---------------------------------------------------------------------------
+nn_launch() {
+  case "$HARNESS" in
+    claude)
+      export CLAUDE_CONFIG_DIR="$CFG_DIR"
+      # CLAUDE_CODE_OAUTH_TOKEN flows via env (set in mise.local.toml).
+      # ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN outrank the OAuth token in
+      # Claude's env-var precedence — unset them so the OAuth token takes effect.
+      if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+        unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+      fi
+      cd "$PROJECT_DIR" || exit 1
+      exec "$CMD" --model "$MODEL" --effort "$EFFORT"
+      ;;
+    codex)
+      # codex -C sets the working directory without a shell cd.
+      # PATH-prepend the sandbox bin dir: Codex inherits PATH via
+      # shell_environment_policy.inherit="all" (default). Do NOT use
+      # [shell_environment_policy] set — it replaces PATH wholesale.
+      export CODEX_HOME="$CFG_DIR"
+      export PATH="${AGENT_DIR}/bin:${PATH}"
+      exec "$CMD" -m "$MODEL" -C "$PROJECT_DIR"
+      ;;
+    hermes)
+      export HERMES_HOME="$CFG_DIR"
+      cd "$PROJECT_DIR" || exit 1
+      # Hermes requires a non-empty model string; pass -m explicitly.
+      # --provider openai-codex: overrides any blank model.provider in the profile
+      # config (belt-and-suspenders alongside the agents:setup config set calls).
+      # openai-codex is a built-in OAuth provider backed by auth.json — no API key.
+      if [[ -n "$MODEL" ]]; then
+        exec "$CMD" -m "$MODEL" --provider openai-codex
+      else
+        exec "$CMD" --provider openai-codex
+      fi
+      ;;
+    *)
+      printf 'ERROR: unknown HARNESS "%s"\n' "$HARNESS" >&2
+      exit 1
+      ;;
+  esac
+}
+
+nn_launch

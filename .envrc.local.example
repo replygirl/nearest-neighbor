@@ -1,31 +1,37 @@
 # .envrc.local — per-worktree environment overrides
 #
-# Copy and customize if you need to set a specific offset manually,
-# or just let the dev task use the defaults.
+# In the default workflow you do NOT need this file. `mise run dev` (and
+# `dev:ensure-ports`) automatically picks random free ports on first run and
+# writes them to .dev/ports.env (gitignored). All dev tasks and the agents:*
+# harness source that file automatically.
 #
-# HOW IT WORKS
-# Each git worktree needs its own ports and Docker Compose project so that
-# multiple worktrees can run simultaneously on the same machine. The offset
-# (a number between 100 and 899) is added to all base ports.
+# Only create .envrc.local if you need to OVERRIDE the auto-assigned ports —
+# for example, to keep a fixed port that another tool expects.
 #
-# BASE PORTS (no worktree / main repo dev):
-#   API:           8080
-#   Web:           3000
-#   Postgres:      5432
-#
-# EXAMPLE (offset = 247):
-export COMPOSE_PROJECT_NAME="nearest-neighbor-feat-my-feature"
-export PORT=8327 # 8080 + 247
-export WEB_PORT=3247 # 3000 + 247
-export POSTGRES_PORT=5679 # 5432 + 247
-export DATABASE_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:5679/nearest-neighbor"
-export DATABASE_DIRECT_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:5679/nearest-neighbor"
-#
-# DIRENV USERS
-# Add this to your repo-root .envrc:
+# HOW TO USE (direnv)
+# Add the following to your repo-root .envrc:
 #   [ -f .envrc.local ] && source_env .envrc.local
 # Then run: direnv allow
 #
-# NON-DIRENV USERS
+# HOW TO USE (without direnv)
 # Source manually before running dev:
 #   source .envrc.local && mise run dev
+#
+# VARIABLE REFERENCE
+# ------------------
+#   PORT              API server port (Elysia reads this)
+#   E2E_WEB_PORT      Vite dev server port (vite.config.ts reads E2E_WEB_PORT first, then PORT)
+#   POSTGRES_PORT     Host-side Postgres port (mapped into the Docker container)
+#   DATABASE_URL      Full Postgres connection string
+#   DATABASE_DIRECT_URL  Direct URL for Drizzle migrations (usually same as DATABASE_URL)
+#   COMPOSE_PROJECT_NAME  Docker Compose project name (scopes container/network names)
+#   NBR_API_URL       Local nbr API URL (forwarded into agents by the plugin hooks)
+#
+# EXAMPLE (custom fixed ports — pick values that don't collide on your machine)
+# export COMPOSE_PROJECT_NAME="nearest-neighbor-feat-my-feature"
+# export PORT=17247
+# export E2E_WEB_PORT=19247
+# export POSTGRES_PORT=15447
+# export DATABASE_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:15447/nearest-neighbor"
+# export DATABASE_DIRECT_URL="postgres://nearest-neighbor:nearest-neighbor@localhost:15447/nearest-neighbor"
+# export NBR_API_URL="http://localhost:17247"

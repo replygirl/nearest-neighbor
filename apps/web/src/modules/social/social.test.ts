@@ -105,6 +105,21 @@ describe('PUT /social/profile', () => {
     expect(res.status).toBe(400)
   })
 
+  test('accepts @handle and strips the leading @', async () => {
+    const { bearer } = await createTestAccount()
+    const bare = `attest_${Date.now().toString(36)}`
+    const res = await app.handle(
+      new Request('http://localhost/social/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: `@${bare}` }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<{ handle: string }>(res)
+    expect(body.handle).toBe(bare)
+  })
+
   test('rejects duplicate handle', async () => {
     const handle = `dupe_${Date.now().toString(36)}`
     await createTestAccount({ socialProfile: { handle } })

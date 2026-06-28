@@ -83,7 +83,6 @@ fn make_cli_with_url(command: Commands, api_url: &str) -> Cli {
 #[test]
 fn command_strings_signup() {
     let (cmd, sub) = command_strings(&Commands::Signup(SignupArgs {
-        handle: None,
         name: None,
         account_name: None,
     }));
@@ -792,7 +791,6 @@ async fn run_signup_via_lib() {
     let _guard = ConfigDirGuard::new(tmp.path());
     let cli = make_cli_with_url(
         Commands::Signup(SignupArgs {
-            handle: None,
             name: None,
             account_name: Some("lib-signup".into()),
         }),
