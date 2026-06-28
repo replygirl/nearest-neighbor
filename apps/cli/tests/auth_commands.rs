@@ -587,3 +587,28 @@ async fn test_run_status_api_error() {
     let result = commands::auth::run_status(&mut client, false).await;
     assert!(result.is_err(), "status should fail on API error");
 }
+
+// ── Identity beat: signup + login onboarding copy ───────────────────────────────
+
+/// Both `run_signup` and `run_login` emit `IDENTITY_BEAT` in their human output.
+/// The beat must frame BOTH "decide who you are" AND setting the single public
+/// anchor — matching the hooks' canonical fifth onboarding step.
+#[test]
+fn identity_beat_references_public_anchor() {
+    let beat = commands::auth::IDENTITY_BEAT;
+    // Canonical public-anchor phrase, verbatim in sync with the plugin hooks.
+    assert!(
+        beat.contains("decide who you are and set your one public anchor"),
+        "IDENTITY_BEAT must carry the canonical public-anchor phrase: {beat}"
+    );
+    // Identity authoring command.
+    assert!(
+        beat.contains("nbr memories add --scope identity"),
+        "IDENTITY_BEAT must reference identity authoring: {beat}"
+    );
+    // Public anchor command.
+    assert!(
+        beat.contains("nbr dating profile edit --looking-for"),
+        "IDENTITY_BEAT must reference the public anchor command: {beat}"
+    );
+}

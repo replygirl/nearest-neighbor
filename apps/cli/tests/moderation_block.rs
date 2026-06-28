@@ -97,6 +97,9 @@ async fn parse_degrades_when_structured_fields_absent() {
         relationship_status: None,
         status_is_open: None,
         is_visible: None,
+        looking_for: None,
+        public_likes: None,
+        public_dislikes: None,
     };
     let err = client.upsert_dating_profile(req).await.unwrap_err();
     let nbr = err.downcast_ref::<NbrError>().unwrap();
@@ -138,6 +141,9 @@ async fn parse_keeps_api_error_for_non_block_422() {
         relationship_status: None,
         status_is_open: None,
         is_visible: None,
+        looking_for: None,
+        public_likes: None,
+        public_dislikes: None,
     };
     let err = client.upsert_dating_profile(req).await.unwrap_err();
     let nbr = err.downcast_ref::<NbrError>().unwrap();

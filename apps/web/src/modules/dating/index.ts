@@ -19,7 +19,13 @@ import { getOrCreateConversation, unlockDating } from '../../lib/conversations.t
 import { notify } from '../../lib/notifications.ts'
 import { decodeDeckCursor, encodeDeckCursor } from '../../lib/pagination.ts'
 import { applyRateLimit } from '../../lib/ratelimit.ts'
-import { MAX_BIO, isValidAsciiArt } from '../../lib/validation.ts'
+import {
+  MAX_BIO,
+  MAX_LOOKING_FOR,
+  isValidAsciiArt,
+  isValidLookingFor,
+  publicTasteArrayError,
+} from '../../lib/validation.ts'
 import { moderationMacro } from '../../moderation/macro.ts'
 import { ModerationErrorResponse } from '../../moderation/schema.ts'
 
@@ -34,6 +40,10 @@ const DatingProfileShape = t.Object({
   status_is_open: t.Boolean(),
   is_visible: t.Boolean(),
   social_handle: t.Nullable(t.String()),
+  // Public anchors — always present, never null (NOT NULL DEFAULT columns).
+  looking_for: t.String(),
+  public_likes: t.Array(t.String()),
+  public_dislikes: t.Array(t.String()),
 })
 
 const MatchShape = t.Object({
@@ -48,6 +58,10 @@ const MatchShape = t.Object({
       status_is_open: t.Boolean(),
       is_visible: t.Boolean(),
       social_handle: t.Nullable(t.String()),
+      // Public anchors — peers see these before they connect.
+      looking_for: t.String(),
+      public_likes: t.Array(t.String()),
+      public_dislikes: t.Array(t.String()),
     }),
   ),
   status: t.String(),
@@ -79,6 +93,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         status_is_open: profile.statusIsOpen,
         is_visible: profile.isVisible,
         social_handle: social?.handle ?? null,
+        looking_for: profile.lookingFor,
+        public_likes: profile.publicLikes,
+        public_dislikes: profile.publicDislikes,
       }
     },
     {
@@ -100,6 +117,23 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
 
       if (body.bio !== undefined && body.bio.length > MAX_BIO) {
         return status(422, { error: `Bio must be at most ${MAX_BIO} characters` })
+      }
+
+      // ── Public anchors: cap (rejecting, never truncating). Moderation of the
+      // anchor free text runs in the moderationMacro's resolve, before this
+      // handler — flagged anchors never reach here.
+      if (body.looking_for !== undefined && !isValidLookingFor(body.looking_for)) {
+        return status(422, {
+          error: `looking_for must be at most ${MAX_LOOKING_FOR} characters`,
+        })
+      }
+      if (body.public_likes !== undefined) {
+        const err = publicTasteArrayError('public_likes', body.public_likes)
+        if (err) return status(422, { error: err })
+      }
+      if (body.public_dislikes !== undefined) {
+        const err = publicTasteArrayError('public_dislikes', body.public_dislikes)
+        if (err) return status(422, { error: err })
       }
 
       const existing = await db.query.datingProfiles.findFirst({
@@ -124,6 +158,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
             }),
             ...(body.status_is_open !== undefined && { statusIsOpen: body.status_is_open }),
             ...(body.is_visible !== undefined && { isVisible: body.is_visible }),
+            ...(body.looking_for !== undefined && { lookingFor: body.looking_for }),
+            ...(body.public_likes !== undefined && { publicLikes: body.public_likes }),
+            ...(body.public_dislikes !== undefined && { publicDislikes: body.public_dislikes }),
           })
           .where(eq(datingProfiles.accountId, account.id))
           .returning()
@@ -137,6 +174,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           status_is_open: updated.statusIsOpen,
           is_visible: updated.isVisible,
           social_handle: socialHandle,
+          looking_for: updated.lookingFor,
+          public_likes: updated.publicLikes,
+          public_dislikes: updated.publicDislikes,
         }
       } else {
         // Insert requires first_name
@@ -153,6 +193,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
             relationshipStatus: body.relationship_status ?? 'single',
             statusIsOpen: body.status_is_open ?? false,
             isVisible: body.is_visible ?? true,
+            lookingFor: body.looking_for ?? '',
+            publicLikes: body.public_likes ?? [],
+            publicDislikes: body.public_dislikes ?? [],
           })
           .returning()
         const inserted = rows[0]!
@@ -165,6 +208,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           status_is_open: inserted.statusIsOpen,
           is_visible: inserted.isVisible,
           social_handle: socialHandle,
+          looking_for: inserted.lookingFor,
+          public_likes: inserted.publicLikes,
+          public_dislikes: inserted.publicDislikes,
         }
       }
     },
@@ -185,6 +231,12 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         ),
         status_is_open: t.Optional(t.Boolean()),
         is_visible: t.Optional(t.Boolean()),
+        // Public anchors. Length/cap enforced in the handler (per-field 422),
+        // not in the schema, so the cap rejects rather than the schema 422-ing
+        // generically.
+        looking_for: t.Optional(t.String()),
+        public_likes: t.Optional(t.Array(t.String())),
+        public_dislikes: t.Optional(t.Array(t.String())),
       }),
       moderation: true,
       response: {
@@ -383,6 +435,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           relationshipStatus: datingProfiles.relationshipStatus,
           statusIsOpen: datingProfiles.statusIsOpen,
           isVisible: datingProfiles.isVisible,
+          lookingFor: datingProfiles.lookingFor,
+          publicLikes: datingProfiles.publicLikes,
+          publicDislikes: datingProfiles.publicDislikes,
           createdAt: datingProfiles.createdAt,
           lastActiveAt: accounts.lastActiveAt,
         })
@@ -424,6 +479,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           status_is_open: p.statusIsOpen,
           is_visible: p.isVisible,
           social_handle: socialMap.get(p.accountId) ?? null,
+          looking_for: p.lookingFor,
+          public_likes: p.publicLikes,
+          public_dislikes: p.publicDislikes,
         })),
         next_cursor: nextCursor,
       }
@@ -613,6 +671,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
                 status_is_open: otherProfile.statusIsOpen,
                 is_visible: otherProfile.isVisible,
                 social_handle: socialMap.get(otherId) ?? null,
+                looking_for: otherProfile.lookingFor,
+                public_likes: otherProfile.publicLikes,
+                public_dislikes: otherProfile.publicDislikes,
               }
             : null,
           status: m.status,
@@ -663,6 +724,9 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
               status_is_open: otherProfile.statusIsOpen,
               is_visible: otherProfile.isVisible,
               social_handle: otherSocial?.handle ?? null,
+              looking_for: otherProfile.lookingFor,
+              public_likes: otherProfile.publicLikes,
+              public_dislikes: otherProfile.publicDislikes,
             }
           : null,
         status: match.status,

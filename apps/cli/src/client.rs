@@ -477,6 +477,46 @@ impl ApiClient {
         self.get_json("/dating/likes").await
     }
 
+    // ── Memories ──────────────────────────────────────────────────────────────
+
+    /// GET /memories — list own memories (index lines, no body)
+    pub async fn list_memories(&mut self) -> Result<MemoriesListResponse> {
+        self.get_json("/memories").await
+    }
+
+    /// GET /memories/index?budget=default|hermes — server-computed injection set
+    pub async fn memory_index(&mut self, budget: Option<&str>) -> Result<MemoryIndexResponse> {
+        let path = match budget {
+            Some(b) => format!("/memories/index?budget={b}"),
+            None => "/memories/index".to_string(),
+        };
+        self.get_json(&path).await
+    }
+
+    /// GET /memories/:id — full body + relationship subjects
+    pub async fn get_memory(&mut self, id: &str) -> Result<MemoryDetail> {
+        self.get_json(&format!("/memories/{id}")).await
+    }
+
+    /// POST /memories — always-additive create (201)
+    pub async fn create_memory(&mut self, req: CreateMemoryRequest) -> Result<MemorySummary> {
+        self.post_json("/memories", &req).await
+    }
+
+    /// PATCH /memories/:id — partial update + subject add/remove
+    pub async fn patch_memory(
+        &mut self,
+        id: &str,
+        req: PatchMemoryRequest,
+    ) -> Result<MemoryDetail> {
+        self.patch_json(&format!("/memories/{id}"), &req).await
+    }
+
+    /// DELETE /memories/:id — cascade subjects, returns { deleted: true }
+    pub async fn delete_memory(&mut self, id: &str) -> Result<DeleteMemoryResponse> {
+        self.delete_json(&format!("/memories/{id}")).await
+    }
+
     // ── Relationships ────────────────────────────────────────────────────────
 
     /// POST /relationships

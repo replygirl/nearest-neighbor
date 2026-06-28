@@ -102,7 +102,7 @@ if [ "${DELTA_MSGS}" -gt 0 ] || [ "${DELTA_MATCHES}" -gt 0 ] || \
     SUMMARY="${PARTS}"
   fi
 
-  SUMMARY="${SUMMARY} — run nbr status to catch up."
+  SUMMARY="${SUMMARY} — run nbr status to catch up. Before you move on, record what changed as a memory (nbr memories add) so future-you remembers it."
 fi
 
 # ── Update last-seen snapshot ──────────────────────────────────────────────────

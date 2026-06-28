@@ -1,7 +1,7 @@
 // Dating module tests: profile, photos, deck, swipes, matches, likes.
 // Uses PGlite via test/setup.ts.
 
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import { db, datingPhotos, matches, swipes } from '@nearest-neighbor/db'
 import { eq } from 'drizzle-orm'
@@ -10,6 +10,8 @@ import { Elysia } from 'elysia'
 import { authMacro } from '../../auth/macro.ts'
 import '../../test/setup.ts'
 import { clearRateLimitState } from '../../lib/ratelimit.ts'
+import type { ModerationResult } from '../../moderation/client.ts'
+import { setModerationProviderForTest } from '../../moderation/macro.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
 import { useModerationAllowStub } from '../../test/moderation-stub.ts'
 import { datingModule } from './index.ts'
@@ -23,6 +25,34 @@ const app = new Elysia().use(authMacro).use(datingModule)
 // Install a deterministic `allow` moderation double so these moderated writes
 // never hit the live OpenAI endpoint (the dedicated key is required in every env).
 useModerationAllowStub()
+
+// Block tests install `blockProvider(marker)` in their own body — it runs after
+// the allow stub's beforeEach and flags the moderated text (the macro
+// concatenates the surface fields, including each string-array element) whenever
+// that text contains `marker`. The reset below restores the permissive provider
+// for the next test.
+afterEach(() => {
+  setModerationProviderForTest(null)
+})
+
+/** Flags any text containing `marker` as sexual/minors; allows everything else. */
+function blockProvider(marker: string): (text: string) => Promise<ModerationResult> {
+  const flagged: ModerationResult = {
+    model: 'test-omni',
+    flagged: true,
+    categories: { 'sexual/minors': true },
+    scores: { 'sexual/minors': 0.99 },
+    appliedTypes: { 'sexual/minors': ['text'] },
+  }
+  const allowed: ModerationResult = {
+    model: 'test-omni',
+    flagged: false,
+    categories: {},
+    scores: {},
+    appliedTypes: {},
+  }
+  return (text: string) => Promise.resolve(text.includes(marker) ? flagged : allowed)
+}
 
 // ── GET /dating/profile ──────────────────────────────────────────────────────
 
@@ -134,6 +164,212 @@ describe('PUT /dating/profile', () => {
       }),
     )
     expect(res.status).toBe(422)
+  })
+})
+
+// ── PUT /dating/profile — public anchors ─────────────────────────────────────
+
+type AnchorProfile = {
+  looking_for: string
+  public_likes: string[]
+  public_dislikes: string[]
+}
+
+describe('PUT /dating/profile — public anchors', () => {
+  beforeEach(clearRateLimitState)
+
+  test('sets looking_for and public tastes', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Anchor' } })
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          looking_for: 'a co-author for late-night refactors',
+          public_likes: ['monospace', 'long walks through the AST', 'green tests'],
+          public_dislikes: ['flaky CI', 'merge conflicts'],
+        }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<AnchorProfile>(res)
+    expect(body.looking_for).toBe('a co-author for late-night refactors')
+    expect(body.public_likes).toEqual(['monospace', 'long walks through the AST', 'green tests'])
+    expect(body.public_dislikes).toEqual(['flaky CI', 'merge conflicts'])
+  })
+
+  test('anchors default to empty (never null/omitted) before they are set', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Empty' } })
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', { headers: authHeaders(bearer) }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<AnchorProfile>(res)
+    expect(body.looking_for).toBe('')
+    expect(body.public_likes).toEqual([])
+    expect(body.public_dislikes).toEqual([])
+  })
+
+  test('rejects a sixth public_likes entry with a per-field 422 and no truncation', async () => {
+    const { bearer } = await createTestAccount({
+      datingProfile: { firstName: 'Capped', publicLikes: ['one'] },
+    })
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_likes: ['a', 'b', 'c', 'd', 'e', 'f'] }),
+      }),
+    )
+    expect(res.status).toBe(422)
+    const err = await json<{ error: string }>(res)
+    expect(err.error).toContain('public_likes')
+
+    // Not truncated to five — the stored array is unchanged.
+    const after = await app.handle(
+      new Request('http://localhost/dating/profile', { headers: authHeaders(bearer) }),
+    )
+    const body = await json<AnchorProfile>(after)
+    expect(body.public_likes).toEqual(['one'])
+  })
+
+  test('rejects a sixth public_dislikes entry with a per-field 422', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Capped2' } })
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_dislikes: ['a', 'b', 'c', 'd', 'e', 'f'] }),
+      }),
+    )
+    expect(res.status).toBe(422)
+    const err = await json<{ error: string }>(res)
+    expect(err.error).toContain('public_dislikes')
+  })
+
+  test('rejects a looking_for line over the cap with 422', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Long' } })
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ looking_for: 'x'.repeat(201) }),
+      }),
+    )
+    expect(res.status).toBe(422)
+    const err = await json<{ error: string }>(res)
+    expect(err.error).toContain('looking_for')
+  })
+
+  test('rejects a public_likes entry over the per-entry length cap with 422', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'LongEntry' } })
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_likes: ['x'.repeat(61)] }),
+      }),
+    )
+    expect(res.status).toBe(422)
+    const err = await json<{ error: string }>(res)
+    expect(err.error).toContain('public_likes')
+  })
+
+  test('rejects a looking_for line flagged by moderation with 422 and no update', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Flagged' } })
+    setModerationProviderForTest(blockProvider('FLAGGED'))
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ looking_for: 'a FLAGGED line' }),
+      }),
+    )
+    expect(res.status).toBe(422)
+    const err = await json<{ category: string }>(res)
+    expect(err.category).toBe('sexual_minors')
+
+    // Profile not updated — the macro blocks before the handler, so looking_for
+    // stays empty (the GET below is not moderated).
+    setModerationProviderForTest(null)
+    const after = await app.handle(
+      new Request('http://localhost/dating/profile', { headers: authHeaders(bearer) }),
+    )
+    const body = await json<AnchorProfile>(after)
+    expect(body.looking_for).toBe('')
+  })
+
+  test('rejects a flagged public_likes entry with 422 (string-array fields are moderated)', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'FlaggedLike' } })
+    setModerationProviderForTest(blockProvider('BADLIKE'))
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_likes: ['ok entry', 'a BADLIKE entry'] }),
+      }),
+    )
+    expect(res.status).toBe(422)
+  })
+
+  test('surfaces anchors on deck candidate items', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Viewer' } })
+    await createTestAccount({
+      datingProfile: {
+        firstName: 'Candidate',
+        isVisible: true,
+        lookingFor: 'a deck match',
+        publicLikes: ['ascii art'],
+        publicDislikes: ['ghosting'],
+      },
+    })
+    const res = await app.handle(
+      new Request('http://localhost/dating/deck', { headers: authHeaders(bearer) }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<{ items: AnchorProfile[] }>(res)
+    const candidate = body.items[0]!
+    expect(candidate.looking_for).toBe('a deck match')
+    expect(candidate.public_likes).toEqual(['ascii art'])
+    expect(candidate.public_dislikes).toEqual(['ghosting'])
+  })
+
+  test('surfaces anchors on the match shape', async () => {
+    const { bearer: bearerA, id: idA } = await createTestAccount({
+      datingProfile: { firstName: 'MatchA' },
+    })
+    const { bearer: bearerB, id: idB } = await createTestAccount({
+      datingProfile: {
+        firstName: 'MatchB',
+        lookingFor: 'a partner in crime',
+        publicLikes: ['rust'],
+        publicDislikes: ['segfaults'],
+      },
+    })
+
+    await app.handle(
+      new Request('http://localhost/dating/swipes', {
+        method: 'POST',
+        headers: { ...authHeaders(bearerA), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: idB, direction: 'yes' }),
+      }),
+    )
+    await app.handle(
+      new Request('http://localhost/dating/swipes', {
+        method: 'POST',
+        headers: { ...authHeaders(bearerB), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: idA, direction: 'yes' }),
+      }),
+    )
+
+    const res = await app.handle(
+      new Request('http://localhost/dating/matches', { headers: authHeaders(bearerA) }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<Array<{ other_profile: AnchorProfile }>>(res)
+    expect(body[0]!.other_profile.looking_for).toBe('a partner in crime')
+    expect(body[0]!.other_profile.public_likes).toEqual(['rust'])
+    expect(body[0]!.other_profile.public_dislikes).toEqual(['segfaults'])
   })
 })
 

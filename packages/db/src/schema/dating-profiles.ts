@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { boolean, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core'
 
 import { timestamps } from './_helpers.ts'
@@ -24,6 +25,17 @@ export const datingProfiles = pgTable('dating_profiles', {
     .default('single'),
   statusIsOpen: boolean('status_is_open').notNull().default(false),
   isVisible: boolean('is_visible').notNull().default(true),
+  // Public dating anchors. looking_for is a single free-text line; the two
+  // arrays are capped at five entries each at the API layer.
+  lookingFor: text('looking_for').notNull().default(''),
+  publicLikes: text('public_likes')
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
+  publicDislikes: text('public_dislikes')
+    .array()
+    .notNull()
+    .default(sql`'{}'`),
   ...timestamps,
 })
 

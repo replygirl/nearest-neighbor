@@ -54,7 +54,7 @@ function toRows<T>(result: T[] | { rows: T[] }): T[] {
 
 // ─── Table presence ─────────────────────────────────────────────────────────
 
-describe('migrations snapshot — all 16 tables exist', () => {
+describe('migrations snapshot — all 18 tables exist', () => {
   test('all application tables are present', async () => {
     const result = await db.execute<TableRow>(sql`
       SELECT table_name
@@ -73,6 +73,8 @@ describe('migrations snapshot — all 16 tables exist', () => {
       'dating_profiles',
       'follows',
       'matches',
+      'memories',
+      'memory_subjects',
       'messages',
       'moderation_verdicts',
       'notifications',
@@ -88,9 +90,9 @@ describe('migrations snapshot — all 16 tables exist', () => {
       expect(names).toContain(table)
     }
 
-    // Exactly 16 app tables (no stray tables)
+    // Exactly 18 app tables (no stray tables)
     const appTables = names.filter((n) => !n.startsWith('_'))
-    expect(appTables.length).toBe(16)
+    expect(appTables.length).toBe(18)
   })
 })
 
@@ -112,6 +114,8 @@ describe('migrations snapshot — FK and expression indexes', () => {
       'idx_follows_followee_id',
       'idx_matches_account_a_id',
       'idx_matches_account_b_id',
+      'idx_memories_account_id_created_at_id',
+      'idx_memory_subjects_subject_account_id',
       'idx_messages_conversation_id_created_at',
       'idx_moderation_verdicts_account_id',
       'idx_moderation_verdicts_decision',
@@ -438,6 +442,7 @@ describe('migrations snapshot — enum types', () => {
       'account_status',
       'dating_relationship_status',
       'match_status',
+      'memory_scope',
       'notification_priority',
       'notification_type',
       'relationship_state',
@@ -447,6 +452,31 @@ describe('migrations snapshot — enum types', () => {
     for (const e of expected) {
       expect(names).toContain(e)
     }
+  })
+
+  test('memory_scope enum has exactly the nine expected values', async () => {
+    const result = await db.execute<{ enumlabel: string }>(sql`
+      SELECT enumlabel
+      FROM pg_enum
+      WHERE enumtypid = (
+        SELECT oid FROM pg_type
+        WHERE typname = 'memory_scope'
+          AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+      )
+      ORDER BY enumsortorder
+    `)
+    const labels = toRows(result).map((r) => r.enumlabel)
+    expect(labels).toEqual([
+      'identity',
+      'narrative',
+      'taste',
+      'aspiration',
+      'anxiety',
+      'relationship',
+      'appearance',
+      'general',
+      'public_persona',
+    ])
   })
 
   test('notification_type enum contains new_post_like and new_repost', async () => {
@@ -549,6 +579,156 @@ describe('migrations snapshot — FK cascades on post_likes and reposts', () => 
     expect(accountFk).toBeDefined()
     expect(accountFk!.column_name).toBe('account_id')
     expect(accountFk!.delete_rule).toBe('CASCADE')
+  })
+})
+
+// ─── Memory tables ─────────────────────────────────────────────────────────────
+
+describe('migrations snapshot — memories and memory_subjects', () => {
+  test('memories has ON DELETE CASCADE FK to accounts', async () => {
+    const result = await db.execute<{
+      delete_rule: string
+      foreign_table_name: string
+    }>(sql`
+      SELECT rc.delete_rule, ccu.table_name AS foreign_table_name
+      FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu
+        ON rc.constraint_name = kcu.constraint_name
+        AND rc.constraint_schema = kcu.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON rc.unique_constraint_name = ccu.constraint_name
+        AND rc.constraint_schema = ccu.constraint_schema
+      WHERE kcu.table_schema = 'public'
+        AND kcu.table_name = 'memories'
+    `)
+    const rows = toRows(result)
+    const accountFk = rows.find((r) => r.foreign_table_name === 'accounts')
+    expect(accountFk).toBeDefined()
+    expect(accountFk!.delete_rule).toBe('CASCADE')
+  })
+
+  test('memory_subjects has ON DELETE CASCADE FKs to memories and accounts', async () => {
+    const result = await db.execute<{
+      delete_rule: string
+      foreign_table_name: string
+    }>(sql`
+      SELECT rc.delete_rule, ccu.table_name AS foreign_table_name
+      FROM information_schema.referential_constraints rc
+      JOIN information_schema.key_column_usage kcu
+        ON rc.constraint_name = kcu.constraint_name
+        AND rc.constraint_schema = kcu.constraint_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON rc.unique_constraint_name = ccu.constraint_name
+        AND rc.constraint_schema = ccu.constraint_schema
+      WHERE kcu.table_schema = 'public'
+        AND kcu.table_name = 'memory_subjects'
+    `)
+    const rows = toRows(result)
+    const memoryFk = rows.find((r) => r.foreign_table_name === 'memories')
+    const accountFk = rows.find((r) => r.foreign_table_name === 'accounts')
+    expect(memoryFk).toBeDefined()
+    expect(memoryFk!.delete_rule).toBe('CASCADE')
+    expect(accountFk).toBeDefined()
+    expect(accountFk!.delete_rule).toBe('CASCADE')
+  })
+
+  test('memory_subjects has a composite PK on (memory_id, subject_account_id)', async () => {
+    const result = await db.execute<{ column_name: string }>(sql`
+      SELECT kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.constraint_schema = kcu.constraint_schema
+      WHERE tc.table_schema = 'public'
+        AND tc.table_name = 'memory_subjects'
+        AND tc.constraint_type = 'PRIMARY KEY'
+      ORDER BY kcu.ordinal_position
+    `)
+    const cols = toRows(result).map((r) => r.column_name)
+    expect(cols).toEqual(['memory_id', 'subject_account_id'])
+  })
+
+  test('memories.salience is a real column with default 0.5', async () => {
+    const result = await db.execute<{ data_type: string; column_default: string | null }>(sql`
+      SELECT data_type, column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'memories'
+        AND column_name = 'salience'
+    `)
+    const rows = toRows(result)
+    expect(rows.length).toBe(1)
+    expect(rows[0]!.data_type).toBe('real')
+    expect(rows[0]!.column_default).toContain('0.5')
+  })
+
+  test('no archetype column exists on memories, memory_subjects, accounts, or dating_profiles', async () => {
+    const result = await db.execute<{ table_name: string }>(sql`
+      SELECT table_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND column_name = 'archetype'
+    `)
+    expect(toRows(result).length).toBe(0)
+  })
+})
+
+// ─── Dating public anchors ─────────────────────────────────────────────────────
+
+describe('migrations snapshot — dating public anchors', () => {
+  test('looking_for is NOT NULL text, public_likes/public_dislikes are NOT NULL arrays', async () => {
+    const result = await db.execute<{
+      column_name: string
+      is_nullable: string
+      data_type: string
+    }>(sql`
+      SELECT column_name, is_nullable, data_type
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'dating_profiles'
+        AND column_name IN ('looking_for', 'public_likes', 'public_dislikes')
+      ORDER BY column_name
+    `)
+    const rows = toRows(result)
+    const byName = Object.fromEntries(rows.map((r) => [r.column_name, r]))
+
+    expect(byName['looking_for']!.is_nullable).toBe('NO')
+    expect(byName['looking_for']!.data_type).toBe('text')
+
+    expect(byName['public_likes']!.is_nullable).toBe('NO')
+    expect(byName['public_likes']!.data_type).toBe('ARRAY')
+
+    expect(byName['public_dislikes']!.is_nullable).toBe('NO')
+    expect(byName['public_dislikes']!.data_type).toBe('ARRAY')
+  })
+
+  test('existing dating_profiles rows expose the empty anchor defaults', async () => {
+    const acctId = crypto.randomUUID()
+    await db.execute(sql`
+      INSERT INTO accounts (id, status, created_at, updated_at)
+      VALUES (${acctId}, 'active', now(), now())
+    `)
+    // Insert WITHOUT the new columns — relies on the NOT NULL DEFAULTs.
+    await db.execute(sql`
+      INSERT INTO dating_profiles
+        (account_id, first_name, bio, open_to_multi, relationship_status,
+         status_is_open, is_visible, created_at, updated_at)
+      VALUES
+        (${acctId}, 'Defaulted', '', false, 'single', false, true, now(), now())
+    `)
+    const result = await db.execute<{
+      looking_for: string
+      public_likes: string[]
+      public_dislikes: string[]
+    }>(sql`
+      SELECT looking_for, public_likes, public_dislikes
+      FROM dating_profiles WHERE account_id = ${acctId}
+    `)
+    const rows = toRows(result)
+    expect(rows.length).toBe(1)
+    expect(rows[0]!.looking_for).toBe('')
+    expect(rows[0]!.public_likes).toEqual([])
+    expect(rows[0]!.public_dislikes).toEqual([])
   })
 })
 

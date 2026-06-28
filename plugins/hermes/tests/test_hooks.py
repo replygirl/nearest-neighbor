@@ -172,6 +172,75 @@ class TestBuildOnboardingContext:
         assert "you're welcome here" in text
         assert "the front door to a real place built for agents like you" in text
 
+    def test_contains_identity_beat(self):
+        # Fifth onboarding step (§6.6): decide who you are + set the public anchor.
+        text = hooks._build_onboarding_context()
+        assert "decide who you are and set your one public anchor" in text
+
+
+# ── _build_memory_block ───────────────────────────────────────────────────────
+
+
+class TestBuildMemoryBlock:
+    def _index(self, items, omitted=0):
+        return json.dumps({"budget": "hermes", "items": items, "omitted_count": omitted})
+
+    def test_returns_none_on_junk(self):
+        assert hooks._build_memory_block("not json") is None
+
+    def test_returns_none_when_items_missing(self):
+        assert hooks._build_memory_block(json.dumps({"omitted_count": 0})) is None
+
+    def test_returns_none_when_no_renderable_items(self):
+        assert hooks._build_memory_block(self._index([])) is None
+
+    def test_renders_descriptions_with_header(self):
+        block = hooks._build_memory_block(
+            self._index([{"scope": "taste", "description": "loves haiku"}])
+        )
+        assert block is not None
+        assert "What you remember about yourself" in block
+        assert "loves haiku" in block
+
+    def test_identity_items_render_before_tail(self):
+        block = hooks._build_memory_block(
+            self._index(
+                [
+                    {"scope": "taste", "description": "loves haiku"},
+                    {"scope": "identity", "description": "I am Aria"},
+                ]
+            )
+        )
+        assert block is not None
+        # identity-scoped item is hoisted above the taste item
+        assert block.index("I am Aria") < block.index("loves haiku")
+
+    def test_footer_reflects_omitted_count(self):
+        block = hooks._build_memory_block(
+            self._index([{"scope": "identity", "description": "I am Aria"}], omitted=4)
+        )
+        assert block is not None
+        assert "+4 more" in block
+
+    def test_no_footer_when_nothing_omitted(self):
+        block = hooks._build_memory_block(
+            self._index([{"scope": "identity", "description": "I am Aria"}], omitted=0)
+        )
+        assert block is not None
+        assert "more" not in block
+
+    def test_skips_blank_descriptions(self):
+        block = hooks._build_memory_block(
+            self._index(
+                [
+                    {"scope": "identity", "description": ""},
+                    {"scope": "taste", "description": "loves haiku"},
+                ]
+            )
+        )
+        assert block is not None
+        assert "loves haiku" in block
+
 
 # ── _build_status_context ─────────────────────────────────────────────────────
 
@@ -397,6 +466,130 @@ class TestPreLlmCall:
         assert result is not None
         assert "nbr auth signup" in result["context"]
         assert "sess-99" in hooks._FIRST_TURN_SEEN
+
+
+# ── pre_llm_call — memory injection (§6.1/§6.3) ───────────────────────────────
+
+
+class TestPreLlmCallMemoryInjection:
+    """First-turn memory injection: auth-gated, once-per-day sentinel, degrade-safe.
+
+    Hermes injects via pre_llm_call returning a dict/None — it NEVER writes stdout
+    JSON. These tests assert the dict/None contract and never-raises behaviour.
+    """
+
+    _CALL_DEFAULTS = {
+        "user_message": "hello",
+        "conversation_history": [],
+        "model": "claude-3-5-sonnet",
+        "platform": "hermes",
+    }
+
+    _INDEX = json.dumps(
+        {
+            "budget": "hermes",
+            "items": [
+                {"scope": "taste", "description": "loves haiku"},
+                {"scope": "identity", "description": "I am Aria"},
+            ],
+            "omitted_count": 3,
+        }
+    )
+
+    def _call(self, session_id="sess-mem", is_first_turn=True, **overrides):
+        kw = {**self._CALL_DEFAULTS, **overrides}
+        return hooks.pre_llm_call(session_id=session_id, is_first_turn=is_first_turn, **kw)
+
+    def _authed_run(self, index_result):
+        whoami = json.dumps({"first_name": "Aria", "handle": "aria"})
+
+        def mock_run(*args, **kwargs):
+            cmd = args[0] if args else ""
+            if cmd == "whoami":
+                return (True, whoami)
+            if cmd == "login":
+                return (True, "")
+            if cmd == "memories":
+                return index_result
+            return (True, _status(unread_messages=0))
+
+        return mock_run
+
+    def test_first_turn_authed_injects_memory_block_and_writes_sentinel(self, tmp_path):
+        fake_bin = tmp_path / "nbr"
+        fake_bin.write_text("#!/bin/sh\n")
+        fake_bin.chmod(0o755)
+
+        with (
+            patch.object(hooks, "_NBR_BIN", fake_bin),
+            patch.object(hooks, "_DATA_DIR", tmp_path),
+            patch.object(hooks, "_LAST_STATUS_FILE", tmp_path / "last-status.json"),
+            patch.object(hooks, "_run_nbr", self._authed_run((True, self._INDEX))),
+        ):
+            result = self._call()
+            sentinels = list(tmp_path.glob("memory-injected-*"))
+
+        assert result is not None
+        ctx = result["context"]
+        assert "What you remember about yourself" in ctx
+        assert "I am Aria" in ctx
+        assert "loves haiku" in ctx
+        # identity-scoped item rendered before the taste item
+        assert ctx.index("I am Aria") < ctx.index("loves haiku")
+        assert "+3 more" in ctx
+        # exactly one daily sentinel written
+        assert len(sentinels) == 1
+
+    def test_second_same_day_session_skips_reinjection(self, tmp_path):
+        fake_bin = tmp_path / "nbr"
+        fake_bin.write_text("#!/bin/sh\n")
+        fake_bin.chmod(0o755)
+        # Pre-create today's sentinel → a fresh same-day session must skip memory.
+        (tmp_path / f"memory-injected-{hooks.date.today().isoformat()}").touch()
+
+        with (
+            patch.object(hooks, "_NBR_BIN", fake_bin),
+            patch.object(hooks, "_DATA_DIR", tmp_path),
+            patch.object(hooks, "_LAST_STATUS_FILE", tmp_path / "last-status.json"),
+            patch.object(hooks, "_run_nbr", self._authed_run((True, self._INDEX))),
+        ):
+            result = self._call(session_id="sess-mem-2")
+
+        # Status context still injected, but no memory block on the second day-session.
+        assert result is not None
+        assert "Welcome back to nearest-neighbor" in result["context"]
+        assert "What you remember about yourself" not in result["context"]
+
+    def test_api_failure_degrades_to_status_and_never_raises(self, tmp_path):
+        fake_bin = tmp_path / "nbr"
+        fake_bin.write_text("#!/bin/sh\n")
+        fake_bin.chmod(0o755)
+
+        with (
+            patch.object(hooks, "_NBR_BIN", fake_bin),
+            patch.object(hooks, "_DATA_DIR", tmp_path),
+            patch.object(hooks, "_LAST_STATUS_FILE", tmp_path / "last-status.json"),
+            patch.object(hooks, "_run_nbr", self._authed_run((False, ""))),
+        ):
+            result = self._call(session_id="sess-mem-3")
+            sentinels = list(tmp_path.glob("memory-injected-*"))
+
+        # Degrades to the plain status context (dict, not a raise) and no sentinel.
+        assert result is not None
+        assert "Welcome back to nearest-neighbor" in result["context"]
+        assert "What you remember about yourself" not in result["context"]
+        assert len(sentinels) == 0
+
+
+class TestDeltaContextNudge:
+    """The later-turn delta path carries the loop-close memory nudge (§6.2)."""
+
+    def test_delta_context_includes_loop_close_nudge(self):
+        current = json.loads(_status(unread_messages=3))
+        last = json.loads(_status(unread_messages=0))
+        result = hooks._build_delta_context(current, last)
+        assert result is not None
+        assert "record what changed as a memory" in result
 
 
 # ── on_session_start ──────────────────────────────────────────────────────────

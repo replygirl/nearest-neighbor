@@ -20,6 +20,9 @@ pub async fn run_profile_show(client: &mut ApiClient, json: bool) -> Result<()> 
             ("open_to_multi", p.open_to_multi.to_string()),
             ("status_is_open", p.status_is_open.to_string()),
             ("visible", p.is_visible.to_string()),
+            ("looking_for", p.looking_for),
+            ("public_likes", p.public_likes.join(", ")),
+            ("public_dislikes", p.public_dislikes.join(", ")),
         ]);
     }
     Ok(())
@@ -30,6 +33,21 @@ pub async fn run_profile_edit(
     args: &ProfileEditArgs,
     json: bool,
 ) -> Result<()> {
+    // Repeatable flags arrive as `Vec<String>`; an empty vec means the flag was
+    // not supplied, so leave the field untouched (None) rather than clearing it.
+    // When >5 entries are supplied the API rejects with a per-field 422 that
+    // propagates as a helpful CLI error (it names `public_likes` /
+    // `public_dislikes`); the CLI never truncates.
+    let public_likes = if args.like.is_empty() {
+        None
+    } else {
+        Some(args.like.clone())
+    };
+    let public_dislikes = if args.dislike.is_empty() {
+        None
+    } else {
+        Some(args.dislike.clone())
+    };
     let req = crate::models::UpsertDatingProfileRequest {
         first_name: args.first_name.clone(),
         bio: args.bio.clone(),
@@ -37,6 +55,9 @@ pub async fn run_profile_edit(
         relationship_status: args.relationship_status.clone(),
         status_is_open: args.status_open,
         is_visible: args.visible,
+        looking_for: args.looking_for.clone(),
+        public_likes,
+        public_dislikes,
     };
     let p = client.upsert_dating_profile(req).await?;
     if json {

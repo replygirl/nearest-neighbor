@@ -196,6 +196,9 @@ fn command_strings_profile_edit() {
         relationship_status: None,
         status_open: None,
         visible: None,
+        looking_for: None,
+        like: vec![],
+        dislike: vec![],
     })));
     assert_eq!(cmd, "profile");
     assert_eq!(sub.as_deref(), Some("edit"));

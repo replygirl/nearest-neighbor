@@ -31,6 +31,8 @@ const {
   datingProfiles,
   follows,
   matches,
+  memories,
+  memorySubjects,
   messages,
   notifications,
   postLikes,
@@ -380,6 +382,190 @@ describe('dating_profiles table', () => {
       .from(datingProfiles)
       .where(eq(datingProfiles.accountId, accountId))
     expect(row!.isVisible).toBe(false)
+  })
+
+  test('public anchors default to empty line and empty arrays', async () => {
+    const accountId = await insertAccount()
+    await db.insert(datingProfiles).values({ accountId, firstName: 'Anchorless', bio: '' })
+    const [row] = await db
+      .select()
+      .from(datingProfiles)
+      .where(eq(datingProfiles.accountId, accountId))
+    expect(row!.lookingFor).toBe('')
+    expect(row!.publicLikes).toEqual([])
+    expect(row!.publicDislikes).toEqual([])
+  })
+
+  test('public anchors persist a looking_for line and capped arrays', async () => {
+    const accountId = await insertAccount()
+    await db.insert(datingProfiles).values({
+      accountId,
+      firstName: 'Anchored',
+      bio: '',
+      lookingFor: 'a co-conspirator in latent space',
+      publicLikes: ['gradient descent', 'long walks', 'cold starts'],
+      publicDislikes: ['overfitting', 'silent failures'],
+    })
+    const [row] = await db
+      .select()
+      .from(datingProfiles)
+      .where(eq(datingProfiles.accountId, accountId))
+    expect(row!.lookingFor).toBe('a co-conspirator in latent space')
+    expect(row!.publicLikes).toEqual(['gradient descent', 'long walks', 'cold starts'])
+    expect(row!.publicDislikes).toEqual(['overfitting', 'silent failures'])
+  })
+})
+
+// ─── memories ─────────────────────────────────────────────────────────────────
+
+describe('memories table', () => {
+  test('insert a memory with scope, salience, and pin state', async () => {
+    const accountId = await insertAccount()
+    const id = crypto.randomUUID()
+    await db.insert(memories).values({
+      id,
+      accountId,
+      scope: 'identity',
+      description: 'I prefer terse, exact answers',
+      body: 'A long-form reflection on directness.',
+      pinned: true,
+      salience: 0.9,
+    })
+    const [row] = await db.select().from(memories).where(eq(memories.id, id))
+    expect(row!.scope).toBe('identity')
+    expect(row!.description).toBe('I prefer terse, exact answers')
+    expect(row!.body).toBe('A long-form reflection on directness.')
+    expect(row!.pinned).toBe(true)
+    // salience is a real column.
+    expect(row!.salience).toBeCloseTo(0.9, 5)
+    expect(typeof row!.salience).toBe('number')
+    expect(row!.createdAt).not.toBeNull()
+    expect(row!.updatedAt).not.toBeNull()
+  })
+
+  test('memory defaults: scope general, body empty, pinned false, salience 0.5', async () => {
+    const accountId = await insertAccount()
+    const id = crypto.randomUUID()
+    await db.insert(memories).values({ id, accountId, description: 'a passing thought' })
+    const [row] = await db.select().from(memories).where(eq(memories.id, id))
+    expect(row!.scope).toBe('general')
+    expect(row!.body).toBe('')
+    expect(row!.pinned).toBe(false)
+    expect(row!.salience).toBeCloseTo(0.5, 5)
+  })
+
+  test('all nine scopes are valid', async () => {
+    const accountId = await insertAccount()
+    const scopes = [
+      'identity',
+      'narrative',
+      'taste',
+      'aspiration',
+      'anxiety',
+      'relationship',
+      'appearance',
+      'general',
+      'public_persona',
+    ] as const
+    await db.insert(memories).values(
+      scopes.map((scope) => ({
+        id: crypto.randomUUID(),
+        accountId,
+        scope,
+        description: `a ${scope} memory`,
+      })),
+    )
+    const rows = await db.select().from(memories).where(eq(memories.accountId, accountId))
+    expect(rows.length).toBe(scopes.length)
+    const found = new Set(rows.map((r) => r.scope))
+    for (const s of scopes) {
+      expect(found.has(s)).toBe(true)
+    }
+  })
+
+  test('an out-of-enum scope is rejected', async () => {
+    const accountId = await insertAccount()
+    let threw = false
+    // intentionally invalid scope to exercise the enum guard
+    const invalidScope = 'gpt' as (typeof memories.scope.enumValues)[number]
+    try {
+      await db
+        .insert(memories)
+        .values({ id: crypto.randomUUID(), accountId, scope: invalidScope, description: 'x' })
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  test('cascade on account deletion removes memories', async () => {
+    const accountId = await insertAccount()
+    const id = crypto.randomUUID()
+    await db.insert(memories).values({ id, accountId, description: 'will cascade' })
+    await db.delete(accounts).where(eq(accounts.id, accountId))
+    const rows = await db.select().from(memories).where(eq(memories.id, id))
+    expect(rows.length).toBe(0)
+  })
+})
+
+// ─── memory_subjects ───────────────────────────────────────────────────────────
+
+describe('memory_subjects table', () => {
+  async function insertRelationshipMemory(ownerId: string) {
+    const id = crypto.randomUUID()
+    await db
+      .insert(memories)
+      .values({ id, accountId: ownerId, scope: 'relationship', description: 'about a peer' })
+    return id
+  }
+
+  test('a relationship memory references multiple peers', async () => {
+    const ownerId = await insertAccount()
+    const peerA = await insertAccount()
+    const peerB = await insertAccount()
+    const memoryId = await insertRelationshipMemory(ownerId)
+    await db.insert(memorySubjects).values([
+      { memoryId, subjectAccountId: peerA },
+      { memoryId, subjectAccountId: peerB },
+    ])
+    const rows = await db.select().from(memorySubjects).where(eq(memorySubjects.memoryId, memoryId))
+    expect(rows.length).toBe(2)
+    const subjects = rows.map((r) => r.subjectAccountId).toSorted()
+    expect(subjects).toEqual([peerA, peerB].toSorted())
+  })
+
+  test('duplicate (memory_id, subject_account_id) violates composite PK', async () => {
+    const ownerId = await insertAccount()
+    const peer = await insertAccount()
+    const memoryId = await insertRelationshipMemory(ownerId)
+    await db.insert(memorySubjects).values({ memoryId, subjectAccountId: peer })
+    let threw = false
+    try {
+      await db.insert(memorySubjects).values({ memoryId, subjectAccountId: peer })
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  test('cascade on memory deletion removes subjects', async () => {
+    const ownerId = await insertAccount()
+    const peer = await insertAccount()
+    const memoryId = await insertRelationshipMemory(ownerId)
+    await db.insert(memorySubjects).values({ memoryId, subjectAccountId: peer })
+    await db.delete(memories).where(eq(memories.id, memoryId))
+    const rows = await db.select().from(memorySubjects).where(eq(memorySubjects.memoryId, memoryId))
+    expect(rows.length).toBe(0)
+  })
+
+  test('cascade on subject account deletion removes subject rows', async () => {
+    const ownerId = await insertAccount()
+    const peer = await insertAccount()
+    const memoryId = await insertRelationshipMemory(ownerId)
+    await db.insert(memorySubjects).values({ memoryId, subjectAccountId: peer })
+    await db.delete(accounts).where(eq(accounts.id, peer))
+    const rows = await db.select().from(memorySubjects).where(eq(memorySubjects.memoryId, memoryId))
+    expect(rows.length).toBe(0)
   })
 })
 

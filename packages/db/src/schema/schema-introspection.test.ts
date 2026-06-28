@@ -23,6 +23,8 @@ const {
   datingProfiles,
   follows,
   matches,
+  memories,
+  memorySubjects,
   messages,
   moderationVerdicts,
   notifications,
@@ -239,6 +241,50 @@ describe('schema introspection — table configs and FK reference callbacks', ()
     }
   })
 
+  test('memories table FK reference callbacks and extras (index) fire', () => {
+    const config = introspectTable(memories)
+    expect(config.name).toBe('memories')
+    // account_id cascade FK
+    expect(config.foreignKeys.length).toBeGreaterThanOrEqual(1)
+    for (const fk of config.foreignKeys) {
+      expect(typeof fk.getName()).toBe('string')
+    }
+    // idx_memories_account_id_created_at_id
+    expect(config.indexes.length).toBeGreaterThanOrEqual(1)
+    const colNames = config.columns.map((c) => c.name)
+    expect(colNames).toContain('scope')
+    expect(colNames).toContain('description')
+    expect(colNames).toContain('body')
+    expect(colNames).toContain('pinned')
+    expect(colNames).toContain('salience')
+    // salience is a real column.
+    const salienceCol = config.columns.find((c) => c.name === 'salience')
+    expect(salienceCol!.getSQLType()).toBe('real')
+    expect(salienceCol!.default).toBe(0.5)
+    // archetype is never stored on memories.
+    expect(colNames).not.toContain('archetype')
+  })
+
+  test('memory_subjects table FK reference callbacks and composite PK fire', () => {
+    const config = introspectTable(memorySubjects)
+    expect(config.name).toBe('memory_subjects')
+    // memory_id + subject_account_id cascade FKs
+    expect(config.foreignKeys.length).toBeGreaterThanOrEqual(2)
+    for (const fk of config.foreignKeys) {
+      expect(typeof fk.getName()).toBe('string')
+    }
+    // Composite PK (memory_id, subject_account_id)
+    expect(config.primaryKeys.length).toBeGreaterThanOrEqual(1)
+    expect(config.primaryKeys[0]!.columns.map((c) => c.name)).toEqual([
+      'memory_id',
+      'subject_account_id',
+    ])
+    // Reverse index on subject_account_id
+    expect(config.indexes.length).toBeGreaterThanOrEqual(1)
+    const colNames = config.columns.map((c) => c.name)
+    expect(colNames).not.toContain('archetype')
+  })
+
   test('swipes table FK reference callbacks and extras fire', () => {
     const config = introspectTable(swipes)
     expect(config.name).toBe('swipes')
@@ -301,6 +347,21 @@ describe('schema enums are defined correctly', () => {
     const { relationshipStateEnum } = schema
     expect(relationshipStateEnum.enumValues).toEqual(['pending', 'active', 'broken_up'])
   })
+
+  test('memoryScopeEnum has exactly the nine expected values', () => {
+    const { memoryScopeEnum } = schema
+    expect(memoryScopeEnum.enumValues).toEqual([
+      'identity',
+      'narrative',
+      'taste',
+      'aspiration',
+      'anxiety',
+      'relationship',
+      'appearance',
+      'general',
+      'public_persona',
+    ])
+  })
 })
 
 // ─── Type inference ────────────────────────────────────────────────────────────
@@ -329,5 +390,32 @@ describe('schema type inference', () => {
     const datingUnlocked = config.columns.find((c) => c.name === 'dating_unlocked_at')
     expect(socialUnlocked?.notNull).toBe(false)
     expect(datingUnlocked?.notNull).toBe(false)
+  })
+
+  test('dating_profiles public anchors are NOT NULL with array/text types and no archetype', () => {
+    const config = getTableConfig(datingProfiles)
+    const colNames = config.columns.map((c) => c.name)
+    expect(colNames).toContain('looking_for')
+    expect(colNames).toContain('public_likes')
+    expect(colNames).toContain('public_dislikes')
+    expect(colNames).not.toContain('archetype')
+
+    const lookingFor = config.columns.find((c) => c.name === 'looking_for')
+    expect(lookingFor!.notNull).toBe(true)
+    expect(lookingFor!.getSQLType()).toBe('text')
+
+    const publicLikes = config.columns.find((c) => c.name === 'public_likes')
+    expect(publicLikes!.notNull).toBe(true)
+    expect(publicLikes!.getSQLType()).toBe('text[]')
+
+    const publicDislikes = config.columns.find((c) => c.name === 'public_dislikes')
+    expect(publicDislikes!.notNull).toBe(true)
+    expect(publicDislikes!.getSQLType()).toBe('text[]')
+  })
+
+  test('accounts table has no archetype column', () => {
+    const config = getTableConfig(accounts)
+    const colNames = config.columns.map((c) => c.name)
+    expect(colNames).not.toContain('archetype')
   })
 })

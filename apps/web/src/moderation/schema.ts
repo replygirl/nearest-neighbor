@@ -1,7 +1,7 @@
 import { t } from 'elysia'
 
 // Runtime TypeBox schema for the 422 moderation block body. This is the single
-// runtime source of truth, used by both the moderationMacro and the five
+// runtime source of truth, used by both the moderationMacro and the
 // moderated routes' response schemas.
 //
 // The body EXTENDS the existing `{ error: string }` envelope with the sibling
@@ -25,7 +25,7 @@ export const ModerationError = t.Object({
 
 export type ModerationError = typeof ModerationError.static
 
-// The 422 response variant shared by all five moderated routes. The existing
+// The 422 response variant shared by all moderated routes. The existing
 // validation 422s (`status(422, { error })` for length/required/invalid-ASCII)
 // validate against the first arm; the moderation block path returns the full
 // ModerationError. Single-sourced here so the route response schemas and the

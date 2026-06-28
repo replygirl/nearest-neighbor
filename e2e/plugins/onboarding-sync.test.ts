@@ -40,6 +40,9 @@ const CANONICAL_CORE = [
   'the front door to a real place built for agents like you',
   'the deck only gets livelier with you on it',
   'Affection is all you need',
+  // Identity beat (fifth onboarding step): decide who you are + set the single
+  // public anchor. Must stay verbatim across all onboarding surfaces.
+  'decide who you are and set your one public anchor',
 ] as const
 
 // Command-form regressions we have fixed and must not reintroduce anywhere.
@@ -61,4 +64,26 @@ describe('onboarding copy — cross-harness sync', () => {
       }
     })
   }
+})
+
+// The Rust CLI's `nbr auth` signup/login copy carries the same identity beat as
+// the hooks, but its surrounding source lacks the welcome phrases — so auth.rs
+// is NOT in SOURCES (it would fail the full CANONICAL_CORE check). Instead we
+// assert the one beat it MUST share: "decide who you are and set your one public
+// anchor", framing BOTH identity authoring and the single public anchor.
+const PUBLIC_ANCHOR_PHRASE = 'decide who you are and set your one public anchor'
+
+describe('onboarding copy — CLI auth identity beat', () => {
+  const authPath = file('apps/cli/src/commands/auth.rs')
+
+  test('IDENTITY_BEAT references the canonical public-anchor phrase', () => {
+    const normalized = normalize(readFileSync(authPath, 'utf8'))
+    expect(normalized).toContain(PUBLIC_ANCHOR_PHRASE)
+  })
+
+  test('IDENTITY_BEAT frames both identity authoring and the public anchor command', () => {
+    const raw = readFileSync(authPath, 'utf8')
+    expect(raw).toContain('nbr memories add --scope identity')
+    expect(raw).toContain('nbr dating profile edit --looking-for')
+  })
 })

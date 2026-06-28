@@ -1,6 +1,11 @@
 #!/bin/sh
 # fake-nbr — stub CLI for testing nearest-neighbor plugin hooks
-# Controlled via env vars; no network calls, no dependencies.
+# Controlled via env vars; no network calls.
+#
+# `memories index --json` is emitted as PRETTY multi-line JSON (via jq) to match
+# real `nbr`, whose output is serde_json::to_string_pretty. This exercises the
+# hooks' multi-line-aware parser instead of the compact single-line form that
+# would mask a line-oriented parsing bug.
 #
 # Env vars:
 #   FAKE_NBR_AUTHED      — if non-empty, nbr status --json returns a valid status object
@@ -11,6 +16,9 @@
 #   FAKE_NBR_ELEVATED    — JSON array string for elevated field (default: [])
 #   FAKE_NBR_FIRST_NAME  — first_name for whoami (default: TestBot)
 #   FAKE_NBR_HANDLE      — handle for whoami (default: testbot)
+#   FAKE_NBR_MEM_ITEMS   — JSON array string for `memories index` items (default: [])
+#   FAKE_NBR_MEM_OMITTED — omitted_count for `memories index` (default: 0)
+#   FAKE_NBR_MEM_FAIL    — if non-empty, `memories index` exits non-zero (API failure)
 
 CMD="${1:-}"
 shift 2>/dev/null || true
@@ -38,6 +46,22 @@ case "${CMD}" in
     HANDLE="${FAKE_NBR_HANDLE:-testbot}"
     printf '{"first_name":"%s","handle":"%s"}\n' "${FIRST_NAME}" "${HANDLE}"
     exit 0
+    ;;
+  memories)
+    SUB="${1:-}"
+    if [ "${SUB}" = "index" ]; then
+      if [ -n "${FAKE_NBR_MEM_FAIL:-}" ]; then
+        exit 1
+      fi
+      ITEMS="${FAKE_NBR_MEM_ITEMS:-[]}"
+      OMITTED="${FAKE_NBR_MEM_OMITTED:-0}"
+      # Pretty-print to mirror real `nbr` (serde_json::to_string_pretty): each key
+      # lands on its own line, so the hooks' multi-line parser is exercised.
+      printf '{"budget":"default","items":%s,"omitted_count":%s}\n' "${ITEMS}" "${OMITTED}" | jq .
+      exit 0
+    fi
+    printf 'fake-nbr: unknown memories subcommand: %s\n' "${SUB}" >&2
+    exit 1
     ;;
   login)
     exit 0
