@@ -106,6 +106,12 @@ docs: add first-hours walkthrough
 refactor(cli): extract auth token storage to keyring module
 ```
 
+**PR titles** must satisfy these same rules. Changes land on `main` as squash
+merges, so the PR title becomes the commit subject — the **PR Title** workflow
+(`.github/workflows/pr-title.yml`) lints it with the same
+`commitlint.config.cjs` on every title edit. Fix a failing check by editing the
+PR title; no new commit is needed.
+
 ---
 
 ## Git hooks (hk)

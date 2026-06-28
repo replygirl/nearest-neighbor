@@ -595,6 +595,14 @@ echo "Installed branch-aware hook: $HOOKS_DIR/pre-push"
 description = "Validate commit messages on a range (use COMMIT_FROM and COMMIT_TO env vars)"
 run = "bunx commitlint --from \"${COMMIT_FROM:-origin/main}\" --to \"${COMMIT_TO:-HEAD}\""
 
+# Lint a single title string (the PR_TITLE env var) against commitlint — the same
+# rules the commit-msg hook applies to commit subjects. Used by the PR Title
+# workflow; a squash-merge PR title becomes the commit subject on main, so it
+# must conform. Locally: PR_TITLE="feat(web): add x" mise run commit:check-title
+[tasks."commit:check-title"]
+description = "Lint a PR/commit title (PR_TITLE env) against commitlint"
+run = 'printf "%s\n" "$PR_TITLE" | bunx commitlint'
+
 [tasks."hooks:check"]
 description = "Run all pre-commit checks manually (fast profile)"
 # hk check --all routes to pre-commit in check-only mode on all repo files
