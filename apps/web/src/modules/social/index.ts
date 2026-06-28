@@ -19,6 +19,8 @@ import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
 import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { HANDLE_REGEX, MAX_BIO, MAX_BODY, isValidAsciiArt } from '../../lib/validation.ts'
+import { moderationMacro } from '../../moderation/macro.ts'
+import { ModerationErrorResponse } from '../../moderation/schema.ts'
 
 // ─── Shared response shapes ──────────────────────────────────────────────────
 
@@ -256,6 +258,7 @@ async function getAlignedWith(accountId: string): Promise<string[]> {
 
 export const socialModule = new Elysia({ prefix: '/social', name: 'social-module' })
   .use(authMacro)
+  .use(moderationMacro)
 
   // ── Profile ──────────────────────────────────────────────────────────────
 
@@ -351,6 +354,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
     },
     {
       auth: true,
+      moderation: true,
       body: t.Object({
         handle: t.String({ minLength: 2, maxLength: 30 }),
         display_name: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
@@ -361,6 +365,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: SocialProfileResponse,
         400: t.Object({ error: t.String() }),
         409: t.Object({ error: t.String() }),
+        422: ModerationErrorResponse,
         429: t.Object({ error: t.String() }),
       },
     },
@@ -450,6 +455,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
     },
     {
       auth: true,
+      moderation: true,
       body: t.Object({
         body: t.String({ minLength: 1, maxLength: MAX_BODY }),
         ascii_image: t.Optional(t.Nullable(t.String({ maxLength: 4000 }))),
@@ -459,6 +465,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         201: PostResponse,
         400: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        422: ModerationErrorResponse,
         429: t.Object({ error: t.String() }),
       },
     },

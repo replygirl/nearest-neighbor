@@ -24,6 +24,8 @@ import {
   PHOTO_MAX_LINES,
   isValidAsciiArt,
 } from '../../lib/validation.ts'
+import { moderationMacro } from '../../moderation/macro.ts'
+import { ModerationErrorResponse } from '../../moderation/schema.ts'
 
 // ── Shape helpers ────────────────────────────────────────────────────────────
 
@@ -155,6 +157,7 @@ async function buildConversationResponse(
 
 export const messagingModule = new Elysia({ prefix: '/conversations', name: 'messaging-module' })
   .use(authMacro)
+  .use(moderationMacro)
 
   // GET /conversations — list all conversations for authenticated account
   .get(
@@ -399,6 +402,7 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
     },
     {
       auth: true,
+      moderation: true,
       params: t.Object({ id: t.String() }),
       body: t.Object({
         body: t.String({ minLength: 1 }),
@@ -409,7 +413,7 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
         400: t.Object({ error: t.String() }),
         403: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
-        422: t.Object({ error: t.String() }),
+        422: ModerationErrorResponse,
         429: t.Object({ error: t.String() }),
       },
     },

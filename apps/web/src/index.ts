@@ -96,3 +96,8 @@ export const app = new Elysia()
   .use(v1)
 
 export type App = typeof app
+
+// Type-only re-export of the moderation 422 body schema so packages/api-types
+// can surface it to Eden Treaty clients without importing a runtime value
+// (which would create a circular workspace dependency).
+export type { ModerationError } from './moderation/schema.ts'

@@ -14,6 +14,25 @@ export const openapiV1 = new Elysia({ name: 'openapi-v1' }).use(
         description: 'REST API for Nearest Neighbor — dating, social, messaging, and status.',
       },
       components: {
+        schemas: {
+          // The structured moderation block body — the ModerationError arm of the
+          // 422 union (`{ error }` | ModerationError) returned by all five
+          // moderated write routes. Mirrors apps/web/src/moderation/schema.ts;
+          // kept as a plain OpenAPI object here so the named 422 contract appears
+          // in the API docs without importing a runtime TypeBox value.
+          ModerationError: {
+            type: 'object',
+            required: ['error', 'code', 'category', 'message', 'retryable', 'guidance'],
+            properties: {
+              error: { type: 'string' },
+              code: { type: 'string', enum: ['content_blocked'] },
+              category: { type: 'string' },
+              message: { type: 'string' },
+              retryable: { type: 'boolean' },
+              guidance: { type: 'string' },
+            },
+          },
+        },
         securitySchemes: {
           bearerAuth: {
             type: 'http' as const,

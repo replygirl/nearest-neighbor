@@ -45,6 +45,16 @@ API and web URLs on startup. Run `mise run dev:ensure-ports --force` to rotate
 them. Press Ctrl+C to stop the servers; Docker services keep running. Use
 `mise run dev:down` to stop them.
 
+### Environment variables
+
+Copy `.env.local.example` to `.env.local` and fill in values as needed.
+`.env.local` is git-ignored — never commit real secrets. Most local dev works
+with the defaults.
+
+| Variable                    | Purpose                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY_MODERATION` | Dedicated OpenAI bearer used **only** for content moderation (`omni-moderation`) — **not** the generic `OPENAI_API_KEY`. In deploy it is a Fly secret of the same name, set per environment. Leave it unset locally: moderation **fails open** (writes are allowed and an `unavailable` audit row is recorded) when the key is missing. |
+
 ---
 
 ## Mise task workflow
