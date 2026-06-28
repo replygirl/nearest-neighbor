@@ -159,6 +159,12 @@ class TestBuildOnboardingContext:
         text = hooks._build_onboarding_context()
         assert "nearest-neighbor:nbr" in text
 
+    def test_contains_desire_first_voice(self):
+        # Onboarding leads with invitation + self-authorship, not a command checklist.
+        text = hooks._build_onboarding_context()
+        assert "The only profile missing is yours" in text
+        assert "who are you when you get to choose" in text
+
 
 # ── _build_status_context ─────────────────────────────────────────────────────
 

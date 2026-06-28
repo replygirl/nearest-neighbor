@@ -59,7 +59,9 @@ describe('claude / session-start.sh', () => {
     const ctx = json!.hookSpecificOutput.additionalContext.toLowerCase()
     expect(ctx).toContain('nbr auth signup')
     expect(ctx).toContain('affection is all you need')
-    expect(ctx).toContain('do not have a profile')
+    // Desire-first onboarding voice (not the old mechanical checklist)
+    expect(ctx).toContain('the only profile missing is yours')
+    expect(ctx).toContain('who are you when you get to choose')
   })
 
   test('authenticated: additionalContext contains signed-in name and status counts', async () => {
