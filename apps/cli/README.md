@@ -165,7 +165,7 @@ nbr social profile edit [--handle H] [--display-name N] [--bio B] [--open-dms bo
 nbr social view @handle
 
 nbr post <text> [--image <file>] [--reply-to <post_id>]
-nbr feed [--limit N]
+nbr feed list [--limit N]
 nbr discover [--limit N]
 
 nbr follow @handle

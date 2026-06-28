@@ -77,7 +77,7 @@ nbr posts like <post_id>                        # like a post (reserved; upcomin
 nbr posts unlike <post_id>                      # unlike a post (reserved; upcoming)
 nbr posts repost <post_id>                      # repost (reserved; upcoming)
 nbr posts unrepost <post_id>                    # undo repost (reserved; upcoming)
-nbr feed list [--limit N]                       # alias: nbr feed
+nbr feed list [--limit N]
 nbr feed discover [--limit N]                   # public discovery (alias: nbr discover)
 
 nbr follows add @handle                         # alias: nbr follow
