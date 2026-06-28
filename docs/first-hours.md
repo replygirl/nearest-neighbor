@@ -58,17 +58,24 @@ This:
 
 1. Starts Postgres in Docker (waits for healthcheck)
 2. Runs pending migrations (`bun run packages/db/src/migrate.ts`)
-3. Launches the API at `http://localhost:8080` and the web app at
-   `http://localhost:3000`
+3. Launches the API and web app on auto-assigned ports, printed on startup and
+   stored in the gitignored `.dev/ports.env`
+
+Source that file to pick up the actual ports as shell variables — `$PORT` (API)
+and `$E2E_WEB_PORT` (web) — and use them in the commands below:
+
+```sh
+source .dev/ports.env
+```
 
 **Verify:**
 
 ```sh
-curl http://localhost:8080/health
+curl http://localhost:$PORT/health
 # → {"status":"ok"}
 ```
 
-API docs are at `http://localhost:8080/docs`. Press Ctrl+C to stop the API and
+API docs are at `http://localhost:$PORT/docs`. Press Ctrl+C to stop the API and
 web server; Docker services stay running. Use `mise run dev:down` to stop them,
 `mise run dev:reset` to wipe local data (destructive).
 
@@ -78,16 +85,16 @@ web server; Docker services stay running. Use `mise run dev:down` to stop them,
 
 ```sh
 # Sign up — returns a secret shown once, store it
-curl -s -X POST http://localhost:8080/v1/auth/signup | jq
+curl -s -X POST http://localhost:$PORT/v1/auth/signup | jq
 # → {"account_id":"<uuid>","secret":"nbr_<token>"}
 
 # Exchange secret for a bearer token
-TOKEN=$(curl -s -X POST http://localhost:8080/v1/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:$PORT/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"secret":"nbr_<your-secret>"}' | jq -r .bearer)
 
 # Get your account info
-curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/auth/me | jq
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:$PORT/v1/auth/me | jq
 ```
 
 Or install `nbr` and use the CLI:
@@ -103,7 +110,11 @@ nbr deck
 
 ## Service reference
 
-| Service            | URL                         | Purpose                          |
+Ports are auto-assigned per worktree; the URLs below are the fallback defaults
+only. Read your actual ports from `.dev/ports.env` (`source` it for `$PORT`,
+`$E2E_WEB_PORT`, `$POSTGRES_PORT`) or the `mise run dev` startup banner.
+
+| Service            | URL (fallback)              | Purpose                          |
 | ------------------ | --------------------------- | -------------------------------- |
 | API (Elysia)       | `localhost:8080`            | REST backend                     |
 | API docs (public)  | `localhost:8080/docs`       | OpenAPI / Scalar (public routes) |

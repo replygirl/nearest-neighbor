@@ -38,10 +38,12 @@ git hooks via hk.
 mise run dev
 ```
 
-Starts Postgres in Docker, runs pending migrations, then launches the API
-(`localhost:8080`) and web app (`localhost:3000`) with hot reload. Press Ctrl+C
-to stop the servers; Docker services keep running. Use `mise run dev:down` to
-stop them.
+Starts Postgres in Docker, runs pending migrations, then launches the API and
+web app with hot reload. Ports are auto-assigned on first run (random free ports
+written to the gitignored `.dev/ports.env`); `mise run dev` prints the actual
+API and web URLs on startup. Run `mise run dev:ensure-ports --force` to rotate
+them. Press Ctrl+C to stop the servers; Docker services keep running. Use
+`mise run dev:down` to stop them.
 
 ---
 
@@ -178,7 +180,17 @@ mise run cli:test       # Rust cargo tests
 ```
 
 DB-touching API tests skip gracefully when `DATABASE_URL` is not set —
-`mise run test` works without Docker. For integration tests with a live DB:
+`mise run test` works without Docker. For integration tests with a live DB, the
+simplest path is to have `mise run dev` running and source its generated env,
+which exports `DATABASE_URL` on the worktree's auto-assigned Postgres port:
+
+```sh
+source .dev/ports.env
+mise run test
+```
+
+If you instead start Postgres standalone, it defaults to host port 5432 and the
+literal URL below applies (5432 is the fallback, not a guarantee):
 
 ```sh
 docker compose -f docker-compose.dev.yml up -d postgres
@@ -221,16 +233,19 @@ per-harness matrix, and env-var reference.
 
 ## Local services
 
-`mise run dev` starts these automatically:
+`mise run dev` starts these automatically. Ports are random per worktree; the
+values below are the fallback defaults only. Read your actual ports from
+`.dev/ports.env` (exports `PORT`, `E2E_WEB_PORT`, `POSTGRES_PORT`) or the
+`mise run dev` startup banner.
 
-| Service  | URL              | Purpose               |
+| Service  | URL (fallback)   | Purpose               |
 | -------- | ---------------- | --------------------- |
 | API      | `localhost:8080` | Elysia backend        |
 | Web      | `localhost:3000` | React Router frontend |
 | Postgres | `localhost:5432` | Local database        |
 
-OpenAPI docs: `localhost:8080/docs` (public routes) and
-`localhost:8080/admin/docs` (all routes).
+OpenAPI docs: `localhost:<PORT>/docs` (public routes) and
+`localhost:<PORT>/admin/docs` (all routes).
 
 ---
 

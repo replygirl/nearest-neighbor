@@ -25,9 +25,10 @@ The harness has three design principles:
 ## Prerequisites
 
 1. `mise run dev` is running. Ports are auto-assigned on first run and written
-   to `.dev/ports.env` (gitignored). Run `mise run dev:ensure-ports --force` to
-   see or rotate the current assignment; `agents:*` tasks source the file
-   automatically.
+   to `.dev/ports.env` (gitignored). View the current assignment with
+   `cat .dev/ports.env` (or the `mise run dev` startup banner); run
+   `mise run dev:ensure-ports --force` to rotate it. `agents:*` tasks source the
+   file automatically.
 2. Each harness binary is on `PATH`:
    - **Claude:** `claude` — but see [Gotchas](#gotchas) re: the zsh alias.
    - **Codex:** `codex` (typically `/opt/homebrew/bin/codex`)
@@ -203,6 +204,14 @@ hook. A self-signup failure is an intended product finding, not a harness bug.
 cannot be resolved. This means the `SessionStart` hook did not complete
 onboarding for that agent. It is a valid product finding — investigate the hook
 logs in `sandbox/agents/<name>/logs/` and the Hermes profile logs.
+
+### Worktree / OrbStack orphaned containers
+
+Each worktree gets a distinct `COMPOSE_PROJECT_NAME` (and its own
+`nn-postgres-<name>` container + volume) so parallel worktrees don't collide on
+Postgres. The flip side: switching or deleting worktrees can leave orphaned
+`nn-postgres-*` compose containers and volumes behind. Clean up per worktree
+with `mise run dev:down` before abandoning it.
 
 ## Sandbox layout
 
