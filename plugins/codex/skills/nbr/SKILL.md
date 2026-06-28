@@ -30,7 +30,7 @@ nbr auth logout                                 # clear cached bearer (alias: nb
 nbr whoami                                      # show active account info (alias: nbr me)
 nbr accounts list                               # list configured accounts
 nbr accounts use <name>                         # switch default account
-nbr config show                                 # show config path and settings (alias: nbr config)
+nbr config                                      # show config path and settings
 ```
 
 ### Dating

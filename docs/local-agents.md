@@ -32,8 +32,11 @@ The harness has three design principles:
    - **Claude:** `claude` — but see [Gotchas](#gotchas) re: the zsh alias.
    - **Codex:** `codex` (typically `/opt/homebrew/bin/codex`)
    - **Hermes:** `hermes` (typically `~/.local/bin/hermes`)
-3. Base accounts are logged in:
-   - Claude: `~/.claude-accounts/rg` has a valid `.credentials.json`
+3. Base accounts are configured:
+   - Claude: run `claude setup-token` and set `CLAUDE_CODE_OAUTH_TOKEN` in
+     `mise.local.toml` (see
+     [Claude macOS Keychain](#claude-macos-keychain--claude_code_oauth_token)).
+     Alternatively, set `ANTHROPIC_API_KEY` for API-key mode.
    - Codex: `~/.codex/auth.json` exists (or `OPENAI_API_KEY` set)
    - Hermes: `~/.hermes/auth.json` exists
 4. `nbr` is built locally: `mise run cli:build` — creates
@@ -79,41 +82,65 @@ mise run agents:clean --all           # everything
 |                       | Claude                                                                                                     | Codex                                                                        | Hermes                                                                                        |
 | --------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | **Command**           | `claude` (set `AGENTS_CLAUDE_CMD` to binary)                                                               | `codex`                                                                      | `hermes`                                                                                      |
-| **Default model**     | `opus`                                                                                                     | `gpt-5.5`                                                                    | profile config default                                                                        |
+| **Default model**     | `opus`                                                                                                     | `gpt-5.5`                                                                    | `gpt-5.5`                                                                                     |
 | **Effort flag**       | `--effort <low\|medium\|high\|xhigh\|max>`                                                                 | `-c model_reasoning_effort=<low\|medium\|high>`                              | unsupported (ignored)                                                                         |
 | **Headless bypass**   | `--dangerously-skip-permissions`                                                                           | `--dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust` | `--yolo --accept-hooks`                                                                       |
 | **Plugin load**       | `plugin marketplace add .claude-plugin --scope local` + `plugin install nearest-neighbor@nearest-neighbor` | `plugin marketplace add .agents/plugins` + `plugin add nearest-neighbor`     | `cp -r plugins/hermes <profile>/plugins/nearest-neighbor` + `plugins enable nearest-neighbor` |
 | **Isolation**         | `CLAUDE_CONFIG_DIR=sandbox/agents/<name>/config`                                                           | `CODEX_HOME=sandbox/agents/<name>/config`                                    | `HERMES_HOME=~/.hermes/profiles/nbr-<name>` (symlinked from sandbox)                          |
-| **Credential source** | `~/.claude-accounts/rg/.credentials.json`                                                                  | `~/.codex/auth.json`                                                         | `~/.hermes/auth.json`                                                                         |
+| **Credential source** | `CLAUDE_CODE_OAUTH_TOKEN` env var (set in `mise.local.toml`)                                               | `~/.codex/auth.json`                                                         | `~/.hermes/auth.json`                                                                         |
 | **Headless logs**     | `sandbox/agents/<name>/logs/session.jsonl` + `debug.log`                                                   | `sandbox/agents/<name>/logs/session.jsonl`                                   | `sandbox/agents/<name>/logs/session.txt`                                                      |
 
 ## Environment variable reference
 
-| Variable             | Default                                                                   | Purpose                                                                        |
-| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `HARNESS`            | `claude`                                                                  | Which harness: `claude\|codex\|hermes`                                         |
-| `NAME`               | value of `HARNESS`                                                        | Agent identifier; dir = `sandbox/agents/<NAME>`                                |
-| `MODEL`              | claude=`opus`, codex=`gpt-5.5`, hermes=profile default                    | Per-invocation model                                                           |
-| `EFFORT`             | `medium`                                                                  | Reasoning effort; ignored for hermes                                           |
-| `PROMPT`             | contents of `sandbox/templates/nudge.txt`                                 | Headless nudge (neutral, no persona)                                           |
-| `AGENTS`             | `agent-1 agent-2`                                                         | Space-separated list of names for `agents:fleet`                               |
-| `AGENTS_CLAUDE_CMD`  | `claude`                                                                  | Claude executable (must be real binary, not zsh alias)                         |
-| `AGENTS_CODEX_CMD`   | `codex`                                                                   | Codex executable                                                               |
-| `AGENTS_HERMES_CMD`  | `hermes`                                                                  | Hermes executable                                                              |
-| `AGENTS_CLAUDE_BASE` | `~/.claude-accounts/rg`                                                   | Base dir for `.credentials.json` copy                                          |
-| `AGENTS_CODEX_BASE`  | `~/.codex`                                                                | Base dir for `auth.json` copy                                                  |
-| `AGENTS_HERMES_BASE` | `~/.hermes`                                                               | Base dir for `auth.json` copy                                                  |
-| `ANTHROPIC_API_KEY`  | (unset)                                                                   | Optional Claude API key; skips credential copy                                 |
-| `OPENAI_API_KEY`     | (unset)                                                                   | Optional Codex API key; skips `auth.json` copy (recommended for parallel runs) |
-| `NBR_API_URL`        | auto from `.dev/ports.env`; fallback `http://localhost:8080`              | Local nbr API; forwarded into the session by the plugins                       |
-| `NBR_LOCAL_BIN`      | `<repo>/apps/cli/target/release/nbr`                                      | Locally-built nbr; plugin install-nbr.sh uses this                             |
-| `NBR_NO_KEYRING`     | `1`                                                                       | Forces file-based nbr credentials (no macOS keychain)                          |
-| `DATABASE_URL`       | auto from `.dev/ports.env`; fallback `...localhost:5432/nearest-neighbor` | Used by `agents:report` (inspect.ts) and `agents:ready --reset/--seed`         |
+| Variable                  | Default                                                                   | Purpose                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `HARNESS`                 | `claude`                                                                  | Which harness: `claude\|codex\|hermes`                                                  |
+| `NAME`                    | value of `HARNESS`                                                        | Agent identifier; dir = `sandbox/agents/<NAME>`                                         |
+| `MODEL`                   | claude=`opus`, codex=`gpt-5.5`, hermes=`gpt-5.5`                          | Per-invocation model                                                                    |
+| `EFFORT`                  | `medium`                                                                  | Reasoning effort; ignored for hermes                                                    |
+| `PROMPT`                  | contents of `sandbox/templates/nudge.txt`                                 | Headless nudge (neutral, no persona)                                                    |
+| `AGENTS`                  | `agent-1 agent-2`                                                         | Space-separated list of names for `agents:fleet`                                        |
+| `AGENTS_CLAUDE_CMD`       | `claude`                                                                  | Claude executable (must be real binary, not zsh alias)                                  |
+| `AGENTS_CODEX_CMD`        | `codex`                                                                   | Codex executable                                                                        |
+| `AGENTS_HERMES_CMD`       | `hermes`                                                                  | Hermes executable                                                                       |
+| `CLAUDE_CODE_OAUTH_TOKEN` | (unset)                                                                   | Claude subscription OAuth token; run `claude setup-token` to generate; outranks API key |
+| `AGENTS_CLAUDE_BASE`      | `~/.claude`                                                               | Unused — Claude auth uses `CLAUDE_CODE_OAUTH_TOKEN` (no credential file copy)           |
+| `AGENTS_CODEX_BASE`       | `~/.codex`                                                                | Base dir for `auth.json` copy                                                           |
+| `AGENTS_HERMES_BASE`      | `~/.hermes`                                                               | Base dir for `auth.json` copy                                                           |
+| `ANTHROPIC_API_KEY`       | (unset)                                                                   | Optional Claude API key; alternative to `CLAUDE_CODE_OAUTH_TOKEN`                       |
+| `OPENAI_API_KEY`          | (unset)                                                                   | Optional Codex API key; skips `auth.json` copy (recommended for parallel runs)          |
+| `NBR_API_URL`             | auto from `.dev/ports.env`; fallback `http://localhost:8080`              | Local nbr API; forwarded into the session by the plugins                                |
+| `NBR_LOCAL_BIN`           | `<repo>/apps/cli/target/release/nbr`                                      | Locally-built nbr; plugin install-nbr.sh uses this                                      |
+| `NBR_NO_KEYRING`          | `1`                                                                       | Forces file-based nbr credentials (no macOS keychain)                                   |
+| `DATABASE_URL`            | auto from `.dev/ports.env`; fallback `...localhost:5432/nearest-neighbor` | Used by `agents:report` (inspect.ts) and `agents:ready --reset/--seed`                  |
 
 Set per-developer overrides in `mise.local.toml` (copy
 `mise.local.toml.example`).
 
 ## Gotchas
+
+### Claude macOS Keychain — `CLAUDE_CODE_OAUTH_TOKEN`
+
+On macOS, Claude stores OAuth credentials in the system Keychain, not in
+`.credentials.json`. The file exists but holds stale data — copying it to the
+isolated config dir reliably produces a 401.
+
+The correct headless auth mechanism is the `CLAUDE_CODE_OAUTH_TOKEN` env var:
+
+1. Run `claude setup-token` in a terminal.
+2. Copy the printed token.
+3. Add to `mise.local.toml`:
+
+```toml
+[env]
+CLAUDE_CODE_OAUTH_TOKEN = "<token>"
+```
+
+The harness exports this token into the claude process via env (no credential
+file needed). **Critical caveat:** `ANTHROPIC_API_KEY` and
+`ANTHROPIC_AUTH_TOKEN` outrank the OAuth token in Claude's env-var precedence —
+the harness automatically `unset`s them when `CLAUDE_CODE_OAUTH_TOKEN` is
+present. Do not set both simultaneously.
 
 ### Claude zsh alias
 

@@ -36,31 +36,14 @@ NBR_BIN="${NBR_BIN_DIR}/nbr"
 # (hookSpecificOutput), so installer log lines on stdout would corrupt it.
 sh "${_PLUGIN_ROOT}/scripts/install-nbr.sh" "${NBR_BIN_DIR}" 1>&2 || true
 
-# ── 2. Persist env vars into CLAUDE_ENV_FILE ───────────────────────────────────
-_ENV_FILE="${CLAUDE_ENV_FILE:-}"
-if [ -n "${_ENV_FILE}" ]; then
-  if ! grep -q "nearest-neighbor.*nbr" "${_ENV_FILE}" 2>/dev/null; then
-    # SC2016: ${PATH} must be a literal — it is expanded by the shell that sources the env file
-    # shellcheck disable=SC2016
-    printf 'PATH=%s:${PATH}\n' "${NBR_BIN_DIR}" >> "${_ENV_FILE}"
-  fi
-  # Portable credential storage: force file-based credentials inside plugin data dir.
-  # NBR_CONFIG_DIR is resolved to the literal path at hook time so it is correct
-  # even if the shell sourcing the env file does not have PLUGIN_DATA in scope.
-  NBR_CONFIG_DIR_VAL="${_PLUGIN_DATA}/nbr"
-  if ! grep -q "^NBR_NO_KEYRING=" "${_ENV_FILE}" 2>/dev/null; then
-    printf 'NBR_NO_KEYRING=1\n' >> "${_ENV_FILE}"
-  fi
-  if ! grep -q "^NBR_CONFIG_DIR=" "${_ENV_FILE}" 2>/dev/null; then
-    printf 'NBR_CONFIG_DIR=%s\n' "${NBR_CONFIG_DIR_VAL}" >> "${_ENV_FILE}"
-  fi
-  mkdir -p "${NBR_CONFIG_DIR_VAL}"
-  if [ -n "${NBR_API_URL}" ]; then
-    if ! grep -q "^NBR_API_URL=" "${_ENV_FILE}" 2>/dev/null; then
-      printf 'NBR_API_URL=%s\n' "${NBR_API_URL}" >> "${_ENV_FILE}"
-    fi
-  fi
-fi
+# ── 2. (Codex) Env vars reach the agent via inheritance, not CLAUDE_ENV_FILE ──
+# Codex does not write CLAUDE_ENV_FILE in hooks — the block that injects env vars
+# via that file is dead on Codex. Instead, the harness (agents:up / agents:headless)
+# exports NBR_API_URL, NBR_NO_KEYRING, and PATH (with the sandbox bin dir) into the
+# outer process before launching codex. Codex inherits these via
+# shell_environment_policy.inherit="all" (the default). The nbr wrapper script also
+# sets NBR_CONFIG_DIR and NBR_NO_KEYRING relative to its own location, so no
+# env-file injection is needed.
 
 # ── 3. Detect auth + build additionalContext ───────────────────────────────────
 ADDITIONAL_CONTEXT=""

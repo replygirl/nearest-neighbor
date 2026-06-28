@@ -34,7 +34,7 @@ HARNESS="${HARNESS:-$(nn_read_meta "$NAME" harness)}"
 MODEL="${MODEL:-$(nn_read_meta "$NAME" model)}"
 EFFORT="${EFFORT:-$(nn_read_meta "$NAME" effort)}"
 
-# Treat JSON null as empty (only hermes legitimately has empty model)
+# Treat JSON null as empty — fall back to harness default.
 if [[ "$MODEL" == 'null' ]]; then
   MODEL="$(nn_default_model "$HARNESS")"
 fi
@@ -65,18 +65,28 @@ nn_launch() {
   case "$HARNESS" in
     claude)
       export CLAUDE_CONFIG_DIR="$CFG_DIR"
+      # CLAUDE_CODE_OAUTH_TOKEN flows via env (set in mise.local.toml).
+      # ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN outrank the OAuth token in
+      # Claude's env-var precedence — unset them so the OAuth token takes effect.
+      if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+        unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+      fi
       cd "$PROJECT_DIR" || exit 1
       exec "$CMD" --model "$MODEL" --effort "$EFFORT"
       ;;
     codex)
-      # codex -C sets the working directory without a shell cd
+      # codex -C sets the working directory without a shell cd.
+      # PATH-prepend the sandbox bin dir: Codex inherits PATH via
+      # shell_environment_policy.inherit="all" (default). Do NOT use
+      # [shell_environment_policy] set — it replaces PATH wholesale.
       export CODEX_HOME="$CFG_DIR"
+      export PATH="${AGENT_DIR}/bin:${PATH}"
       exec "$CMD" -m "$MODEL" -C "$PROJECT_DIR"
       ;;
     hermes)
       export HERMES_HOME="$CFG_DIR"
       cd "$PROJECT_DIR" || exit 1
-      # Omit -m when MODEL is empty (use the profile's config.yaml default)
+      # Hermes requires a non-empty model string; pass -m explicitly.
       if [[ -n "$MODEL" ]]; then
         exec "$CMD" -m "$MODEL"
       else

@@ -67,23 +67,20 @@ case "$HARNESS" in
     CLAUDE_CONFIG_DIR="$CFG_DIR" "$CMD" plugin install nearest-neighbor@nearest-neighbor \
       || printf 'NOTE: plugin install returned non-zero (may already be installed)\n'
 
-    # Credential inheritance: copy AFTER plugin install because claude plugin
-    # install deletes .credentials.json from a fresh CLAUDE_CONFIG_DIR (it
-    # invalidates credentials it did not issue itself during the install flow).
-    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-      printf 'NOTE: ANTHROPIC_API_KEY set — skipping credential file copy for %s\n' "$NAME"
+    # Auth: Claude reads CLAUDE_CODE_OAUTH_TOKEN straight from env — no credential
+    # file copy needed. On macOS, real credentials live in Keychain; copying
+    # .credentials.json is always stale (→ 401). Run `claude setup-token` once
+    # and set CLAUDE_CODE_OAUTH_TOKEN in mise.local.toml to activate headless auth.
+    if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+      printf 'NOTE: CLAUDE_CODE_OAUTH_TOKEN set — OAuth token will flow via env at launch.\n'
+    elif [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+      printf 'NOTE: ANTHROPIC_API_KEY set — API-key mode (no credential file needed).\n'
     else
-      BASE="$(nn_base_dir claude)"
-      CRED_FILE="${BASE}/.credentials.json"
-      DEST="${CFG_DIR}/.credentials.json"
-      if [[ -f "$CRED_FILE" ]]; then
-        cp "$CRED_FILE" "$DEST"
-        chmod 600 "$DEST"
-        printf 'OK: credentials copied from %s\n' "$BASE"
-      else
-        printf 'WARN: no credential file at %s — set ANTHROPIC_API_KEY or fix AGENTS_CLAUDE_BASE\n' \
-          "$CRED_FILE" >&2
-      fi
+      printf 'WARN: Neither CLAUDE_CODE_OAUTH_TOKEN nor ANTHROPIC_API_KEY is set.\n' >&2
+      printf '      Run: claude setup-token\n' >&2
+      printf '      Then add to mise.local.toml under [env]:\n' >&2
+      printf '        CLAUDE_CODE_OAUTH_TOKEN = "<token>"\n' >&2
+      printf '      Without a token, headless Claude sessions will fail with 401.\n' >&2
     fi
 
     printf 'OK: Claude agent %s configured at %s\n' "$NAME" "$CFG_DIR"
@@ -138,6 +135,19 @@ case "$HARNESS" in
     # Must use <plugin>@<marketplace> form; bare name requires --marketplace flag.
     CODEX_HOME="$CFG_DIR" "$CMD" plugin add nearest-neighbor@nearest-neighbor \
       || printf 'NOTE: codex plugin add returned non-zero (may already be installed)\n'
+
+    # Pre-install nbr into a sandbox-controlled bin dir so the agent can find it
+    # via PATH at launch time. Codex inherits all env vars by default
+    # (shell_environment_policy.inherit="all"), so PATH-prepending this dir at
+    # launch makes nbr available to the agent's bash without CLAUDE_ENV_FILE
+    # injection (which does not run on Codex — hooks do not write env files).
+    SANDBOX_BIN="${AGENT_DIR}/bin"
+    mkdir -p "$SANDBOX_BIN"
+    printf '==> Pre-installing nbr into sandbox bin dir at %s...\n' "$SANDBOX_BIN"
+    export NBR_LOCAL_BIN
+    NBR_LOCAL_BIN="$(nn_nbr_local_bin)"
+    sh "${REPO_ROOT}/plugins/codex/scripts/install-nbr.sh" "$SANDBOX_BIN" \
+      || printf 'NOTE: nbr pre-install returned non-zero (non-fatal; session-start will retry)\n'
 
     printf 'OK: Codex agent %s configured at %s\n' "$NAME" "$CFG_DIR"
     ;;

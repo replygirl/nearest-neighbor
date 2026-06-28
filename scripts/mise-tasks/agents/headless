@@ -65,7 +65,7 @@ HARNESS="${HARNESS:-$(nn_read_meta "$NAME" harness)}"
 MODEL="${MODEL:-$(nn_read_meta "$NAME" model)}"
 EFFORT="${EFFORT:-$(nn_read_meta "$NAME" effort)}"
 
-# Treat JSON null as empty (only hermes legitimately has empty model)
+# Treat JSON null as empty — fall back to harness default.
 if [[ "$MODEL" == 'null' ]]; then
   MODEL="$(nn_default_model "$HARNESS")"
 fi
@@ -100,8 +100,13 @@ nn_launch() {
       # --dangerously-skip-permissions for headless (NEVER --bare: disables hooks/plugins).
       # --verbose included defensively; drop if a claude version rejects it
       # alongside --output-format stream-json.
+      # ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN outrank CLAUDE_CODE_OAUTH_TOKEN;
+      # unset them inside the subshell so the OAuth token takes effect.
       (
         cd "$PROJECT_DIR" || exit 1
+        if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+        fi
         CLAUDE_CONFIG_DIR="$CFG_DIR" \
           "$CMD" \
             -p "$PROMPT_TEXT" \
@@ -118,6 +123,10 @@ nn_launch() {
       # --dangerously-bypass-approvals-and-sandbox AND
       # --dangerously-bypass-hook-trust (REQUIRED for hooks/plugins in headless).
       # EFFORT maps to model_reasoning_effort config; -C sets the working dir.
+      # PATH-prepend the sandbox bin dir: Codex inherits PATH via
+      # shell_environment_policy.inherit="all" (default). Do NOT use
+      # [shell_environment_policy] set — it replaces PATH wholesale.
+      export PATH="${AGENT_DIR}/bin:${PATH}"
       CODEX_HOME="$CFG_DIR" \
         "$CMD" exec \
           --json \
@@ -132,7 +141,7 @@ nn_launch() {
       # --yolo bypasses approvals; --accept-hooks auto-accepts hook prompts so
       # SessionStart runs unattended. -z is oneshot (non-interactive). Reasoning
       # effort is unsupported on hermes 0.17.0 (EFFORT ignored).
-      # Omit -m when MODEL is empty (use the profile's config.yaml default).
+      # Hermes requires a non-empty model string; pass -m explicitly.
       (
         cd "$PROJECT_DIR" || exit 1
         if [[ -n "$MODEL" ]]; then

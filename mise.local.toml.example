@@ -17,16 +17,17 @@ AGENTS_CLAUDE_CMD = "/Users/rg/.local/bin/claude" # real binary, NOT the zsh ali
 
 # ---------------------------------------------------------------------------
 # Base account dirs — credential inheritance
-# Each agents:setup copies the harness's credential file from its base dir
-# into the agent's isolated config dir so the agent inherits your subscription
-# or OAuth session without sharing a config dir.
+# Codex/Hermes: agents:setup copies auth.json from the base dir into the
+# agent's isolated config dir.
 #
-# Claude: .credentials.json is copied from AGENTS_CLAUDE_BASE
-# Codex:  auth.json          is copied from AGENTS_CODEX_BASE
-# Hermes: auth.json          is copied from AGENTS_HERMES_BASE
+# Claude: credential copy is NOT used (macOS stores creds in Keychain;
+# .credentials.json is always stale → 401). Use CLAUDE_CODE_OAUTH_TOKEN instead.
+#
+# Codex:  auth.json is copied from AGENTS_CODEX_BASE
+# Hermes: auth.json is copied from AGENTS_HERMES_BASE
 # ---------------------------------------------------------------------------
 
-# AGENTS_CLAUDE_BASE = "/Users/you/.claude-accounts/work" # override; default is ~/.claude
+# AGENTS_CLAUDE_BASE = "/Users/you/.claude-accounts/work" # unused (OAuth token used instead)
 # AGENTS_CODEX_BASE  = "/Users/you/.codex"                # override; default is ~/.codex
 # AGENTS_HERMES_BASE = "/Users/you/.hermes"               # override; default is ~/.hermes
 
@@ -44,10 +45,27 @@ AGENTS_CLAUDE_CMD = "/Users/rg/.local/bin/claude" # real binary, NOT the zsh ali
 # NBR_LOCAL_BIN = "/Users/rg/repos/rg/nearest-neighbor/apps/cli/target/release/nbr"
 
 # ---------------------------------------------------------------------------
-# API-key overrides (optional; skip credential inheritance entirely)
+# Claude auth — OAuth subscription token (recommended) or API key
 #
-# Claude:  set ANTHROPIC_API_KEY to use an API key instead of OAuth credentials.
-# Codex:   set OPENAI_API_KEY (or CODEX_API_KEY) instead of auth.json.
+# CLAUDE_CODE_OAUTH_TOKEN: run `claude setup-token` once in a terminal, then
+# paste the result here. This is the correct headless auth mechanism — macOS
+# stores real credentials in Keychain, so copying .credentials.json is always
+# stale (→ 401). The token flows from env into the claude process at launch.
+#
+# IMPORTANT: ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN outrank the OAuth token
+# in Claude's env-var precedence. The harness automatically unsets them when
+# CLAUDE_CODE_OAUTH_TOKEN is present. Do NOT set both simultaneously.
+#
+# ANTHROPIC_API_KEY: alternative to the OAuth token if you prefer API-key billing.
+# ---------------------------------------------------------------------------
+
+# CLAUDE_CODE_OAUTH_TOKEN = "<run: claude setup-token>"  # recommended headless auth
+# ANTHROPIC_API_KEY = "sk-ant-..."                       # API-key alternative
+
+# ---------------------------------------------------------------------------
+# Codex API key (optional; skip auth.json copy)
+#
+# Set OPENAI_API_KEY (or CODEX_API_KEY) instead of copying auth.json.
 #
 # PARALLEL CODEX RUNS — Codex issue #15410:
 #   Copying one auth.json into multiple CODEX_HOME dirs and running them in
@@ -57,5 +75,4 @@ AGENTS_CLAUDE_CMD = "/Users/rg/.local/bin/claude" # real binary, NOT the zsh ali
 #   as a soft mitigation, but the key override is the recommended approach.
 # ---------------------------------------------------------------------------
 
-# ANTHROPIC_API_KEY = "sk-ant-..."
 # OPENAI_API_KEY    = "sk-..."   # also accepted as CODEX_API_KEY

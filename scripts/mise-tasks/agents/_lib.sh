@@ -99,14 +99,16 @@ nn_hermes_profile() {
 
 # ---------------------------------------------------------------------------
 # nn_default_model <harness>
-# Echoes the default model for the harness (empty string = use profile default).
+# Echoes the default model for the harness.
+# Hermes default matches the base config.yaml model.default (gpt-5.5); Hermes
+# requires a non-empty model string and will throw ValueError otherwise.
 # ---------------------------------------------------------------------------
 nn_default_model() {
   local harness="$1"
   case "$harness" in
     claude) printf '%s\n' 'opus' ;;
     codex)  printf '%s\n' 'gpt-5.5' ;;
-    hermes) printf '%s\n' '' ;;
+    hermes) printf '%s\n' 'gpt-5.5' ;;
     *)
       printf 'ERROR: nn_default_model: unknown harness "%s"\n' "$harness" >&2
       return 1
