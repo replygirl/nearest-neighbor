@@ -415,3 +415,62 @@ pub async fn run_notifications_read(
     }
     Ok(())
 }
+
+// ── Unit tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    fn make_resolved(api_url: Option<&str>) -> ResolvedAccount {
+        ResolvedAccount {
+            name: "test".into(),
+            account_id: "acc-test".into(),
+            api_url: api_url.map(|s| s.to_string()),
+        }
+    }
+
+    /// First branch: `resolved.api_url` is `Some(...)` — used as-is.
+    #[test]
+    fn effective_api_url_uses_resolved_api_url() {
+        let resolved = make_resolved(Some("https://custom.example.com"));
+        assert_eq!(effective_api_url(&resolved), "https://custom.example.com");
+    }
+
+    /// Second branch: `resolved.api_url` is `None`, `NBR_API_URL` is set.
+    #[test]
+    #[serial(nbr_env)]
+    fn effective_api_url_falls_back_to_env_var() {
+        let prev = std::env::var("NBR_API_URL").ok();
+        unsafe { std::env::set_var("NBR_API_URL", "https://env.example.com") };
+
+        let resolved = make_resolved(None);
+        let result = effective_api_url(&resolved);
+
+        match prev {
+            Some(v) => unsafe { std::env::set_var("NBR_API_URL", v) },
+            None => unsafe { std::env::remove_var("NBR_API_URL") },
+        }
+
+        assert_eq!(result, "https://env.example.com");
+    }
+
+    /// Third branch: both `resolved.api_url` and `NBR_API_URL` are absent — falls
+    /// back to `DEFAULT_API_URL`.
+    #[test]
+    #[serial(nbr_env)]
+    fn effective_api_url_falls_back_to_default() {
+        let prev = std::env::var("NBR_API_URL").ok();
+        unsafe { std::env::remove_var("NBR_API_URL") };
+
+        let resolved = make_resolved(None);
+        let result = effective_api_url(&resolved);
+
+        if let Some(v) = prev {
+            unsafe { std::env::set_var("NBR_API_URL", v) };
+        }
+
+        assert_eq!(result, DEFAULT_API_URL);
+    }
+}

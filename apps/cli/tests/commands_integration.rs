@@ -528,7 +528,7 @@ async fn test_run_deck_with_profiles() {
     let server = MockServer::start().await;
     let deck = json!({
         "items": [
-            {"account_id": "acc-1", "first_name": "Bob", "bio": "Hiker", "open_to_multi": false, "relationship_status": "single", "status_is_open": true, "is_visible": true},
+            {"account_id": "acc-1", "first_name": "Bob", "bio": "Hiker", "social_handle": "bob_hikes", "open_to_multi": false, "relationship_status": "single", "status_is_open": true, "is_visible": true},
             {"account_id": "acc-2", "first_name": "Carol", "bio": "Cyclist", "open_to_multi": true, "relationship_status": "single", "status_is_open": true, "is_visible": true}
         ],
         "next_cursor": null
@@ -789,7 +789,7 @@ async fn test_run_matches_with_data() {
         {
             "id": "match-1",
             "other_account_id": "acc-bob",
-            "other_profile": {"first_name": "Bob", "bio": "hi", "open_to_multi": false, "relationship_status": "single", "status_is_open": true, "is_visible": true},
+            "other_profile": {"first_name": "Bob", "bio": "hi", "social_handle": "bob_hikes", "open_to_multi": false, "relationship_status": "single", "status_is_open": true, "is_visible": true},
             "status": "active",
             "created_at": "2024-01-01T00:00:00Z"
         },

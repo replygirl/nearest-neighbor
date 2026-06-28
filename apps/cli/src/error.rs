@@ -186,4 +186,91 @@ mod tests {
         let nbr_err: NbrError = json_err.into();
         assert_eq!(nbr_err.exit_code(), 1);
     }
+
+    // ── url::ParseError → NbrError::Url ──────────────────────────────────────
+
+    /// Covers the `#[from] url::ParseError` `From` impl.
+    #[test]
+    fn from_url_parse_error() {
+        // "not a url" contains a space → definitely not a valid URL → ParseError
+        let url_err = url::Url::parse("not a url with spaces").unwrap_err();
+        let nbr_err: NbrError = url_err.into();
+        assert_eq!(
+            nbr_err.exit_code(),
+            1,
+            "NbrError::Url should map to exit_code 1 (the _ => 1 arm)"
+        );
+    }
+
+    #[test]
+    fn display_url_error() {
+        let url_err = url::Url::parse("://missing-scheme").unwrap_err();
+        let nbr_err: NbrError = url_err.into();
+        let msg = nbr_err.to_string();
+        assert!(
+            msg.starts_with("URL error:"),
+            "Display should use the #[error(\"URL error: {{0}}\")] format, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn exit_code_url_error_is_one() {
+        // NbrError::Url falls through to the `_ => 1` catch-all arm
+        let url_err = url::Url::parse("bad url").unwrap_err();
+        let nbr_err: NbrError = url_err.into();
+        assert_eq!(nbr_err.exit_code(), 1);
+    }
+
+    // ── NbrError::Other ───────────────────────────────────────────────────────
+
+    #[test]
+    fn other_variant_display_uses_inner_string() {
+        let nbr_err = NbrError::Other("custom message here".into());
+        let msg = nbr_err.to_string();
+        assert_eq!(msg, "custom message here");
+    }
+
+    // ── exit_code catch-all: Io and Json variants ─────────────────────────────
+
+    #[test]
+    fn exit_code_io_error_is_one() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let nbr_err: NbrError = io_err.into();
+        assert_eq!(nbr_err.exit_code(), 1);
+    }
+
+    #[test]
+    fn exit_code_json_error_is_one() {
+        let json_err = serde_json::from_str::<serde_json::Value>("!!!").unwrap_err();
+        let nbr_err: NbrError = json_err.into();
+        assert_eq!(nbr_err.exit_code(), 1);
+    }
+
+    // ── display completeness ──────────────────────────────────────────────────
+
+    #[test]
+    fn display_io_error_not_empty() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "not found");
+        let nbr_err: NbrError = io_err.into();
+        let msg = nbr_err.to_string();
+        assert!(
+            !msg.is_empty(),
+            "Display for Io variant should not be empty"
+        );
+        assert!(
+            msg.contains("IO error") || msg.contains("not found"),
+            "unexpected message: {msg}"
+        );
+    }
+
+    #[test]
+    fn display_json_error_not_empty() {
+        let json_err = serde_json::from_str::<i32>("null").unwrap_err();
+        let nbr_err: NbrError = json_err.into();
+        let msg = nbr_err.to_string();
+        assert!(
+            !msg.is_empty(),
+            "Display for Json variant should not be empty"
+        );
+    }
 }

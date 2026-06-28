@@ -314,4 +314,98 @@ mod tests {
         assert!(by_id.is_some());
         assert_eq!(by_id.unwrap().name, "bob");
     }
+
+    // ── resolve: --user flag error path ──────────────────────────────────────
+
+    /// `--user` with an unknown account_id → AccountNotFound error.
+    #[test]
+    fn flag_user_unknown_id_returns_error() {
+        let config = make_config(&[("alice", "id-alice")], Some("alice"));
+        let err = resolve(&config, None, Some("nonexistent-id")).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("nonexistent-id"),
+            "error should mention the unknown id, got: {msg}"
+        );
+    }
+
+    // ── ResolvedAccount field propagation ─────────────────────────────────────
+
+    /// `api_url` must be copied into `ResolvedAccount` so the caller can use it.
+    #[test]
+    fn resolved_account_propagates_api_url() {
+        let config = Config {
+            default_account: Some("alice".into()),
+            accounts: vec![AccountConfig {
+                name: "alice".into(),
+                account_id: "id-alice".into(),
+                api_url: Some("https://custom.api.example.com".into()),
+            }],
+            telemetry: None,
+        };
+        let resolved = resolve(&config, Some("alice"), None).unwrap();
+        assert_eq!(resolved.name, "alice");
+        assert_eq!(resolved.account_id, "id-alice");
+        assert_eq!(
+            resolved.api_url.as_deref(),
+            Some("https://custom.api.example.com")
+        );
+    }
+
+    /// When `api_url` is `None` it should propagate as `None`.
+    #[test]
+    fn resolved_account_api_url_none_propagated() {
+        let config = make_config(&[("bob", "id-bob")], Some("bob"));
+        let resolved = resolve(&config, Some("bob"), None).unwrap();
+        assert!(resolved.api_url.is_none());
+    }
+
+    // ── find_nearest_neighbor_file edge cases ─────────────────────────────────
+
+    /// File containing only newlines → empty after trim → returns None.
+    #[test]
+    fn ignores_file_with_only_newlines() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join(".nearest-neighbor");
+        std::fs::write(&file, "\n\n\n").unwrap();
+        assert!(find_nearest_neighbor_file(tmp.path()).is_none());
+    }
+
+    /// The returned path should point to the actual file location.
+    #[test]
+    fn returns_file_path_alongside_content() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join(".nearest-neighbor");
+        std::fs::write(&file, "myaccount").unwrap();
+
+        let (returned_path, content) = find_nearest_neighbor_file(tmp.path()).unwrap();
+        assert_eq!(content, "myaccount");
+        assert!(
+            returned_path.exists(),
+            "returned path should point to an existing file"
+        );
+    }
+
+    // ── resolve: default_account that references a missing account ────────────
+
+    /// If `default_account` is set but the named account no longer exists in
+    /// the accounts list, resolve returns AccountNotFound.
+    #[test]
+    fn default_account_referencing_missing_account_returns_error() {
+        let config = Config {
+            default_account: Some("deleted-account".into()),
+            accounts: vec![AccountConfig {
+                name: "other".into(),
+                account_id: "id-other".into(),
+                api_url: None,
+            }],
+            telemetry: None,
+        };
+        let err = resolve(&config, None, None).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("deleted-account"),
+            "error should mention the missing default account, got: {msg}"
+        );
+    }
 }
