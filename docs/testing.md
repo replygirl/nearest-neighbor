@@ -90,8 +90,8 @@ gate on `DATABASE_TEST_URL`, not `DATABASE_URL`. Executes:
 - `mise run lint`
 - `mise run format:check`
 - `mise run typecheck`
-- `mise run test:coverage` (non-blocking — `continue-on-error: true` until the
-  95 % coverage threshold is stable)
+- `mise run test:coverage` (blocking — gates every TS workspace at 95% lines /
+  branches / functions)
 
 DB-touching tests skip gracefully — `ci-bun` never fails due to a missing
 database.
@@ -99,8 +99,10 @@ database.
 ### `ci-rust`
 
 Runs when `apps/cli/**` changes. Executes `mise run //apps/cli:fmt:check`,
-`mise run //apps/cli:clippy`, and `mise run //apps/cli:test` (keychain-safe via
-`NBR_NO_KEYRING=1`).
+`mise run //apps/cli:clippy`, `mise run //apps/cli:test`, and
+`mise run //apps/cli:test:coverage` (all keychain-safe via `NBR_NO_KEYRING=1`).
+The coverage step is blocking and installs the `llvm-tools-preview` rustup
+component on the runner before running `cargo llvm-cov`.
 
 ### `ci-plugins`
 
@@ -128,11 +130,14 @@ included in `mise run check`.
 | Metric    | Default | Env var override                          |
 | --------- | ------- | ----------------------------------------- |
 | Lines     | 95 %    | `NEAREST_NEIGHBOR_COVERAGE_MIN_LINES`     |
-| Branches  | 80 %    | `NEAREST_NEIGHBOR_COVERAGE_MIN_BRANCHES`  |
+| Branches  | 95 %    | `NEAREST_NEIGHBOR_COVERAGE_MIN_BRANCHES`  |
 | Functions | 95 %    | `NEAREST_NEIGHBOR_COVERAGE_MIN_FUNCTIONS` |
 
-Branch coverage defaults to 80% because Bun's LCOV emitter frequently reports 0
-branch totals for pure-function modules.
+All three metrics default to 95%. Bun's LCOV emitter frequently reports 0 branch
+totals for pure-function modules; `check-coverage.sh`'s `pct()` returns 100.00
+when the denominator is 0, so those modules still pass the branch gate (they are
+not penalised for a reporter artefact). Modules with real branches below 95%
+will fail.
 
 Override locally without editing the script:
 
@@ -148,7 +153,7 @@ NEAREST_NEIGHBOR_COVERAGE_MIN_LINES=80 mise run test:coverage
 | packages/analytics    | 100.00% |   100.00% |    100.00% | pass   |
 | packages/db           | 97.50%  |    85.00% |     96.00% | pass   |
 
-Thresholds: lines >= 95%  branches >= 80%  functions >= 95%
+Thresholds: lines >= 95%  branches >= 95%  functions >= 95%
 Results: 2 passed, 0 failed, 0 skipped
 ```
 
@@ -157,9 +162,18 @@ Results: 2 passed, 0 failed, 0 skipped
 ## Rust CLI tests
 
 ```sh
-mise run cli:test    # cargo test in apps/cli/ (keychain-safe)
-mise run cli:clippy  # cargo clippy --all-targets -- -D warnings
+mise run cli:test           # cargo test in apps/cli/ (keychain-safe)
+mise run cli:clippy         # cargo clippy --all-targets -- -D warnings
+mise run cli:test:coverage  # cargo llvm-cov, gates lines/functions/regions at 95%
 ```
+
+Rust coverage uses [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov)
+(pinned in the root `mise.toml` `[tools]`). It requires the `llvm-tools-preview`
+rustup component; the task installs it idempotently before running. Branch
+coverage (`--fail-under-branches` / `--branch`) is unstable and requires a
+nightly toolchain, so on stable Rust the gate covers lines, functions, and
+regions at 95% — branches are not gated. This is the honest meaning of "95
+across the board" for Rust on stable.
 
 ---
 

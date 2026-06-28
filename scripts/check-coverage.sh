@@ -7,13 +7,14 @@
 #
 # Environment variables (all optional — defaults shown below):
 #   NEAREST_NEIGHBOR_COVERAGE_MIN_LINES      Minimum line coverage %     (default: 95)
-#   NEAREST_NEIGHBOR_COVERAGE_MIN_BRANCHES   Minimum branch coverage %   (default: 80)
+#   NEAREST_NEIGHBOR_COVERAGE_MIN_BRANCHES   Minimum branch coverage %   (default: 95)
 #   NEAREST_NEIGHBOR_COVERAGE_MIN_FUNCTIONS  Minimum function coverage % (default: 95)
 #
-# Thresholds apply to every checked workspace.  Branch coverage defaults to 80
-# rather than 95 because Bun's LCOV emitter frequently reports 0 branch totals
-# for pure-function modules, and enforcing 95% would hard-fail them on an
-# artefact of the reporter rather than a real gap.
+# Thresholds apply to every checked workspace and default to 95% across the
+# board.  Note that Bun's LCOV emitter frequently reports 0 branch totals for
+# pure-function modules; pct() returns 100.00 when the denominator is 0, so
+# those modules still pass the 95% branch gate (they are not penalised for a
+# reporter artefact).  Any module with real branches below 95% will fail.
 #
 # Skip list — workspaces exempted from the gate:
 #   (none initially — add workspace paths here while test runner is being wired)
@@ -24,7 +25,7 @@ set -eu
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 MIN_LINES="${NEAREST_NEIGHBOR_COVERAGE_MIN_LINES:-95}"
-MIN_BRANCHES="${NEAREST_NEIGHBOR_COVERAGE_MIN_BRANCHES:-80}"
+MIN_BRANCHES="${NEAREST_NEIGHBOR_COVERAGE_MIN_BRANCHES:-95}"
 MIN_FUNCTIONS="${NEAREST_NEIGHBOR_COVERAGE_MIN_FUNCTIONS:-95}"
 
 # Workspaces that are explicitly excluded from the coverage gate.

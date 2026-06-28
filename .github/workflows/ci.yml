@@ -50,6 +50,7 @@ jobs:
               - '.github/actions/**'
             rust:
               - 'apps/cli/**'
+              - 'mise.toml'
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
             shell:
@@ -120,11 +121,8 @@ jobs:
       - run: mise run typecheck
       - run: mise run web:brand-assets:check
       - run: mise run test
-      # TODO: coverage gate is non-blocking until the test suite reaches 95%
-      # threshold. Remove continue-on-error once coverage is stable.
-      - name: Coverage (informational)
+      - name: Coverage (95% gate)
         run: mise run test:coverage
-        continue-on-error: true
 
   ci-openspec:
     needs: detect-changes
@@ -161,6 +159,12 @@ jobs:
         env:
           NBR_NO_KEYRING: '1'
         run: mise run //apps/cli:test
+      - name: Coverage (95% gate)
+        env:
+          NBR_NO_KEYRING: '1'
+        run: |
+          mise exec -- rustup component add llvm-tools-preview
+          mise run //apps/cli:test:coverage
 
   # Cross-compile the CLI for every release target on PRs so a platform-only
   # break (e.g. Unix-only std APIs that don't exist on Windows) fails the gate
