@@ -899,4 +899,219 @@ mod tests {
         let expired = (Utc::now() - Duration::seconds(1)).to_rfc3339();
         assert!(!bearer_is_fresh(&expired));
     }
+
+    // ── env_flag ──────────────────────────────────────────────────────────────
+    // env_flag is a private function; these inline tests are the only way to
+    // exercise its branches directly.  We use a dedicated env-var name
+    // (`_NBR_G5_FLAG`) that nothing else touches, and the serial key
+    // `nbr_flag_test` keeps the env mutations from racing with each other.
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_true_for_one() {
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "1") };
+        assert!(env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_true_for_lowercase_true() {
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "true") };
+        assert!(env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_true_for_uppercase_true() {
+        // to_ascii_lowercase converts "TRUE" → "true" (truthy)
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "TRUE") };
+        assert!(env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_true_for_whitespace_padded_value() {
+        // trim() strips surrounding whitespace before comparison
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "  1  ") };
+        assert!(env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_false_for_zero() {
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "0") };
+        assert!(!env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_false_for_false_string() {
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "false") };
+        assert!(!env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    #[serial(nbr_flag_test)]
+    fn env_flag_false_for_empty_string() {
+        let prev = std::env::var("_NBR_G5_FLAG").ok();
+        unsafe { std::env::set_var("_NBR_G5_FLAG", "") };
+        assert!(!env_flag("_NBR_G5_FLAG"));
+        match prev {
+            Some(v) => unsafe { std::env::set_var("_NBR_G5_FLAG", v) },
+            None => unsafe { std::env::remove_var("_NBR_G5_FLAG") },
+        }
+    }
+
+    #[test]
+    fn env_flag_false_when_var_is_unset() {
+        // This variable name is unique enough to never be set in any environment
+        assert!(!env_flag("_NBR_G5_CERTAINLY_UNSET_FLAG_XYZ123"));
+    }
+
+    // ── load_config error paths ───────────────────────────────────────────────
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn load_config_malformed_toml_returns_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            // Write syntactically invalid TOML to the accounts file
+            let accounts_path = tmp.path().join("accounts.toml");
+            std::fs::create_dir_all(tmp.path()).unwrap();
+            std::fs::write(&accounts_path, "[[accounts]\nname = 'broken'").unwrap();
+
+            let result = load_config();
+            assert!(result.is_err(), "malformed TOML should return Err");
+        });
+    }
+
+    // ── get_bearer partial-file edge cases ────────────────────────────────────
+
+    /// When the bearer file exists but the expiry file is missing, `get_bearer`
+    /// should return `Ok(None)` (the `_ => None` branch at line 286).
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn get_bearer_returns_none_when_bearer_file_exists_but_expiry_missing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            // Write bearer but not expiry
+            let bearer_path = tmp.path().join("partial-acct.bearer");
+            write_secret_file(&bearer_path, "jwt-only-no-expiry").unwrap();
+            // No expiry file written
+
+            let result = get_bearer("partial-acct").unwrap();
+            // (Some(bearer), None) → None
+            assert!(
+                result.is_none(),
+                "should return None when expiry file is absent"
+            );
+        });
+    }
+
+    /// When the expiry file exists but the bearer file is missing, `get_bearer`
+    /// should also return `Ok(None)` (the `_ => None` branch).
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn get_bearer_returns_none_when_expiry_file_exists_but_bearer_missing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            // Write expiry but not bearer
+            let expiry_path = tmp.path().join("expiry-only-acct.bearer_expiry");
+            write_secret_file(&expiry_path, "2099-01-01T00:00:00Z").unwrap();
+            // No bearer file written
+
+            let result = get_bearer("expiry-only-acct").unwrap();
+            // (None, Some(expiry)) → None
+            assert!(
+                result.is_none(),
+                "should return None when bearer file is absent"
+            );
+        });
+    }
+
+    // ── config_path helper ────────────────────────────────────────────────────
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn config_path_ends_with_accounts_toml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let p = config_path().unwrap();
+            assert!(
+                p.to_str().unwrap().ends_with("accounts.toml"),
+                "config_path should end with accounts.toml, got: {}",
+                p.display()
+            );
+        });
+    }
+
+    // ── save / load round-trip with telemetry field ───────────────────────────
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn save_and_load_config_with_telemetry_false() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let config = Config {
+                telemetry: Some(false),
+                accounts: vec![AccountConfig {
+                    name: "teltest".into(),
+                    account_id: "id-teltest".into(),
+                    api_url: None,
+                }],
+                ..Config::default()
+            };
+            save_config(&config).unwrap();
+
+            let loaded = load_config().unwrap();
+            assert_eq!(loaded.telemetry, Some(false));
+            assert_eq!(loaded.accounts[0].name, "teltest");
+        });
+    }
+
+    // ── delete_secret removes only the file (no-op when file absent) ─────────
+
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn delete_secret_no_op_when_secret_does_not_exist() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            // Should succeed even when neither keyring nor file exists
+            let result = delete_secret("nonexistent-acct-for-delete");
+            assert!(
+                result.is_ok(),
+                "delete_secret should succeed even if file absent"
+            );
+        });
+    }
 }

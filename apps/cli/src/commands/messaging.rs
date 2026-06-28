@@ -137,3 +137,65 @@ pub async fn run_send(client: &mut ApiClient, args: &SendArgs, json: bool) -> Re
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::is_uuid;
+
+    #[test]
+    fn is_uuid_valid_lowercase() {
+        assert!(is_uuid("00000000-0000-0000-0000-000000000001"));
+    }
+
+    #[test]
+    fn is_uuid_valid_mixed_case_hex() {
+        assert!(is_uuid("abcdef12-ABCD-0000-0000-000000000000"));
+    }
+
+    #[test]
+    fn is_uuid_empty() {
+        assert!(!is_uuid(""));
+    }
+
+    #[test]
+    fn is_uuid_too_short() {
+        assert!(!is_uuid("00000000-0000-0000-0000"));
+    }
+
+    #[test]
+    fn is_uuid_no_hyphens() {
+        // 32 hex chars — no hyphens at positions 8/13/18/23
+        assert!(!is_uuid("00000000000000000000000000000001"));
+    }
+
+    #[test]
+    fn is_uuid_hyphen_in_wrong_position() {
+        // Hyphen at position 7 instead of 8
+        assert!(!is_uuid("0000000-00000-0000-0000-000000000001"));
+    }
+
+    #[test]
+    fn is_uuid_non_hex_character() {
+        // 'z' at the start is not a valid hex digit
+        assert!(!is_uuid("zzzzzzzz-0000-0000-0000-000000000001"));
+    }
+
+    #[test]
+    fn is_uuid_at_handle() {
+        assert!(!is_uuid("@alice"));
+    }
+
+    #[test]
+    fn is_uuid_plain_string() {
+        assert!(!is_uuid("not-a-uuid"));
+    }
+
+    #[test]
+    fn is_uuid_dash_not_at_expected_position_8() {
+        // Position 8 must be '-'; use a digit instead
+        let mut s: Vec<u8> = b"00000000-0000-0000-0000-000000000001".to_vec();
+        s[8] = b'0'; // replace the expected hyphen at position 8 with '0'
+        let bad = String::from_utf8(s).unwrap();
+        assert!(!is_uuid(&bad));
+    }
+}

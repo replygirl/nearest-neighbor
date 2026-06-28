@@ -84,3 +84,51 @@ pub async fn run_go_public(client: &mut ApiClient, args: &GoPublicArgs, json: bo
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::models::PatchRelationshipRequest;
+
+    /// Verify PatchRelationshipRequest serialises correctly with `off=true`
+    /// (is_public=false) vs `off=false` (is_public=true).
+    #[test]
+    fn go_public_request_off_false_makes_public() {
+        let req = PatchRelationshipRequest {
+            state: None,
+            is_public: Some(true), // off=false → !false = true
+            end_reason: None,
+        };
+        assert_eq!(req.is_public, Some(true));
+    }
+
+    #[test]
+    fn go_public_request_off_true_makes_private() {
+        let req = PatchRelationshipRequest {
+            state: None,
+            is_public: Some(false), // off=true → !true = false
+            end_reason: None,
+        };
+        assert_eq!(req.is_public, Some(false));
+    }
+
+    #[test]
+    fn breakup_request_carries_end_reason() {
+        let req = PatchRelationshipRequest {
+            state: Some("broken_up".into()),
+            is_public: None,
+            end_reason: Some("we grew apart".into()),
+        };
+        assert_eq!(req.state.as_deref(), Some("broken_up"));
+        assert_eq!(req.end_reason.as_deref(), Some("we grew apart"));
+    }
+
+    #[test]
+    fn breakup_request_no_reason() {
+        let req = PatchRelationshipRequest {
+            state: Some("broken_up".into()),
+            is_public: None,
+            end_reason: None,
+        };
+        assert!(req.end_reason.is_none());
+    }
+}

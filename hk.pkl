@@ -160,6 +160,23 @@ local slowSteps = new Mapping<String, Step> {
     exclusive = true
   }
 
+  // ts-coverage: full TS coverage gate (95% lines/branches/functions). Heavy —
+  // runs the whole suite with coverage, so mark exclusive like typecheck/test.
+  ["ts-coverage"] {
+    glob      = tsGlobs
+    check     = "mise run test:coverage"
+    profiles  = List("slow")
+    exclusive = true
+  }
+
+  // cli-coverage: Rust coverage gate (95% lines/functions/regions; branches need
+  // nightly). Matches the cargo-clippy style (rustGlobs, inline NBR_NO_KEYRING).
+  ["cli-coverage"] {
+    glob     = rustGlobs
+    check    = "NBR_NO_KEYRING=1 mise run //apps/cli:test:coverage"
+    profiles = List("slow")
+  }
+
   // secrets-scan: block push if common secret patterns found in the diff being pushed
   // Patterns: PEM private keys, GitHub PATs, AWS credentials, Stripe keys
   // Logic delegated to scripts/hooks/check-secrets for pklr compatibility

@@ -164,4 +164,60 @@ mod tests {
         p.table(&["H"], vec![vec!["v".to_string()]]);
         p.success("done");
     }
+
+    /// Exercises the `Err(e) => eprintln!` branch in `print_json`.
+    ///
+    /// `serde_json` rejects `f64::NAN` because NaN is not a valid JSON value;
+    /// `to_string_pretty` returns `Err`, which triggers the eprintln! branch.
+    #[test]
+    fn print_json_handles_serialization_error_gracefully() {
+        let nan: f64 = f64::NAN;
+        // serde_json::to_string_pretty(&NAN) → Err("NaN and Infinity are not
+        // valid JSON values").  print_json must NOT panic — it should only
+        // write the error to stderr.
+        print_json(&nan);
+    }
+
+    /// `print_kv` with a single pair should produce output without panicking.
+    #[test]
+    fn print_kv_single_pair() {
+        print_kv(&[("token", "abc123".to_string())]);
+    }
+
+    /// `print_table` with a single column and multiple rows.
+    #[test]
+    fn print_table_single_column() {
+        print_table(
+            &["Item"],
+            vec![vec!["row1".to_string()], vec!["row2".to_string()]],
+        );
+    }
+
+    /// `Printer::success` is a no-op when `json=true`.
+    #[test]
+    fn printer_json_mode_success_is_no_op() {
+        let p = Printer::new(true);
+        p.success("should not print"); // no-op
+    }
+
+    /// `Printer::kv` is a no-op when `json=true`.
+    #[test]
+    fn printer_json_mode_kv_is_no_op() {
+        let p = Printer::new(true);
+        p.kv(&[("key", "value".to_string())]); // no-op
+    }
+
+    /// `Printer::table` is a no-op when `json=true`.
+    #[test]
+    fn printer_json_mode_table_is_no_op() {
+        let p = Printer::new(true);
+        p.table(&["Col"], vec![vec!["val".to_string()]]); // no-op
+    }
+
+    /// `Printer::json` is a no-op when `json=false`.
+    #[test]
+    fn printer_human_mode_json_call_is_no_op() {
+        let p = Printer::new(false);
+        p.json(&json!({"should": "not print"})); // no-op in human mode
+    }
 }

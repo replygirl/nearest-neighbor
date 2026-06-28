@@ -62,6 +62,10 @@ rust = "stable"
 # TOML formatter (used by hk taplo step) — cargo backend is most reliable
 "cargo:taplo-cli" = "0.10.0"
 
+# Rust coverage (cargo-llvm-cov) — used by the //apps/cli:test:coverage gate.
+# cargo backend installs the precompiled binary (no source build).
+"cargo:cargo-llvm-cov" = "0.8.7"
+
 # GitHub CLI (also installed globally via `mise use --global gh@latest`)
 "aqua:cli/cli" = "2.91.0"
 
@@ -356,13 +360,14 @@ dir = "{{config_root}}/apps/web"
 # ───────────────────────────────────────────────
 
 [tasks.check]
-description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + plugin isolation tests + openspec"
+description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + cli:test:coverage + plugin isolation tests + openspec"
 depends = [
   "lint",
   "format:check",
   "typecheck",
   "test",
   "test:coverage",
+  "cli:test:coverage",
   "test:plugins",
   "test:plugins:hermes",
   "openspec:validate:specs",
@@ -538,6 +543,10 @@ run = "mise run //apps/cli:build:debug"
 [tasks."cli:test"]
 description = "Run Rust CLI tests (keychain-safe)"
 run = "mise run //apps/cli:test"
+
+[tasks."cli:test:coverage"]
+description = "Run Rust CLI tests with coverage gating at 95% (lines/functions/regions)"
+run = "mise run //apps/cli:test:coverage"
 
 [tasks."cli:check"]
 description = "Check Rust CLI (no build output)"

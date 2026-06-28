@@ -173,10 +173,11 @@ Run `mise run format:fix` after editing to auto-format before committing.
 ## Running tests
 
 ```sh
-mise run test           # unit + integration across all workspaces
-mise run test:coverage  # same, with coverage gate (95% lines, 80% branches, 95% functions)
-mise run test:e2e       # Playwright E2E (requires running stack: mise run dev)
-mise run cli:test       # Rust cargo tests
+mise run test               # unit + integration across all workspaces
+mise run test:coverage      # TypeScript coverage gate (95% lines / branches / functions)
+mise run test:e2e           # Playwright E2E (requires running stack: mise run dev)
+mise run cli:test           # Rust cargo tests
+mise run cli:test:coverage  # Rust coverage gate (95% lines / functions / regions)
 ```
 
 DB-touching API tests skip gracefully when `DATABASE_URL` is not set —

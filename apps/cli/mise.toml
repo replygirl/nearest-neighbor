@@ -14,6 +14,18 @@ env = { NBR_NO_KEYRING = "1" }
 run = "cargo test"
 dir = "{{config_root}}"
 
+[tasks."test:coverage"]
+# Branch coverage (--fail-under-branches / --branch) is unstable and requires a
+# nightly toolchain, so on stable Rust the gate covers lines/functions/regions
+# only. `rustup component add llvm-tools-preview` is idempotent (no-op once present).
+description = "Run Rust CLI tests with coverage, gating lines/functions/regions at 95% (branches need nightly — not gated)"
+env = { NBR_NO_KEYRING = "1" }
+run = """
+rustup component add llvm-tools-preview
+cargo llvm-cov --workspace --all-features --fail-under-lines 95 --fail-under-functions 95 --fail-under-regions 95
+"""
+dir = "{{config_root}}"
+
 [tasks.check]
 description = "Check Rust CLI (no build output)"
 run = "cargo check"

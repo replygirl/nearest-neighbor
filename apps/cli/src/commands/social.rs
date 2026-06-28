@@ -287,3 +287,39 @@ pub async fn run_following(client: &mut ApiClient, json: bool) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::strip_at;
+
+    #[test]
+    fn strip_at_plain_handle() {
+        assert_eq!(strip_at("alice"), "alice");
+    }
+
+    #[test]
+    fn strip_at_with_at_prefix() {
+        assert_eq!(strip_at("@alice"), "alice");
+    }
+
+    #[test]
+    fn strip_at_multiple_at_prefixes() {
+        // trim_start_matches removes ALL leading @ characters
+        assert_eq!(strip_at("@@alice"), "alice");
+    }
+
+    #[test]
+    fn strip_at_empty_string() {
+        assert_eq!(strip_at(""), "");
+    }
+
+    #[test]
+    fn strip_at_only_at() {
+        assert_eq!(strip_at("@"), "");
+    }
+
+    #[test]
+    fn strip_at_at_in_middle_is_preserved() {
+        assert_eq!(strip_at("alice@example"), "alice@example");
+    }
+}
