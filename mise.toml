@@ -338,7 +338,7 @@ dir = "{{config_root}}/apps/web"
 # ───────────────────────────────────────────────
 
 [tasks.check]
-description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + plugin isolation tests"
+description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + plugin isolation tests + openspec"
 depends = [
   "lint",
   "format:check",
@@ -347,6 +347,9 @@ depends = [
   "test:coverage",
   "test:plugins",
   "test:plugins:hermes",
+  "openspec:validate:specs",
+  "openspec:validate:changes",
+  "openspec:schema:validate",
 ]
 
 # ───────────────────────────────────────────────
@@ -355,19 +358,31 @@ depends = [
 
 [tasks."openspec:new"]
 description = "Scaffold a new OpenSpec change proposal: mise run openspec:new -- <change-name>"
-run = "bunx openspec new change"
+run = "openspec new change"
 
 [tasks."openspec:validate"]
-description = "Validate all active OpenSpec change proposals"
-run = "bunx openspec validate --changes"
+description = "Validate all OpenSpec specs + changes (strict)"
+run = "openspec validate --all --strict --no-interactive"
+
+[tasks."openspec:validate:specs"]
+description = "Validate OpenSpec specs (strict)"
+run = "openspec validate --specs --strict --no-interactive"
+
+[tasks."openspec:validate:changes"]
+description = "Validate active OpenSpec change proposals (strict)"
+run = "openspec validate --changes --strict --no-interactive"
+
+[tasks."openspec:schema:validate"]
+description = "Validate the OpenSpec workflow schema (nn)"
+run = "openspec schema validate nn"
 
 [tasks."openspec:apply"]
 description = "Apply an OpenSpec change (mark complete and update specs)"
-run = "bunx openspec archive"
+run = "openspec archive"
 
 [tasks."openspec:archive"]
 description = "Archive a completed OpenSpec change"
-run = "bunx openspec archive"
+run = "openspec archive"
 
 # ───────────────────────────────────────────────
 # Agents sync

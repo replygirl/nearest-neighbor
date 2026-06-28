@@ -40,6 +40,29 @@ local brandSteps = new Mapping<String, Step> {
 
 }
 
+local openspecSteps = new Mapping<String, Step> {
+
+  ["openspec-specs"] {
+    glob   = List("openspec/specs/**")
+    check  = "openspec validate --specs --strict --no-interactive"
+    prefix = "mise exec --"
+  }
+
+  ["openspec-changes"] {
+    glob    = List("openspec/changes/**")
+    exclude = List("openspec/changes/archive/**")
+    check   = "openspec validate --changes --strict --no-interactive"
+    prefix  = "mise exec --"
+  }
+
+  ["openspec-schema"] {
+    glob   = List("openspec/schemas/**")
+    check  = "openspec schema validate nn"
+    prefix = "mise exec --"
+  }
+
+}
+
 local linters = new Mapping<String, Step> {
 
   ["oxfmt"] {
@@ -174,6 +197,7 @@ hooks {
       ...linters
       ...agentSteps
       ...brandSteps
+      ...openspecSteps
     }
   }
 
