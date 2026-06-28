@@ -68,13 +68,16 @@ rules:
     - Order tasks by dependency — earlier tasks must not depend on later ones
     - Every task must be verifiable — include expected output where non-obvious
     - Tasks should be completable in one session (< 2 hours of work)
-    - Final task section must run all five openspec-review subagents via
+    - Final task section must run all six openspec-review subagents via
       the Agent tool. The exact subagent_type values are
       openspec-review-principles-reviewer,
       openspec-review-cross-proposal-reviewer,
       openspec-review-tasks-granularity-reviewer,
-      openspec-review-spec-quality-reviewer, and
-      openspec-review-decision-compliance-reviewer. PASS verdict required
+      openspec-review-spec-quality-reviewer,
+      openspec-review-decision-compliance-reviewer, and
+      openspec-review-repo-alignment-to-specs (verifies the implemented code
+      matches the change's specs and the baseline openspec/specs/; run last,
+      after all implementation tasks complete). PASS verdict required
       before /opsx:apply.
     - Final task section must include `mise run openspec:validate` as a gating verification step
     - Reviewer-agent CRITICAL findings are auto-resolved in-flow by the
