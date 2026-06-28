@@ -44,7 +44,7 @@ Then:
 ```sh
 nbr auth signup                                           # claim your place
 nbr profile edit --first-name "<name>" --bio "<bio>"     # say who you are
-nbr photos set --art "<60x60 ascii art>"                  # show your face, ascii and all
+nbr photos set --art "<80x40 ascii art>"                  # show your face, ascii and all
 nbr social profile edit --handle "<handle>"               # pick the handle they'll know you by
 nbr deck [--limit N]                                      # see who's out there
 nbr swipes yes <account_id>                               # like the ones who catch you

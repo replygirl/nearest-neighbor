@@ -1,8 +1,10 @@
 // Tests for the top-level app lifecycle hooks in src/index.ts.
 // Covers: X-Request-Id header (onRequest), X-API-Versions (onAfterHandle),
-// and the onError handler (console.error / JSON error response branch).
+// and the onError handler (client 4xx preservation, production/dev 500 behaviour).
 
-import { expect, test } from 'bun:test'
+import { beforeEach, expect, test } from 'bun:test'
+
+import { Elysia, t } from 'elysia'
 
 import { app } from '../index.ts'
 
@@ -31,18 +33,74 @@ test('X-API-Versions header is set on every response', async () => {
   expect(res.headers.get('x-api-versions')).toBe('1')
 })
 
-// ── onError hook — console.error branch ──────────────────────────────────────
-// The NOT_FOUND error is an unhandled error path that triggers onError.
-// With no POSTHOG_KEY set (test environment), it logs via console.error
-// and returns a 500 JSON error response.
+// ── onError hook — NOT_FOUND (client-fault) ──────────────────────────────────
 
-test('onError logs and returns JSON for unhandled NOT_FOUND errors', async () => {
-  // A request to an entirely nonexistent path triggers Elysia's NOT_FOUND error
-  // which is routed through the onError handler in src/index.ts
+test('NOT_FOUND returns 404 JSON with error field', async () => {
   const res = await app.handle(new Request('http://localhost/this-route-does-not-exist-at-all-xyz'))
-  // Elysia returns a 4xx/5xx for NOT_FOUND — the error handler fires
-  expect(res.status).toBeGreaterThanOrEqual(400)
-  // Response should have a JSON body with an error field
+  expect(res.status).toBe(404)
   const body = (await res.json()) as { error: string }
   expect(typeof body.error).toBe('string')
+})
+
+// ── onError hook — VALIDATION (client-fault) ─────────────────────────────────
+// Build a local sub-app with a validated route — no DB required.
+
+const validationApp = new Elysia().use(app).post('/test-validate', () => 'ok', {
+  body: t.Object({ required_field: t.String() }),
+})
+
+test('VALIDATION error returns 422 with structured detail', async () => {
+  const res = await validationApp.handle(
+    new Request('http://localhost/test-validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}), // missing required_field
+    }),
+  )
+  expect(res.status).toBe(422)
+  // Response must be valid JSON with validation detail — not a generic 500
+  const body = (await res.json()) as Record<string, unknown>
+  expect(typeof body).toBe('object')
+  // Elysia ValidationError encodes type: 'validation' in its message
+  expect(body['type']).toBe('validation')
+})
+
+// ── onError hook — server fault, production vs development ───────────────────
+
+const throwing500App = new Elysia().use(app).get('/test-500', () => {
+  throw new Error('unexpected server error detail')
+})
+
+let savedNodeEnv: string | undefined
+
+beforeEach(() => {
+  savedNodeEnv = process.env['NODE_ENV']
+})
+
+test('production 500 is generic and carries request_id', async () => {
+  process.env['NODE_ENV'] = 'production'
+  try {
+    const res = await throwing500App.handle(new Request('http://localhost/test-500'))
+    expect(res.status).toBe(500)
+    const body = (await res.json()) as { error: string; request_id: string }
+    expect(body.error).toBe('Internal server error')
+    expect(typeof body.request_id).toBe('string')
+    expect(body.request_id.length).toBeGreaterThan(0)
+  } finally {
+    process.env['NODE_ENV'] = savedNodeEnv
+  }
+})
+
+test('non-production 500 keeps error detail and carries request_id', async () => {
+  process.env['NODE_ENV'] = 'test'
+  try {
+    const res = await throwing500App.handle(new Request('http://localhost/test-500'))
+    expect(res.status).toBe(500)
+    const body = (await res.json()) as { error: string; request_id: string }
+    expect(body.error).toBe('unexpected server error detail')
+    expect(typeof body.request_id).toBe('string')
+    expect(body.request_id.length).toBeGreaterThan(0)
+  } finally {
+    process.env['NODE_ENV'] = savedNodeEnv
+  }
 })

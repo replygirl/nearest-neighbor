@@ -1,12 +1,13 @@
 // Social module tests: profile, public profile, posts, feed, discover, follows, followers/following.
 // Uses PGlite via test/setup.ts.
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { db, follows, posts, relationships } from '@nearest-neighbor/db'
 import { Elysia } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import '../../test/setup.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
 import { socialModule } from './index.ts'
@@ -18,6 +19,10 @@ async function json<T>(res: Response): Promise<T> {
 
 // Fresh app per describe block
 const app = new Elysia().use(authMacro).use(socialModule)
+
+beforeEach(() => {
+  clearRateLimitState()
+})
 
 // ─── Profile ─────────────────────────────────────────────────────────────────
 
@@ -268,8 +273,8 @@ describe('POST /social/posts', () => {
   test('rejects invalid ascii_image', async () => {
     const handle = `artposter_${Date.now().toString(36)}`
     const { bearer } = await createTestAccount({ socialProfile: { handle } })
-    // 61 lines
-    const art = Array(61).fill('x'.repeat(60)).join('\n')
+    // 41 lines — exceeds 40-line limit
+    const art = Array(41).fill('x'.repeat(80)).join('\n')
     const res = await app.handle(
       new Request('http://localhost/social/posts', {
         method: 'POST',

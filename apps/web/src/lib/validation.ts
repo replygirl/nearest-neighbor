@@ -6,9 +6,9 @@ export const HANDLE_REGEX = /^[a-z0-9_]{2,30}$/
 /** Max bio length for both dating and social profiles */
 export const MAX_BIO = 500
 
-/** ASCII art photo constraints: max 60 lines, each line max 60 chars */
-export const PHOTO_MAX_LINES = 60
-export const PHOTO_MAX_LINE_LENGTH = 60
+/** ASCII art photo constraints: 80 chars wide by 40 lines tall (square aspect — terminal cells are ~2:1 tall:wide) */
+export const PHOTO_MAX_LINES = 40
+export const PHOTO_MAX_LINE_LENGTH = 80
 
 /** Max body length for posts and messages */
 export const MAX_BODY = 2000
@@ -22,7 +22,7 @@ export function isValidBio(bio: string): boolean {
 }
 
 /**
- * Validates ASCII art photo: at most 60 lines, each line at most 60 chars.
+ * Validates ASCII art photo: at most 40 lines, each line at most 80 chars (80 wide by 40 tall).
  */
 export function isValidAsciiArt(art: string): boolean {
   const lines = art.trimEnd().split('\n')

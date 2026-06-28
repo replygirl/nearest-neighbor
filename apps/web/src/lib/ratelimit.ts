@@ -38,14 +38,28 @@ export function isRateLimited(
 }
 
 /**
- * Returns the client IP from common proxy headers or falls back to a placeholder.
+ * Returns the trusted client IP from request headers.
+ *
+ * Fly.io trust model:
+ *   - `Fly-Client-IP` is set by the Fly edge and is not spoofable by the client;
+ *     prefer it when present.
+ *   - `X-Forwarded-For` is a comma-separated list where Fly *appends* the real
+ *     client IP as the final hop. The first entry is attacker-controlled (a
+ *     client can send any value in that position), so we take the LAST entry.
+ *   - `X-Real-IP` is a fallback for other reverse-proxy setups.
  */
 export function getClientIp(request: Request): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    'unknown'
-  )
+  const flyClientIp = request.headers.get('fly-client-ip')
+  if (flyClientIp) return flyClientIp.trim()
+
+  const xForwardedFor = request.headers.get('x-forwarded-for')
+  if (xForwardedFor) {
+    const entries = xForwardedFor.split(',')
+    const last = entries[entries.length - 1]?.trim()
+    if (last) return last
+  }
+
+  return request.headers.get('x-real-ip') ?? 'unknown'
 }
 
 /** Clear all rate limit state — for testing only. */

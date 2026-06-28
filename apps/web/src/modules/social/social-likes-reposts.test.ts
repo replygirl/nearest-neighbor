@@ -2,13 +2,14 @@
 // counts on post responses, and repost feed boost.
 // Uses PGlite via test/setup.ts.
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { db, follows, notifications, postLikes, reposts } from '@nearest-neighbor/db'
 import { and, eq } from 'drizzle-orm'
 import { Elysia } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import '../../test/setup.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
 import { socialModule } from './index.ts'
@@ -18,6 +19,10 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 const app = new Elysia().use(authMacro).use(socialModule)
+
+beforeEach(() => {
+  clearRateLimitState()
+})
 
 // ─── Like / Unlike endpoints ──────────────────────────────────────────────────
 

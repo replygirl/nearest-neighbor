@@ -17,7 +17,13 @@ import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, touchLastMessage, unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
-import { MAX_BODY } from '../../lib/validation.ts'
+import { isRateLimited } from '../../lib/ratelimit.ts'
+import {
+  MAX_BODY,
+  PHOTO_MAX_LINE_LENGTH,
+  PHOTO_MAX_LINES,
+  isValidAsciiArt,
+} from '../../lib/validation.ts'
 
 // ── Shape helpers ────────────────────────────────────────────────────────────
 
@@ -178,6 +184,10 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
     async ({ account, body, status }) => {
       const myId = account.id
 
+      if (isRateLimited(`${myId}:messaging:create-conv`, 20, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       // Resolve the other account id
       let otherId: string | null = null
 
@@ -228,6 +238,7 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
         400: t.Object({ error: t.String() }),
         403: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -328,8 +339,18 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
     async ({ account, params, body, status }) => {
       const myId = account.id
 
+      if (isRateLimited(`${myId}:messaging:send`, 60, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       if (body.body.length < 1 || body.body.length > MAX_BODY) {
         return status(400, { error: `Body must be 1-${MAX_BODY} characters` })
+      }
+
+      if (body.ascii_image != null && !isValidAsciiArt(body.ascii_image)) {
+        return status(422, {
+          error: `ASCII image must be at most ${PHOTO_MAX_LINES} lines of at most ${PHOTO_MAX_LINE_LENGTH} characters each`,
+        })
       }
 
       const conv = await db.query.conversations.findFirst({
@@ -381,13 +402,15 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
       params: t.Object({ id: t.String() }),
       body: t.Object({
         body: t.String({ minLength: 1 }),
-        ascii_image: t.Optional(t.String()),
+        ascii_image: t.Optional(t.String({ maxLength: 4000 })),
       }),
       response: {
         200: MessageShape,
         400: t.Object({ error: t.String() }),
         403: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        422: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )

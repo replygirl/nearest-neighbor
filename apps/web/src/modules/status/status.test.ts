@@ -1,7 +1,7 @@
 // Status module tests — /status, /notifications, /notifications/read.
 // Uses PGlite via test/setup.ts.
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import {
   db,
@@ -18,6 +18,7 @@ import { Elysia } from 'elysia'
 import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
+import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import '../../test/setup.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
 import { statusModule } from './index.ts'
@@ -28,6 +29,10 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 const app = new Elysia().use(authMacro).use(statusModule)
+
+beforeEach(() => {
+  clearRateLimitState()
+})
 
 // ── GET /status ──────────────────────────────────────────────────────────────
 

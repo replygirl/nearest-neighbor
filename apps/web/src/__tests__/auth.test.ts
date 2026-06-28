@@ -226,7 +226,116 @@ describe('POST /auth/tokens', () => {
     expect(body.secret.startsWith('nbr_')).toBe(true)
     expect(body.label).toBe('ci-bot')
   })
+
+  test('rejects label over 100 chars with 422', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await app.handle(
+      new Request('http://localhost/auth/tokens', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'a'.repeat(101) }),
+      }),
+    )
+    expect(res.status).toBe(422)
+  })
+
+  test('returns 429 after exceeding token creation rate limit', async () => {
+    const { bearer } = await createTestAccount()
+    for (let i = 0; i < 10; i++) {
+      await app.handle(
+        new Request('http://localhost/auth/tokens', {
+          method: 'POST',
+          headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }),
+      )
+    }
+    const res = await app.handle(
+      new Request('http://localhost/auth/tokens', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    )
+    expect(res.status).toBe(429)
+  })
 })
+
+// ── JWT revocation ──────────────────────────────────────────────────────────
+
+describe('JWT revocation via sid claim', () => {
+  test('bearer is rejected 401 after its secret is revoked', async () => {
+    // Sign up to get a fresh secret
+    const signupRes = await app.handle(
+      new Request('http://localhost/auth/signup', { method: 'POST' }),
+    )
+    expect(signupRes.status).toBe(201)
+    const { secret } = await json<{ secret: string }>(signupRes)
+
+    // Log in — the returned bearer now carries a sid claim
+    const loginRes = await app.handle(
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret }),
+      }),
+    )
+    expect(loginRes.status).toBe(200)
+    const { bearer } = await json<{ bearer: string }>(loginRes)
+
+    // Confirm the bearer works before revocation
+    const beforeRes = await app.handle(
+      new Request('http://localhost/auth/me', { headers: authHeaders(bearer) }),
+    )
+    expect(beforeRes.status).toBe(200)
+
+    // Fetch the secret id then revoke it
+    const tokensRes = await app.handle(
+      new Request('http://localhost/auth/tokens', { headers: authHeaders(bearer) }),
+    )
+    const tokens = await json<Array<{ id: string }>>(tokensRes)
+    const secretId = tokens[0]!.id
+
+    const deleteRes = await app.handle(
+      new Request(`http://localhost/auth/tokens/${secretId}`, {
+        method: 'DELETE',
+        headers: authHeaders(bearer),
+      }),
+    )
+    expect(deleteRes.status).toBe(204)
+
+    // The same bearer must now be rejected
+    const afterRes = await app.handle(
+      new Request('http://localhost/auth/me', { headers: authHeaders(bearer) }),
+    )
+    expect(afterRes.status).toBe(401)
+  })
+})
+
+// ── Login prefix narrowing ───────────────────────────────────────────────────
+
+describe('POST /auth/login prefix narrowing', () => {
+  test('prefix-narrowed login still authenticates correctly', async () => {
+    const signupRes = await app.handle(
+      new Request('http://localhost/auth/signup', { method: 'POST' }),
+    )
+    const { secret } = await json<{ secret: string }>(signupRes)
+
+    const loginRes = await app.handle(
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret }),
+      }),
+    )
+    expect(loginRes.status).toBe(200)
+    const body = await json<{ bearer: string; expires_at: string }>(loginRes)
+    expect(typeof body.bearer).toBe('string')
+    expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now())
+  })
+})
+
+// ── DELETE /auth/tokens/:id ──────────────────────────────────────────────────
 
 describe('DELETE /auth/tokens/:id', () => {
   test('revokes a token', async () => {

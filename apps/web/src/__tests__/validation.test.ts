@@ -121,9 +121,9 @@ describe('isValidAsciiArt', () => {
     expect(isValidAsciiArt(art)).toBe(false)
   })
 
-  test('PHOTO_MAX_LINES is 60 and PHOTO_MAX_LINE_LENGTH is 60', () => {
-    expect(PHOTO_MAX_LINES).toBe(60)
-    expect(PHOTO_MAX_LINE_LENGTH).toBe(60)
+  test('PHOTO_MAX_LINES is 40 and PHOTO_MAX_LINE_LENGTH is 80', () => {
+    expect(PHOTO_MAX_LINES).toBe(40)
+    expect(PHOTO_MAX_LINE_LENGTH).toBe(80)
   })
 })
 

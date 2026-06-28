@@ -358,7 +358,7 @@ pub enum PhotosCommands {
 
 #[derive(Parser, Debug)]
 pub struct PhotoSetArgs {
-    /// Path to an ASCII art file (60×60 max)
+    /// Path to an ASCII art file (80×40 max)
     pub file: Option<String>,
     /// Inline ASCII art text
     #[arg(long)]

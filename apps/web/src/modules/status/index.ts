@@ -15,6 +15,7 @@ import { Elysia, t } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
+import { isRateLimited } from '../../lib/ratelimit.ts'
 
 // ── Notification shape ───────────────────────────────────────────────────────
 
@@ -151,13 +152,17 @@ export const statusModule = new Elysia({ name: 'status-module' })
   // GET /status — aggregate status summary
   .get(
     '/status',
-    async ({ account }) => {
+    async ({ account, status }) => {
+      if (isRateLimited(`${account.id}:status:get`, 120, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
       return computeStatus(account.id)
     },
     {
       auth: true,
       response: {
         200: StatusShape,
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -265,7 +270,7 @@ export const statusModule = new Elysia({ name: 'status-module' })
     {
       auth: true,
       body: t.Object({
-        ids: t.Optional(t.Array(t.String())),
+        ids: t.Optional(t.Array(t.String(), { maxItems: 100 })),
         all: t.Optional(t.Boolean()),
       }),
       response: {
