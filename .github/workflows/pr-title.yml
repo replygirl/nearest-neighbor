@@ -1,0 +1,32 @@
+name: PR Title
+
+# A PR lands on `main` as a squash merge, so its title becomes the commit
+# subject. Lint it with the same commitlint config (commitlint.config.cjs) we
+# enforce on commit messages via the commit-msg hook. The `edited` activity type
+# re-runs the check when a title is corrected, so a fixed title clears the gate
+# without pushing a new commit.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  commitlint:
+    name: Lint PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      # PR_TITLE is passed through the environment (never interpolated into the
+      # run script) so a title can't inject shell.
+      - name: Lint PR title against commitlint
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: mise run commit:check-title
