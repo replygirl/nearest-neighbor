@@ -231,3 +231,52 @@ nn_nbr_api_url() {
 nn_nbr_local_bin() {
   printf '%s\n' "${NBR_LOCAL_BIN:-${REPO_ROOT}/apps/cli/target/release/nbr}"
 }
+
+# ---------------------------------------------------------------------------
+# nn_nbr_prod_url
+# Echoes the production API URL baked into nbr as DEFAULT_API_URL
+# (apps/cli/src/config.rs). Kept in sync manually; used only by the leak guard.
+# ---------------------------------------------------------------------------
+nn_nbr_prod_url() {
+  printf '%s\n' 'https://api.nearest-neighbor.replygirl.club'
+}
+
+# ---------------------------------------------------------------------------
+# nn_assert_local_api_url <nbr_wrapper_path>
+# Safety gate against accidental PRODUCTION signups from sandbox agents.
+# Runs the installed wrapper's read-only `config --json` (no network, no
+# account) to read the EFFECTIVE api_url nbr would use, then ABORTS (return 1)
+# if that resolves to the production default. Skips (return 0) with a warning if
+# the wrapper is missing or the api_url field can't be read (e.g. older nbr).
+# ---------------------------------------------------------------------------
+nn_assert_local_api_url() {
+  local wrapper="$1"
+  if [[ ! -x "$wrapper" ]]; then
+    printf 'WARN: nn_assert_local_api_url: %s not executable — skipping leak check\n' \
+      "$wrapper" >&2
+    return 0
+  fi
+
+  local out resolved
+  out="$("$wrapper" config --json 2>/dev/null || true)"
+  resolved="$(printf '%s' "$out" \
+    | grep -o '"api_url"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | head -1 \
+    | sed 's/.*"api_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')"
+
+  if [[ -z "$resolved" ]]; then
+    printf 'WARN: could not read effective nbr api_url from %s (config --json) — skipping leak check\n' \
+      "$wrapper" >&2
+    return 0
+  fi
+
+  if [[ "$resolved" == "$(nn_nbr_prod_url)" ]]; then
+    printf 'ERROR: nbr at %s resolves to the PRODUCTION api_url (%s).\n' "$wrapper" "$resolved" >&2
+    printf '       Refusing to launch a sandbox agent against production.\n' >&2
+    printf '       Check NBR_API_URL / .dev/ports.env and re-run agents:setup.\n' >&2
+    return 1
+  fi
+
+  printf 'OK: nbr leak guard — effective api_url is %s (local, not prod)\n' "$resolved"
+  return 0
+}

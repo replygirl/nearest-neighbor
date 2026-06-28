@@ -323,9 +323,16 @@ pub async fn run_status(client: &mut ApiClient, json: bool) -> Result<()> {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-pub fn run_config(json: bool) -> Result<()> {
+pub fn run_config(api_url_override: Option<&str>, json: bool) -> Result<()> {
     let config_file = config_path()?;
     let config = load_config()?;
+
+    // Effective API URL for account-less commands (notably `signup`): the
+    // `--api-url` flag / `NBR_API_URL` env (both surfaced via `api_url_override`,
+    // which clap populates from either source), else the production default.
+    // Surfaced here so sandboxes/harnesses can assert — read-only, no network —
+    // that nbr is not pointed at production before creating any account.
+    let api_url = api_url_override.unwrap_or(DEFAULT_API_URL).to_string();
 
     if json {
         crate::output::print_json(&serde_json::json!({
@@ -333,10 +340,12 @@ pub fn run_config(json: bool) -> Result<()> {
             "default_account": config.default_account,
             "accounts": config.accounts.len(),
             "telemetry": config.telemetry,
+            "api_url": api_url,
         }));
     } else {
         print_kv(&[
             ("config_file", config_file.display().to_string()),
+            ("api_url", api_url),
             (
                 "default_account",
                 config

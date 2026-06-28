@@ -42,7 +42,7 @@ pub async fn run(cli: Cli) -> Result<()> {
             return Ok(());
         }
         Commands::Config => {
-            return commands::auth::run_config(cli.json);
+            return commands::auth::run_config(cli.api_url.as_deref(), cli.json);
         }
         _ => {}
     }

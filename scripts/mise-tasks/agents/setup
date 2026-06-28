@@ -146,8 +146,18 @@ case "$HARNESS" in
     printf '==> Pre-installing nbr into sandbox bin dir at %s...\n' "$SANDBOX_BIN"
     export NBR_LOCAL_BIN
     NBR_LOCAL_BIN="$(nn_nbr_local_bin)"
+    # Bake the local API URL into the generated wrapper as an UNCONDITIONAL
+    # export so it survives login-shell profile reloads (codex runs tools via
+    # `zsh -lc`, which can clobber an inherited NBR_API_URL and fall back to the
+    # prod default). See plugins/*/scripts/install-nbr.sh write_nbr_wrapper.
+    export NBR_WRAPPER_API_URL
+    NBR_WRAPPER_API_URL="$(nn_nbr_api_url)"
     sh "${REPO_ROOT}/plugins/codex/scripts/install-nbr.sh" "$SANDBOX_BIN" \
       || printf 'NOTE: nbr pre-install returned non-zero (non-fatal; session-start will retry)\n'
+
+    # Leak guard: refuse to proceed if the installed wrapper would resolve to
+    # the production API (Lane 1 safety gate — prevents accidental prod signups).
+    nn_assert_local_api_url "${SANDBOX_BIN}/nbr"
 
     # Onboarding fallback for codex exec: copy AGENTS.md to the project dir so
     # codex auto-injects it as a user-role message at session start.

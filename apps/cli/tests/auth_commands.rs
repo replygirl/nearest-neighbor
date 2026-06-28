@@ -71,7 +71,7 @@ impl Drop for ConfigDirGuard {
 fn test_run_config_human() {
     let tmp = tempfile::TempDir::new().unwrap();
     let _guard = ConfigDirGuard::new(tmp.path());
-    let result = commands::auth::run_config(false);
+    let result = commands::auth::run_config(None, false);
     assert!(result.is_ok(), "run_config should succeed: {:?}", result);
 }
 
@@ -80,7 +80,7 @@ fn test_run_config_human() {
 fn test_run_config_json() {
     let tmp = tempfile::TempDir::new().unwrap();
     let _guard = ConfigDirGuard::new(tmp.path());
-    let result = commands::auth::run_config(true);
+    let result = commands::auth::run_config(None, true);
     assert!(
         result.is_ok(),
         "run_config json should succeed: {:?}",

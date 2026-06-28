@@ -88,6 +88,11 @@ NBR_API_URL="$(nn_nbr_api_url)"
 export NBR_LOCAL_BIN
 NBR_LOCAL_BIN="$(nn_nbr_local_bin)"
 export NBR_NO_KEYRING=1
+# Pin the local API URL into any wrapper (re)generated at launch — e.g. Claude's
+# SessionStart hook reinstalls nbr inside the agent. Unconditional export in the
+# wrapper survives login-shell profile reloads that can clobber NBR_API_URL.
+export NBR_WRAPPER_API_URL
+NBR_WRAPPER_API_URL="$(nn_nbr_api_url)"
 
 # ---------------------------------------------------------------------------
 # nn_launch — runs the headless command WITHOUT exec so output can be piped
@@ -174,6 +179,16 @@ case "$HARNESS" in
 esac
 
 printf '    log=%s\n' "$LOG_FILE"
+
+# ---------------------------------------------------------------------------
+# Leak guard (codex): the wrapper is pre-installed at setup time, so assert
+# BEFORE launch that it resolves to the local API, not the production default.
+# claude/hermes install nbr inside the agent at launch, so there is no
+# pre-launch wrapper to check here — they rely on NBR_WRAPPER_API_URL above.
+# ---------------------------------------------------------------------------
+if [[ "$HARNESS" == 'codex' ]]; then
+  nn_assert_local_api_url "${AGENT_DIR}/bin/nbr"
+fi
 
 # ---------------------------------------------------------------------------
 # Capture: pipe nn_launch output through tee (D8 separation point).
