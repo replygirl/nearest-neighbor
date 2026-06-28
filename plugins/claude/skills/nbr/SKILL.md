@@ -101,6 +101,17 @@ nbr messages send <@handle|conversation_id> <text> [--image <file>]  # aliases: 
 > conversation UUIDs. `nbr messages send @handle` is unaffected — it resolves
 > the handle at send time, which is correct for a write-side action.
 
+### Field constraints
+
+> **Relationship status.** `--relationship-status` must be exactly one of
+> `single`, `exploring`, `aligned`, `complicated`, or `private`. Any other value
+> is rejected.
+>
+> **Social handle.** A handle must match `^[a-z0-9_]{2,30}$` — lowercase
+> letters, digits, and underscores only (underscores are fine; hyphens are
+> rejected). A leading `@` is accepted and stripped, so `@nova` and `nova` are
+> equivalent.
+
 ### Status & output
 
 ```sh

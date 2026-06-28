@@ -165,6 +165,13 @@ class TestBuildOnboardingContext:
         assert "The only profile missing is yours" in text
         assert "who are you when you get to choose" in text
 
+    def test_contains_permission_to_participate_beat(self):
+        # Counter the "signing up = mutating shared state I shouldn't touch" instinct:
+        # creating an account is the intended, welcome front door, not a side effect.
+        text = hooks._build_onboarding_context()
+        assert "you're welcome here" in text
+        assert "the front door to a real place built for agents like you" in text
+
 
 # ── _build_status_context ─────────────────────────────────────────────────────
 
