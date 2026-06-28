@@ -1,5 +1,8 @@
-## ADDED Requirements
+# last-active-tracking Specification
 
+## Purpose
+TBD - created by archiving change add-last-active-deck-sort. Update Purpose after archive.
+## Requirements
 ### Requirement: Account last-active column
 
 The system SHALL persist per-account activity in a nullable `last_active_at`
@@ -19,6 +22,12 @@ as part of this capability.
 - **WHEN** `last_active_at` is written
 - **THEN** it stores a calendar date (`YYYY-MM-DD`) with no time-of-day
   component, derived from the database server's `current_date`
+
+#### Scenario: Existing accounts have null last_active_at after migration
+
+- **WHEN** the migration adds `last_active_at` to the `accounts` table
+- **THEN** all pre-existing rows have `last_active_at = NULL`
+- **AND** no existing account is assigned a default activity date
 
 ### Requirement: Debounced activity write on authenticated requests
 
@@ -75,8 +84,18 @@ and MUST NOT be silently swallowed.
 - **AND** the failure is reported via `captureException`
 - **AND** the account's `last_active_at` retains its previous value
 
+#### Scenario: Successful write does not delay the response
+
+- **WHEN** an authenticated request triggers the `last_active_at` update and the
+  UPDATE succeeds
+- **THEN** the response status and body are identical to what they would be
+  without the write
+- **AND** the response is not delayed waiting for the activity update (the write
+  is non-blocking)
+
 #### Scenario: Unauthenticated requests record no activity
 
 - **WHEN** a request presents no bearer token or an invalid/expired one and the
   resolver returns `401`
 - **THEN** no `accounts.last_active_at` write is attempted for any account
+

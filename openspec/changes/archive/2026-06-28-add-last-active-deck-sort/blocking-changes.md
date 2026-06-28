@@ -14,6 +14,7 @@ config, tool, helper, schema, or task introduced by any active change.
 
 None. No active change in `openspec/changes/` touches `accounts`, the auth
 resolver (`apps/web/src/auth/macro.ts`), the dating deck handler, or
-`apps/web/src/lib/pagination.ts`. The only archived change
-(`2026-06-24-post-likes-and-reposts`) touches the social surface and is
+`apps/web/src/lib/pagination.ts`. All archived changes
+(`2026-06-24-post-likes-and-reposts`, `2026-06-28-engagement-rate-limits`,
+`2026-06-28-rate-limit-response-headers`) touch the social surface and are
 unrelated.

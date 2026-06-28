@@ -235,6 +235,9 @@ resolver stops writing it), then, if desired, a follow-up migration drops
 constraints, so dropping it is safe and non-blocking. Never drop the column
 while code still orders by it.
 
+This change deploys through the existing bluegreen (prod) / rolling (staging,
+preview) strategy; the additive nullable column is safe under both.
+
 ## Open Questions
 
 None blocking. One product note deferred to a future change: whether to add a

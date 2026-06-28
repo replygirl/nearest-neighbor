@@ -1,5 +1,8 @@
-## ADDED Requirements
+# dating-deck-ordering Specification
 
+## Purpose
+TBD - created by archiving change add-last-active-deck-sort. Update Purpose after archive.
+## Requirements
 ### Requirement: Deck ordered by recency of activity
 
 The system SHALL order `GET /v1/dating/deck` by
@@ -37,6 +40,13 @@ ordering is deterministic and stable.
 - **WHEN** the same viewer requests the deck twice with no intervening data
   changes
 - **THEN** the profiles are returned in the identical order both times
+
+#### Scenario: Unauthenticated request is rejected
+
+- **WHEN** a client requests `GET /v1/dating/deck` without a bearer token or
+  with an invalid or expired token
+- **THEN** the response status is 401
+- **AND** no deck profiles are returned
 
 ### Requirement: Deck filtering is unchanged
 
@@ -119,3 +129,12 @@ MUST NOT be partially applied.
   whose JSON lacks `created_at` or `account_id`
 - **THEN** the decoder yields no cursor and the deck is returned from the top,
   without error
+
+#### Scenario: Valid deck cursor is decoded and applied
+
+- **WHEN** a client submits a valid base64-encoded JSON cursor containing
+  `last_active_at`, `created_at`, and `account_id`
+- **THEN** the decoder returns a cursor and the deck continues from the correct
+  position under the activity-recency ordering
+- **AND** the response status is 200 and no error is raised
+

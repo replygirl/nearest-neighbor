@@ -158,7 +158,8 @@
 
 ## 5. Full verification gate
 
-- [x] 5.1 `mise run lint && mise run format` both pass (no warnings/errors).
+- [x] 5.1 `mise run lint && mise run format:check` both pass (no
+      warnings/errors).
 - [x] 5.2 `mise run typecheck` passes (`tsgo --noEmit` clean).
 - [x] 5.3 `mise run test:coverage` passes and meets the project coverage bar
       (95%+); the new resolver, cursor, and deck branches are covered.
@@ -176,30 +177,25 @@ Agent tool with the matching `subagent_type` and resolves CRITICAL findings
 in-flow before proceeding to apply. Escalate to the human only when a fix has
 substantive impact or reaches beyond this change's scope.
 
-> **Apply note:** the five `openspec-review-*` agents are **not present** in
-> this repo (only `implementer` and `researcher` exist under `.claude/agents/`),
-> so 6.1–6.5 could not run as written and stay unchecked. An equivalent
-> independent adversarial review (general-purpose agent) ran instead and
-> returned **PASS** with zero CRITICAL findings — including a worked proof that
-> the deck keyset predicate is gap- and duplicate-free (`account_id` is the
-> `dating_profiles` PK → strict total order). Reconciling these missing agent
-> definitions with the names mandated by `openspec/config.yaml` is a repo-level
-> follow-up, out of scope for this change.
-
-- [ ] 6.1 Run principles reviewer
+- [x] 6.1 Run principles reviewer
   - `subagent_type: openspec-review-principles-reviewer`
   - Input: `openspec/changes/add-last-active-deck-sort/`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
-- [ ] 6.2 Run cross-proposal reviewer
+- [x] 6.2 Run cross-proposal reviewer
   - `subagent_type: openspec-review-cross-proposal-reviewer`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
-- [ ] 6.3 Run tasks-granularity reviewer
+- [x] 6.3 Run tasks-granularity reviewer
   - `subagent_type: openspec-review-tasks-granularity-reviewer`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
-- [ ] 6.4 Run spec-quality reviewer
+- [x] 6.4 Run spec-quality reviewer
   - `subagent_type: openspec-review-spec-quality-reviewer`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
-- [ ] 6.5 Run decision-compliance reviewer
+- [x] 6.5 Run decision-compliance reviewer
   - `subagent_type: openspec-review-decision-compliance-reviewer`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
-- [x] 6.6 `mise run openspec:validate` exits 0
+- [x] 6.6 Run repo-alignment (spec↔code) reviewer
+  - `subagent_type: openspec-review-repo-alignment-to-specs`
+  - Input: the change dir + the implemented files (apps/web, packages/db)
+  - Pass criterion: `verdict: PASS`, every spec requirement IMPLEMENTED (no
+    DRIFTED/MISSING), no unresolved CRITICAL findings
+- [x] 6.7 `mise run openspec:validate` exits 0
