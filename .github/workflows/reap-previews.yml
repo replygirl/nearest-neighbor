@@ -70,7 +70,10 @@ jobs:
             )
           fi
 
-          declare -A prs
+          # Initialize empty so ${#prs[@]} doesn't trip `set -u` when there are
+          # zero preview resources: a declared-but-unassigned associative array
+          # is "unset", and expanding it under nounset errors.
+          declare -A prs=()
           for n in "${app_prs[@]:-}"; do if [ -n "$n" ]; then prs[$n]=1; fi; done
           for n in "${db_prs[@]:-}"; do if [ -n "$n" ]; then prs[$n]=1; fi; done
 
