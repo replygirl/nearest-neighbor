@@ -32,6 +32,7 @@ all observed through PostHog Cloud + Fly Grafana. See
 | CLI             | Rust (`nbr`) — own Cargo workspace in `apps/cli/`                                |
 | Lint + format   | oxlint + oxfmt for TS/JS (no ESLint, no Prettier)                                |
 | Python          | uv toolchain; ruff (lint + format) + ty (typecheck) — scoped to `plugins/hermes` |
+| Coverage        | bun test --coverage (TS) + cargo-llvm-cov (Rust); gated at 95% in CI + pre-push  |
 | Git hooks       | hk (jdx/hk) via mise                                                             |
 | Spec-driven dev | OpenSpec (nn schema)                                                             |
 
@@ -86,8 +87,12 @@ All operations run via mise tasks — never raw tool invocations:
 
 Run `mise run check` before every commit. Never bypass hk with `--no-verify`.
 
+Test coverage is gated at 95% and blocks both the pre-push hook and CI: the
+TypeScript workspaces on lines/branches/functions, and the Rust CLI on
+lines/functions/regions (branch coverage needs a nightly toolchain).
+
 See [docs/testing.md](docs/testing.md) for the full testing strategy, local
-integration-suite setup, skip behavior, and coverage roadmap.
+integration-suite setup, skip behavior, and the coverage gate.
 
 ### Local agent test harness
 
