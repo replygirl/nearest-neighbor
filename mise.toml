@@ -686,6 +686,8 @@ description = "Generate per-task-group CLI reference markdown from #USAGE header
 run = """
 mkdir -p docs/cli
 bash scripts/mise-tasks/docs/gen-spec | usage generate markdown --file /dev/stdin --multi --out-dir docs/cli
+# Rename colon-named files (invalid on Windows) to dashes and fix index links.
+bash scripts/mise-tasks/docs/fix-md-paths
 oxfmt docs/cli/ > /dev/null
 echo "CLI reference written to docs/cli/"
 """

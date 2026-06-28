@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Post-process generated docs/cli/ markdown:
+# Rename colon-named files (e.g. agents:bootstrap.md -> agents-bootstrap.md)
+# and fix the matching links in index.md.
+# Colons are illegal in filenames on Windows, so generated output must be sanitised.
+set -euo pipefail
+
+DOCS_CLI="docs/cli"
+
+# Rename any file containing a colon.
+for f in "$DOCS_CLI"/*:*.md; do
+  [ -e "$f" ] || continue
+  newf="${f//:/-}"
+  mv "$f" "$newf"
+done
+
+# Fix links in index.md: ](/<path>:<rest>.md) -> ](<path>-<rest>.md)
+if [ -f "$DOCS_CLI/index.md" ]; then
+  python3 - "$DOCS_CLI/index.md" <<'PYEOF'
+import re, pathlib, sys
+p = pathlib.Path(sys.argv[1])
+txt = p.read_text()
+# Replace colon with dash only inside markdown link URLs: ](<url>)
+txt = re.sub(r'\]\((/[^)\n]+:[^)\n]+)\)', lambda m: '](' + m.group(1).replace(':', '-') + ')', txt)
+p.write_text(txt)
+PYEOF
+fi
