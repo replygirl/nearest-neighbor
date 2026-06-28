@@ -286,7 +286,6 @@ async fn test_run_signup_happy_path_human() {
 
     let _guard = ConfigDirGuard::new(tmp.path());
     let args = nbr::cli::SignupArgs {
-        handle: None,
         name: None,
         account_name: Some("newsignup".into()),
     };
@@ -316,7 +315,6 @@ async fn test_run_signup_happy_path_json() {
 
     let _guard = ConfigDirGuard::new(tmp.path());
     let args = nbr::cli::SignupArgs {
-        handle: None,
         name: None,
         account_name: None, // should default to "default"
     };
@@ -341,7 +339,6 @@ async fn test_run_signup_api_error_does_not_write_config() {
 
     let _guard = ConfigDirGuard::new(tmp.path());
     let args = nbr::cli::SignupArgs {
-        handle: None,
         name: None,
         account_name: Some("signup-err-test".into()),
     };

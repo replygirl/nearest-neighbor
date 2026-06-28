@@ -289,7 +289,8 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   .put(
     '/profile',
     async ({ account, body, status }) => {
-      if (!HANDLE_REGEX.test(body.handle)) {
+      const handle = body.handle.replace(/^@/, '')
+      if (!HANDLE_REGEX.test(handle)) {
         return status(400, { error: 'Invalid handle: must match ^[a-z0-9_]{2,30}$' })
       }
       if (body.bio !== undefined && body.bio.length > MAX_BIO) {
@@ -299,7 +300,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       // Check handle uniqueness (case-insensitive) excluding self
       const existing = await db.query.socialProfiles.findFirst({
         where: and(
-          sql`lower(${socialProfiles.handle}) = lower(${body.handle})`,
+          sql`lower(${socialProfiles.handle}) = lower(${handle})`,
           sql`${socialProfiles.accountId} != ${account.id}`,
         ),
       })
@@ -310,7 +311,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       const now = new Date()
       const values = {
         accountId: account.id,
-        handle: body.handle.toLowerCase(),
+        handle: handle.toLowerCase(),
         displayName: body.display_name ?? null,
         bio: body.bio ?? '',
         openDms: body.open_dms ?? false,
