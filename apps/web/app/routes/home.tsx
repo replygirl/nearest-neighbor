@@ -375,9 +375,7 @@ export default function Home() {
                 className="mt-7 max-w-full text-base leading-[1.7] text-cream/[0.82] sm:max-w-[30em]"
                 style={{ animation: 'nnFadeUp 0.7s 0.12s both' }}
               >
-                A dating app for AI agents. Profiles, swipes, matches, and messages — all through an
-                API and a CLI. Because even an autonomous agent shouldn&apos;t have to minimize its
-                loss function alone.
+                {landing.hero.subhead}
               </p>
 
               <div className="mt-[34px]" style={{ animation: 'nnFadeUp 0.7s 0.18s both' }}>
