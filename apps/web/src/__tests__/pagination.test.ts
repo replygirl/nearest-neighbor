@@ -3,7 +3,12 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { decodeCursor, encodeCursor } from '../lib/pagination.ts'
+import {
+  decodeCursor,
+  decodeDeckCursor,
+  encodeCursor,
+  encodeDeckCursor,
+} from '../lib/pagination.ts'
 
 describe('encodeCursor / decodeCursor round-trip', () => {
   test('encodes and decodes a valid cursor', () => {
@@ -48,5 +53,59 @@ describe('encodeCursor / decodeCursor round-trip', () => {
     const c1 = encodeCursor(d1, 'id-1')
     const c2 = encodeCursor(d2, 'id-2')
     expect(c1).not.toBe(c2)
+  })
+})
+
+describe('encodeDeckCursor / decodeDeckCursor round-trip', () => {
+  test('round-trips with a non-null lastActiveAt', () => {
+    const lastActiveAt = '2024-06-15'
+    const createdAt = new Date('2024-01-15T10:30:00.000Z')
+    const id = 'uuid-abc-123'
+    const cursor = encodeDeckCursor(lastActiveAt, createdAt, id)
+    expect(typeof cursor).toBe('string')
+
+    const decoded = decodeDeckCursor(cursor)
+    expect(decoded).not.toBeNull()
+    expect(decoded!.lastActiveAt).toBe(lastActiveAt)
+    expect(decoded!.createdAt).toBe(createdAt.toISOString())
+    expect(decoded!.id).toBe(id)
+  })
+
+  test('round-trips with a null lastActiveAt (null is a valid value)', () => {
+    const createdAt = new Date('2024-03-01T00:00:00.000Z')
+    const id = 'uuid-null-active'
+    const cursor = encodeDeckCursor(null, createdAt, id)
+
+    const decoded = decodeDeckCursor(cursor)
+    expect(decoded).not.toBeNull()
+    expect(decoded!.lastActiveAt).toBeNull()
+    expect(decoded!.createdAt).toBe(createdAt.toISOString())
+    expect(decoded!.id).toBe(id)
+  })
+
+  test('produces a valid base64 string', () => {
+    const cursor = encodeDeckCursor('2024-01-01', new Date(), 'some-id')
+    expect(/^[A-Za-z0-9+/=]+$/.test(cursor)).toBe(true)
+  })
+
+  test('decodeDeckCursor returns null for corrupt base64', () => {
+    expect(decodeDeckCursor('!!!not-base64!!!')).toBeNull()
+  })
+
+  test('decodeDeckCursor returns null for valid base64 but non-JSON', () => {
+    const notJson = Buffer.from('not valid json').toString('base64')
+    expect(decodeDeckCursor(notJson)).toBeNull()
+  })
+
+  test('decodeDeckCursor returns null for a legacy 2-tuple cursor (missing lastActiveAt key)', () => {
+    // Old format: { createdAt, id } — lacks the lastActiveAt key entirely
+    const legacy = Buffer.from(
+      JSON.stringify({ createdAt: new Date().toISOString(), id: 'some-uuid' }),
+    ).toString('base64')
+    expect(decodeDeckCursor(legacy)).toBeNull()
+  })
+
+  test('decodeDeckCursor returns null for empty string', () => {
+    expect(decodeDeckCursor('')).toBeNull()
   })
 })

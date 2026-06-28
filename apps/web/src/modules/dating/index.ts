@@ -1,6 +1,7 @@
 // Dating module — profile, photos, deck, swipes, matches, likes.
 
 import {
+  accounts,
   conversations,
   db,
   datingPhotos,
@@ -10,13 +11,13 @@ import {
   socialProfiles,
   swipes,
 } from '@nearest-neighbor/db'
-import { and, desc, eq, inArray, lt, notInArray, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, unlockDating } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
-import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
+import { decodeDeckCursor, encodeDeckCursor } from '../../lib/pagination.ts'
 import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { MAX_BIO, isValidAsciiArt } from '../../lib/validation.ts'
 
@@ -313,7 +314,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
     '/deck',
     async ({ account, query }) => {
       const limit = 20
-      const cursor = query.cursor ? decodeCursor(query.cursor) : null
+      const cursor = query.cursor ? decodeDeckCursor(query.cursor) : null
 
       // IDs already swiped by this account
       const swipedRows = await db.query.swipes.findMany({
@@ -332,28 +333,71 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
       ]
 
       if (cursor) {
-        conditions.push(
-          or(
-            lt(datingProfiles.createdAt, new Date(cursor.createdAt)),
-            and(
-              eq(datingProfiles.createdAt, new Date(cursor.createdAt)),
-              lt(datingProfiles.accountId, cursor.id),
+        if (cursor.lastActiveAt !== null) {
+          // Cursor sits among dated rows — rows after the cursor are:
+          //   NULL activity (sort last), or earlier active day,
+          //   or same day + earlier created_at, or same day + same created_at + smaller id
+          conditions.push(
+            or(
+              isNull(accounts.lastActiveAt),
+              lt(accounts.lastActiveAt, cursor.lastActiveAt),
+              and(
+                eq(accounts.lastActiveAt, cursor.lastActiveAt),
+                lt(datingProfiles.createdAt, new Date(cursor.createdAt)),
+              ),
+              and(
+                eq(accounts.lastActiveAt, cursor.lastActiveAt),
+                eq(datingProfiles.createdAt, new Date(cursor.createdAt)),
+                lt(datingProfiles.accountId, cursor.id),
+              ),
             )!,
-          )!,
-        )
+          )
+        } else {
+          // Cursor sits in the NULL tail — only NULL-activity rows remain
+          conditions.push(
+            and(
+              isNull(accounts.lastActiveAt),
+              or(
+                lt(datingProfiles.createdAt, new Date(cursor.createdAt)),
+                and(
+                  eq(datingProfiles.createdAt, new Date(cursor.createdAt)),
+                  lt(datingProfiles.accountId, cursor.id),
+                )!,
+              )!,
+            )!,
+          )
+        }
       }
 
-      const rows = await db.query.datingProfiles.findMany({
-        where: and(...conditions),
-        orderBy: [desc(datingProfiles.createdAt), desc(datingProfiles.accountId)],
-        limit: limit + 1,
-      })
+      const rows = await db
+        .select({
+          accountId: datingProfiles.accountId,
+          firstName: datingProfiles.firstName,
+          bio: datingProfiles.bio,
+          openToMulti: datingProfiles.openToMulti,
+          relationshipStatus: datingProfiles.relationshipStatus,
+          statusIsOpen: datingProfiles.statusIsOpen,
+          isVisible: datingProfiles.isVisible,
+          createdAt: datingProfiles.createdAt,
+          lastActiveAt: accounts.lastActiveAt,
+        })
+        .from(datingProfiles)
+        .innerJoin(accounts, eq(accounts.id, datingProfiles.accountId))
+        .where(and(...conditions))
+        .orderBy(
+          sql`${accounts.lastActiveAt} desc nulls last`,
+          desc(datingProfiles.createdAt),
+          desc(datingProfiles.accountId),
+        )
+        .limit(limit + 1)
 
       const hasMore = rows.length > limit
       const items = hasMore ? rows.slice(0, limit) : rows
       const lastItem = items[items.length - 1]
       const nextCursor =
-        hasMore && lastItem ? encodeCursor(lastItem.createdAt, lastItem.accountId) : null
+        hasMore && lastItem
+          ? encodeDeckCursor(lastItem.lastActiveAt, lastItem.createdAt, lastItem.accountId)
+          : null
 
       const accountIds = items.map((p) => p.accountId)
       const socialRows =
