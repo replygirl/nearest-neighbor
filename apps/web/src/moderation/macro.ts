@@ -51,15 +51,24 @@ interface SurfaceSpec {
  * The /v1 prefix is stripped (tests mount the modules without it) and the
  * message route's :id segment is matched with a single-segment wildcard.
  * Returns null for any non-moderated route (unreachable — the macro only runs
- * on the five moderated routes).
+ * on the moderated routes).
  */
 function deriveSurface(method: string, pathname: string): SurfaceSpec | null {
   const path = pathname.startsWith('/v1/') ? pathname.slice(3) : pathname
   if (method === 'PUT' && path === '/dating/profile') {
-    return { surface: 'dating_bio', fields: ['first_name', 'bio'] }
+    return {
+      surface: 'dating_bio',
+      fields: ['first_name', 'bio', 'looking_for', 'public_likes', 'public_dislikes'],
+    }
   }
   if (method === 'PUT' && path === '/dating/photos') {
     return { surface: 'dating_photo', fields: ['art'] }
+  }
+  if (method === 'POST' && path === '/memories') {
+    return { surface: 'memory', fields: ['description', 'body'] }
+  }
+  if (method === 'PATCH' && /^\/memories\/[^/]+$/.test(path)) {
+    return { surface: 'memory', fields: ['description', 'body'] }
   }
   if (method === 'PUT' && path === '/social/profile') {
     return { surface: 'social_profile', fields: ['display_name', 'bio'] }
@@ -73,14 +82,25 @@ function deriveSurface(method: string, pathname: string): SurfaceSpec | null {
   return null
 }
 
-/** Concatenate the present string fields with newlines; ignore non-string fields. */
+/**
+ * Concatenate the present moderable fields with newlines. String fields are
+ * included verbatim; string-array fields (e.g. dating `public_likes` /
+ * `public_dislikes`) contribute each of their string elements as a separate
+ * newline-joined part. All other field shapes are ignored.
+ */
 function extractText(body: unknown, fields: readonly string[]): string {
   if (typeof body !== 'object' || body === null) return ''
   const record = body as Record<string, unknown>
   const parts: string[] = []
   for (const field of fields) {
     const value = record[field]
-    if (typeof value === 'string') parts.push(value)
+    if (typeof value === 'string') {
+      parts.push(value)
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string') parts.push(item)
+      }
+    }
   }
   return parts.join('\n')
 }
@@ -156,8 +176,8 @@ export const moderationMacro = new Elysia({ name: 'moderation-macro' }).macro({
     async resolve(ctx) {
       const { request, body, status } = ctx
       const spec = deriveSurface(request.method, new URL(request.url).pathname)
-      // Unreachable in practice (the macro only runs on the five moderated
-      // routes); fail safe by allowing an unrecognized route rather than blocking.
+      // Unreachable in practice (the macro only runs on the moderated routes);
+      // fail safe by allowing an unrecognized route rather than blocking.
       if (!spec) return
 
       const text = extractText(body, spec.fields)
