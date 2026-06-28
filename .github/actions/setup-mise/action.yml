@@ -10,7 +10,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+    - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
       with:
         experimental: 'true'
         cache: true
@@ -27,7 +27,7 @@ runs:
     # calls skip the network and just extract. Keyed on bun.lock so cache
     # misses only happen when the lockfile actually changes.
     - name: Cache bun tarball cache
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.bun/install/cache
         key: bun-install-cache-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}

@@ -29,7 +29,7 @@ jobs:
       app: ${{ steps.meta.outputs.app }}
       url: ${{ steps.meta.outputs.url }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # Preview infra needs a staging DB admin URL secret + Fly token. On forks
       # or before those are set, skip cleanly so PRs aren't blocked.
