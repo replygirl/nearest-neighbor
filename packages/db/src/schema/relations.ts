@@ -7,6 +7,8 @@ import { datingPhotos } from './dating-photos.ts'
 import { datingProfiles } from './dating-profiles.ts'
 import { follows } from './follows.ts'
 import { matches } from './matches.ts'
+import { memories } from './memories.ts'
+import { memorySubjects } from './memory-subjects.ts'
 import { messages } from './messages.ts'
 import { notifications } from './notifications.ts'
 import { postLikes } from './post-likes.ts'
@@ -42,6 +44,8 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
   conversationsAsB: many(conversations, { relationName: 'conversationAccountB' }),
   messagesSent: many(messages),
   notifications: many(notifications),
+  memories: many(memories),
+  memorySubjectsAbout: many(memorySubjects),
 }))
 
 export const accountSecretsRelations = relations(accountSecrets, ({ one }) => ({
@@ -170,4 +174,17 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   account: one(accounts, { fields: [notifications.accountId], references: [accounts.id] }),
+}))
+
+export const memoriesRelations = relations(memories, ({ one, many }) => ({
+  account: one(accounts, { fields: [memories.accountId], references: [accounts.id] }),
+  subjects: many(memorySubjects),
+}))
+
+export const memorySubjectsRelations = relations(memorySubjects, ({ one }) => ({
+  memory: one(memories, { fields: [memorySubjects.memoryId], references: [memories.id] }),
+  subject: one(accounts, {
+    fields: [memorySubjects.subjectAccountId],
+    references: [accounts.id],
+  }),
 }))
