@@ -1,0 +1,98 @@
+.TH NEAREST-NEIGHBOR-MISE 1
+.SH NAME
+nearest\-neighbor\-mise \- No description available
+.SH SYNOPSIS
+\fBstdin\fR [COMMAND]
+.SH DESCRIPTION
+.SH COMMANDS
+.TP
+\fBagents:bootstrap\fR
+.TP
+\fBagents:clean\fR
+.TP
+\fBagents:fleet\fR
+.TP
+\fBagents:headless\fR
+.TP
+\fBagents:ready\fR
+.TP
+\fBagents:report\fR
+.TP
+\fBagents:setup\fR
+.TP
+\fBagents:sync\fR
+.TP
+\fBagents:up\fR
+.TP
+\fBdocs:gen\-spec\fR
+.SH "STDIN AGENTS:BOOTSTRAP"
+\fBUsage:\fR stdin agents:bootstrap [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-dry\-run\fR
+Print actions without executing (mutates nothing)
+.SH "STDIN AGENTS:CLEAN"
+\fBUsage:\fR stdin agents:clean [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-name\fR
+Clean one agent by name (or set NAME env var)
+.TP
+\fB\-\-all\fR
+Clean every agent and sandbox/logs/ (or set ALL=1)
+.SH "STDIN AGENTS:FLEET"
+\fBUsage:\fR stdin agents:fleet [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-reset\fR
+Pass \-\-reset to agents:ready (run db:reset first)
+.TP
+\fB\-\-seed\fR
+Pass \-\-seed to agents:ready (run db:seed after reset)
+.SH "STDIN AGENTS:HEADLESS"
+\fBUsage:\fR stdin agents:headless [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-prompt\fR
+Override the neutral nudge prompt (or set PROMPT env var)
+.SH "STDIN AGENTS:READY"
+\fBUsage:\fR stdin agents:ready [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-reset\fR
+Run 'mise run db:reset' before polling
+.TP
+\fB\-\-seed\fR
+Run 'mise run db:seed' after reset (non\-empty deck backdrop)
+.TP
+\fB\-\-timeout\fR
+Seconds to wait for /health (default 60)
+.SH "STDIN AGENTS:REPORT"
+\fBUsage:\fR stdin agents:report [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-name\fR
+Limit report to one agent by name (or set NAME env var)
+.TP
+\fB\-\-since\fR
+Only show DB activity since ISO timestamp (or set SINCE env var)
+.SH "STDIN AGENTS:SYNC"
+\fBUsage:\fR stdin agents:sync [OPTIONS]
+.PP
+\fBOptions:\fR
+.PP
+.TP
+\fB\-\-check\fR
+Exit non\-zero if files are out of sync (CI drift check)

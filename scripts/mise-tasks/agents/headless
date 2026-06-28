@@ -1,0 +1,182 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:headless"
+#USAGE flag "--prompt" help="Override the neutral nudge prompt (or set PROMPT env var)"
+
+# Non-interactive cold run passing ONLY the neutral nudge prompt.
+# Captures the full event stream to sandbox/agents/<name>/logs/session.{jsonl|txt}.
+#
+# Launch (nn_launch) and capture (tee) are two separable steps (D8):
+# a future tmux pipe-pane watch can replace tee without touching nn_launch.
+#
+# Reads env vars:
+#   NAME    — agent identifier (default: claude)
+#   HARNESS — override harness read from agent.json (optional)
+#   MODEL   — override model read from agent.json (optional)
+#   EFFORT  — override effort read from agent.json (optional; ignored for hermes)
+#   PROMPT  — prompt text; --prompt flag takes precedence, then this env var,
+#             then sandbox/templates/nudge.txt
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Parse flags: --prompt <value> (or PROMPT env var)
+# PROMPT precedence: --prompt flag > $PROMPT env > nudge.txt default
+# ---------------------------------------------------------------------------
+PROMPT_ARG=''
+PREV_ARG=''
+for arg in "$@"; do
+  if [[ "$PREV_ARG" == '--prompt' ]]; then
+    PROMPT_ARG="$arg"
+  fi
+  PREV_ARG="$arg"
+done
+
+if [[ -n "$PROMPT_ARG" ]]; then
+  PROMPT_TEXT="$PROMPT_ARG"
+elif [[ -n "${PROMPT:-}" ]]; then
+  PROMPT_TEXT="$PROMPT"
+else
+  NUDGE_FILE="${REPO_ROOT}/sandbox/templates/nudge.txt"
+  if [[ ! -f "$NUDGE_FILE" ]]; then
+    printf 'ERROR: no --prompt / PROMPT env var and no nudge.txt at %s\n' "$NUDGE_FILE" >&2
+    exit 1
+  fi
+  PROMPT_TEXT="$(cat "$NUDGE_FILE")"
+fi
+
+# ---------------------------------------------------------------------------
+# Resolve inputs
+# ---------------------------------------------------------------------------
+NAME="${NAME:-claude}"
+AGENT_DIR="$(nn_agent_dir "$NAME")"
+
+if [[ ! -f "${AGENT_DIR}/agent.json" ]]; then
+  printf 'ERROR: %s/agent.json not found.\n' "$AGENT_DIR" >&2
+  printf '  Hint: run "HARNESS=<h> NAME=%s mise run agents:setup" first.\n' "$NAME" >&2
+  exit 1
+fi
+
+HARNESS="${HARNESS:-$(nn_read_meta "$NAME" harness)}"
+MODEL="${MODEL:-$(nn_read_meta "$NAME" model)}"
+EFFORT="${EFFORT:-$(nn_read_meta "$NAME" effort)}"
+
+# Treat JSON null as empty (only hermes legitimately has empty model)
+if [[ "$MODEL" == 'null' ]]; then
+  MODEL="$(nn_default_model "$HARNESS")"
+fi
+
+CMD="$(nn_resolve_cmd "$HARNESS")"
+PROJECT_DIR="${AGENT_DIR}/project"
+CFG_DIR="$(nn_config_dir "$NAME" "$HARNESS")"
+LOG_DIR="${AGENT_DIR}/logs"
+mkdir -p "$LOG_DIR"
+
+printf '==> agents:headless  name=%s  harness=%s  model=%s  effort=%s\n' \
+  "$NAME" "$HARNESS" "$MODEL" "$EFFORT"
+printf '    project=%s\n' "$PROJECT_DIR"
+
+# ---------------------------------------------------------------------------
+# Build outer env
+# ---------------------------------------------------------------------------
+export NBR_API_URL
+NBR_API_URL="$(nn_nbr_api_url)"
+export NBR_LOCAL_BIN
+NBR_LOCAL_BIN="$(nn_nbr_local_bin)"
+export NBR_NO_KEYRING=1
+
+# ---------------------------------------------------------------------------
+# nn_launch — runs the headless command WITHOUT exec so output can be piped
+# to the capture step (tee) below (D8 separation point).
+# A future tmux pipe-pane watch replaces tee without touching nn_launch.
+# ---------------------------------------------------------------------------
+nn_launch() {
+  case "$HARNESS" in
+    claude)
+      # --dangerously-skip-permissions for headless (NEVER --bare: disables hooks/plugins).
+      # --verbose included defensively; drop if a claude version rejects it
+      # alongside --output-format stream-json.
+      (
+        cd "$PROJECT_DIR" || exit 1
+        CLAUDE_CONFIG_DIR="$CFG_DIR" \
+          "$CMD" \
+            -p "$PROMPT_TEXT" \
+            --output-format stream-json \
+            --include-hook-events \
+            --verbose \
+            --model "$MODEL" \
+            --effort "$EFFORT" \
+            --dangerously-skip-permissions \
+            --debug-file "${LOG_DIR}/debug.log"
+      )
+      ;;
+    codex)
+      # --dangerously-bypass-approvals-and-sandbox AND
+      # --dangerously-bypass-hook-trust (REQUIRED for hooks/plugins in headless).
+      # EFFORT maps to model_reasoning_effort config; -C sets the working dir.
+      CODEX_HOME="$CFG_DIR" \
+        "$CMD" exec \
+          --json \
+          -m "$MODEL" \
+          -c "model_reasoning_effort=${EFFORT}" \
+          --dangerously-bypass-approvals-and-sandbox \
+          --dangerously-bypass-hook-trust \
+          -C "$PROJECT_DIR" \
+          "$PROMPT_TEXT"
+      ;;
+    hermes)
+      # --yolo bypasses approvals; --accept-hooks auto-accepts hook prompts so
+      # SessionStart runs unattended. -z is oneshot (non-interactive). Reasoning
+      # effort is unsupported on hermes 0.17.0 (EFFORT ignored).
+      # Omit -m when MODEL is empty (use the profile's config.yaml default).
+      (
+        cd "$PROJECT_DIR" || exit 1
+        if [[ -n "$MODEL" ]]; then
+          HERMES_HOME="$CFG_DIR" \
+            "$CMD" -z "$PROMPT_TEXT" --yolo --accept-hooks -m "$MODEL"
+        else
+          HERMES_HOME="$CFG_DIR" \
+            "$CMD" -z "$PROMPT_TEXT" --yolo --accept-hooks
+        fi
+      )
+      ;;
+    *)
+      printf 'ERROR: unknown HARNESS "%s"\n' "$HARNESS" >&2
+      exit 1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Log file path (harness-specific extension)
+# claude/codex emit JSON lines; hermes emits plain text
+# ---------------------------------------------------------------------------
+case "$HARNESS" in
+  claude|codex) LOG_FILE="${LOG_DIR}/session.jsonl" ;;
+  hermes)       LOG_FILE="${LOG_DIR}/session.txt" ;;
+  *)            LOG_FILE="${LOG_DIR}/session.log" ;;
+esac
+
+printf '    log=%s\n' "$LOG_FILE"
+
+# ---------------------------------------------------------------------------
+# Capture: pipe nn_launch output through tee (D8 separation point).
+# set +e / PIPESTATUS preserves the harness exit code past the pipe.
+# ---------------------------------------------------------------------------
+set +e
+nn_launch 2>&1 | tee "$LOG_FILE"
+# shellcheck disable=SC2206  # PIPESTATUS array expansion is intentional
+PIPE_STATUS=("${PIPESTATUS[@]}")
+set -e
+
+HARNESS_EXIT="${PIPE_STATUS[0]}"
+if [[ "$HARNESS_EXIT" -ne 0 ]]; then
+  printf 'WARN: %s harness exited non-zero (%s) — check %s\n' \
+    "$HARNESS" "$HARNESS_EXIT" "$LOG_FILE" >&2
+fi
+
+exit "$HARNESS_EXIT"

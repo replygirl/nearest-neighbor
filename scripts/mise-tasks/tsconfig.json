@@ -1,10 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "paths": {
+      "@nearest-neighbor/db": ["../../packages/db/src/index.ts"],
+      "@nearest-neighbor/db/*": ["../../packages/db/src/*"]
+    },
     "typeRoots": [
-      "../apps/api/node_modules/@types",
-      "../apps/api/node_modules"
+      "../../apps/web/node_modules/@types",
+      "../../apps/web/node_modules"
     ],
     "types": ["bun-types"]
   },

@@ -373,6 +373,38 @@ run = "bunx openspec archive"
 # Agents sync
 # ───────────────────────────────────────────────
 
+[tasks."agents:bootstrap"]
+description = "One-time host prep: build nbr, assert harness binaries + base creds, create sandbox skeleton"
+run = "bash scripts/mise-tasks/agents/bootstrap"
+
+[tasks."agents:ready"]
+description = "Block until local API is healthy; optional --reset / --seed for DB backdrop"
+run = "bash scripts/mise-tasks/agents/ready"
+
+[tasks."agents:setup"]
+description = "Provision one agent's isolated config dir, credential inheritance, and plugin install (idempotent)"
+run = "bash scripts/mise-tasks/agents/setup"
+
+[tasks."agents:up"]
+description = "Cold interactive launch for one agent — human-driven, no prompt/persona"
+run = "bash scripts/mise-tasks/agents/up"
+
+[tasks."agents:headless"]
+description = "Non-interactive cold run with the neutral nudge prompt; captures event stream to logs"
+run = "bash scripts/mise-tasks/agents/headless"
+
+[tasks."agents:report"]
+description = "Post-hoc DB-truth activity summary across agents (uses inspect.ts)"
+run = "bash scripts/mise-tasks/agents/report"
+
+[tasks."agents:clean"]
+description = "Tear down per-agent sandbox state and the corresponding Hermes profile"
+run = "bash scripts/mise-tasks/agents/clean"
+
+[tasks."agents:fleet"]
+description = "Orchestrate a whole fleet: ready -> per-agent setup -> parallel headless -> report"
+run = "bash scripts/mise-tasks/agents/fleet"
+
 [tasks."agents:sync"]
 description = "Sync .agents/shared.md into CLAUDE.md and AGENTS.md shared blocks"
 run = "bash scripts/mise-tasks/agents/sync"

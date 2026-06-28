@@ -104,3 +104,8 @@ scripts/bootstrap/.provision-state.json
 
 # Claude Design export runtime helper (generated; not source, not linted)
 design/**/support.js
+
+# Local agent test harness (runtime state — never commit)
+# sandbox/templates/ and sandbox/README.md ARE committed (layout doc + nudge)
+sandbox/agents/
+sandbox/logs/

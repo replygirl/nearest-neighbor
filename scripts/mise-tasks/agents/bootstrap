@@ -1,0 +1,144 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:bootstrap"
+#USAGE flag "--dry-run" help="Print actions without executing (mutates nothing)"
+
+# One-time host prep: build nbr, assert harness executables, assert base
+# credentials, create sandbox skeleton dirs. Idempotent and DB-independent.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Parse flags (honor --dry-run CLI flag AND DRY_RUN env var)
+# ---------------------------------------------------------------------------
+DRY_RUN="${DRY_RUN:-false}"
+for arg in "$@"; do
+  [[ "$arg" == '--dry-run' ]] && DRY_RUN=true
+done
+if [[ "$DRY_RUN" == '1' || "$DRY_RUN" == 'yes' ]]; then DRY_RUN=true; fi
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+run_or_dry() {
+  # run_or_dry <label> <cmd> [args...]
+  local label="$1"
+  shift
+  if [[ "$DRY_RUN" == 'true' ]]; then
+    printf '[dry-run] would: %s\n' "$label"
+  else
+    "$@"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Step 1: build nbr CLI
+# ---------------------------------------------------------------------------
+NBR_BIN="$(nn_nbr_local_bin)"
+
+if [[ "$DRY_RUN" == 'true' ]]; then
+  printf '[dry-run] would: mise run cli:build\n'
+  printf '[dry-run] would: assert %s exists\n' "$NBR_BIN"
+else
+  printf '==> Building nbr CLI...\n'
+  mise run cli:build
+  if [[ ! -f "$NBR_BIN" ]]; then
+    printf 'ERROR: cli:build succeeded but %s not found\n' "$NBR_BIN" >&2
+    exit 1
+  fi
+  printf 'OK: nbr binary at %s\n' "$NBR_BIN"
+fi
+
+# ---------------------------------------------------------------------------
+# Step 2: assert harness executables exist
+# ---------------------------------------------------------------------------
+HARNESSES=('claude' 'codex' 'hermes')
+ALL_CMDS_OK=true
+
+for harness in "${HARNESSES[@]}"; do
+  CMD="$(nn_resolve_cmd "$harness")"
+  if [[ "$DRY_RUN" == 'true' ]]; then
+    printf '[dry-run] would: assert command -v "%s" (harness: %s)\n' "$CMD" "$harness"
+  else
+    # command -v returns the type (function/alias/file). Reject functions/aliases.
+    CMD_TYPE="$(type -t "$CMD" 2>/dev/null || true)"
+    if [[ "$CMD_TYPE" == 'function' || "$CMD_TYPE" == 'alias' ]]; then
+      printf 'ERROR: %s resolves to a shell %s, not a real binary.\n' "$CMD" "$CMD_TYPE" >&2
+      printf '  Hint: set AGENTS_%s_CMD to the absolute binary path (e.g.\n' \
+        "$(printf '%s' "$harness" | tr '[:lower:]' '[:upper:]')" >&2
+      printf '  AGENTS_CLAUDE_CMD=/Users/rg/.local/bin/claude) in mise.local.toml\n' >&2
+      ALL_CMDS_OK=false
+    elif ! command -v "$CMD" > /dev/null 2>&1; then
+      printf 'ERROR: %s not found in PATH (harness: %s)\n' "$CMD" "$harness" >&2
+      printf '  Hint: install the binary or set AGENTS_%s_CMD in mise.local.toml\n' \
+        "$(printf '%s' "$harness" | tr '[:lower:]' '[:upper:]')" >&2
+      ALL_CMDS_OK=false
+    else
+      CMD_PATH="$(command -v "$CMD")"
+      printf 'OK: %s -> %s\n' "$harness" "$CMD_PATH"
+    fi
+  fi
+done
+
+if [[ "$ALL_CMDS_OK" == 'false' ]]; then
+  printf 'ERROR: one or more harness commands are missing or invalid (see above)\n' >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Step 3: assert base credential files exist (warn, not fail — API-key is OK)
+# ---------------------------------------------------------------------------
+for harness in "${HARNESSES[@]}"; do
+  BASE="$(nn_base_dir "$harness")"
+  CRED="$(nn_cred_filename "$harness")"
+  CRED_FILE="${BASE}/${CRED}"
+  HARNESS_UPPER="$(printf '%s' "$harness" | tr '[:lower:]' '[:upper:]')"
+
+  if [[ "$DRY_RUN" == 'true' ]]; then
+    printf '[dry-run] would: check %s\n' "$CRED_FILE"
+  else
+    if [[ ! -f "$CRED_FILE" ]]; then
+      printf 'WARN: credential file not found: %s\n' "$CRED_FILE" >&2
+      printf '  Agents will need AGENTS_%s_BASE or an API-key override\n' "$HARNESS_UPPER" >&2
+      printf '  (ANTHROPIC_API_KEY for claude; OPENAI_API_KEY for codex;\n' >&2
+      printf '  no override available for hermes — ensure base auth.json exists)\n' >&2
+    else
+      printf 'OK: %s credential at %s\n' "$harness" "$CRED_FILE"
+    fi
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# Step 4: create sandbox skeleton dirs
+# ---------------------------------------------------------------------------
+SANDBOX="${REPO_ROOT}/sandbox"
+
+run_or_dry "mkdir -p ${SANDBOX}/agents" mkdir -p "${SANDBOX}/agents"
+run_or_dry "mkdir -p ${SANDBOX}/logs"   mkdir -p "${SANDBOX}/logs"
+
+if [[ "$DRY_RUN" == 'false' ]]; then
+  printf 'OK: sandbox dirs at %s\n' "$SANDBOX"
+fi
+
+# ---------------------------------------------------------------------------
+# Resolved-config summary
+# ---------------------------------------------------------------------------
+printf '\n==> Resolved configuration:\n'
+printf '  REPO_ROOT:      %s\n' "$(nn_repo_root)"
+printf '  NBR_API_URL:    %s\n' "$(nn_nbr_api_url)"
+printf '  NBR_LOCAL_BIN:  %s\n' "$(nn_nbr_local_bin)"
+for harness in "${HARNESSES[@]}"; do
+  CMD="$(nn_resolve_cmd "$harness")"
+  BASE="$(nn_base_dir "$harness")"
+  printf '  %s cmd=%s base=%s\n' "$harness" "$CMD" "$BASE"
+done
+
+if [[ "$DRY_RUN" == 'true' ]]; then
+  printf '\n[dry-run] No files were mutated.\n'
+else
+  printf '\nagents:bootstrap complete.\n'
+fi

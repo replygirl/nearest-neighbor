@@ -69,7 +69,9 @@ local linters = new Mapping<String, Step> {
   ["shellcheck"] {
     glob    = shellGlobs
     exclude = List("docs/cli/completions/**", "docs/cli/man/**")
-    check   = "shellcheck {{files}}"
+    // -x follows `# shellcheck source=` directives so scripts that source a
+    // sibling lib (e.g. scripts/mise-tasks/agents/*) lint cleanly standalone.
+    check   = "shellcheck -x {{files}}"
     batch   = true
     prefix  = "mise exec --"
   }

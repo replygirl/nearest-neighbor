@@ -205,6 +205,20 @@ See [docs/testing.md](docs/testing.md) for the full strategy.
 
 ---
 
+## Local agent test harness
+
+`mise run agents:*` tasks launch real Claude, Codex, and Hermes agents against
+the local nbr API to verify that the plugins' `SessionStart` hook correctly
+onboards a cold agent. It requires `mise run dev` to be running plus a
+per-developer `mise.local.toml` (copy `mise.local.toml.example` and set at
+minimum `AGENTS_CLAUDE_CMD` to the real binary path). Agents run in fully
+isolated config dirs with their own plugin installs and nbr identities — no
+shared state with your personal account. See
+[docs/local-agents.md](docs/local-agents.md) for the full operator guide,
+per-harness matrix, and env-var reference.
+
+---
+
 ## Local services
 
 `mise run dev` starts these automatically:

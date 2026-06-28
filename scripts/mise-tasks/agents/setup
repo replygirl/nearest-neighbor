@@ -1,0 +1,222 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "agents:setup"
+
+# Provision ONE agent's isolated config dir, credential inheritance, and
+# per-dir plugin install. Idempotent — safe to re-run.
+#
+# Reads env vars:
+#   HARNESS  — claude|codex|hermes (default: claude)
+#   NAME     — agent identifier; agent dir = sandbox/agents/<NAME>
+#              default = value of HARNESS (one default agent per harness)
+#   MODEL    — per-invocation model (default: nn_default_model <harness>)
+#   EFFORT   — reasoning effort (default: medium; ignored by hermes)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/mise-tasks/agents/_lib.sh
+source "${SCRIPT_DIR}/_lib.sh"
+
+# ---------------------------------------------------------------------------
+# Resolve inputs
+# ---------------------------------------------------------------------------
+HARNESS="${HARNESS:-claude}"
+NAME="${NAME:-${HARNESS}}"
+
+DEFAULT_MODEL="$(nn_default_model "$HARNESS")"
+MODEL="${MODEL:-${DEFAULT_MODEL}}"
+EFFORT="${EFFORT:-$(nn_default_effort)}"
+
+CMD="$(nn_resolve_cmd "$HARNESS")"
+AGENT_DIR="$(nn_agent_dir "$NAME")"
+
+printf '==> agents:setup  harness=%s  name=%s  model=%s  effort=%s\n' \
+  "$HARNESS" "$NAME" "$MODEL" "$EFFORT"
+
+# ---------------------------------------------------------------------------
+# Create base sandbox dirs (project, logs, nbr are harness-independent)
+# ---------------------------------------------------------------------------
+mkdir -p "${AGENT_DIR}/project"
+mkdir -p "${AGENT_DIR}/logs"
+mkdir -p "${AGENT_DIR}/nbr"
+
+# ---------------------------------------------------------------------------
+# Per-harness: credential inheritance + plugin install + config isolation
+# ---------------------------------------------------------------------------
+case "$HARNESS" in
+
+  # ──────────────────────────────────────────────
+  # CLAUDE
+  # ──────────────────────────────────────────────
+  claude)
+    CFG_DIR="${AGENT_DIR}/config"
+    mkdir -p "$CFG_DIR"
+
+    # Plugin install (idempotent — claude tolerates re-install)
+    # Phase 1: register the local marketplace.
+    # Pass REPO_ROOT (not REPO_ROOT/.claude-plugin): claude appends
+    # .claude-plugin/marketplace.json internally (same form as e2e entrypoint).
+    printf '==> Registering Claude plugin marketplace...\n'
+    CLAUDE_CONFIG_DIR="$CFG_DIR" "$CMD" plugin marketplace add \
+      "${REPO_ROOT}" \
+      || printf 'NOTE: marketplace add returned non-zero (may already be registered)\n'
+
+    # Phase 2: install the plugin from the marketplace
+    printf '==> Installing nearest-neighbor Claude plugin...\n'
+    CLAUDE_CONFIG_DIR="$CFG_DIR" "$CMD" plugin install nearest-neighbor@nearest-neighbor \
+      || printf 'NOTE: plugin install returned non-zero (may already be installed)\n'
+
+    # Credential inheritance: copy AFTER plugin install because claude plugin
+    # install deletes .credentials.json from a fresh CLAUDE_CONFIG_DIR (it
+    # invalidates credentials it did not issue itself during the install flow).
+    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+      printf 'NOTE: ANTHROPIC_API_KEY set — skipping credential file copy for %s\n' "$NAME"
+    else
+      BASE="$(nn_base_dir claude)"
+      CRED_FILE="${BASE}/.credentials.json"
+      DEST="${CFG_DIR}/.credentials.json"
+      if [[ -f "$CRED_FILE" ]]; then
+        cp "$CRED_FILE" "$DEST"
+        chmod 600 "$DEST"
+        printf 'OK: credentials copied from %s\n' "$BASE"
+      else
+        printf 'WARN: no credential file at %s — set ANTHROPIC_API_KEY or fix AGENTS_CLAUDE_BASE\n' \
+          "$CRED_FILE" >&2
+      fi
+    fi
+
+    printf 'OK: Claude agent %s configured at %s\n' "$NAME" "$CFG_DIR"
+    ;;
+
+  # ──────────────────────────────────────────────
+  # CODEX
+  # ──────────────────────────────────────────────
+  codex)
+    CFG_DIR="${AGENT_DIR}/config"
+    mkdir -p "$CFG_DIR"
+
+    # Credential inheritance: skip if OPENAI_API_KEY or CODEX_API_KEY is set
+    if [[ -n "${OPENAI_API_KEY:-}" || -n "${CODEX_API_KEY:-}" ]]; then
+      printf 'NOTE: API key env set — skipping credential file copy for %s\n' "$NAME"
+      printf '      (OPENAI_API_KEY/CODEX_API_KEY mitigates OAuth refresh-token contention\n'
+      printf '       in parallel headless runs — see docs/local-agents.md C3)\n'
+    else
+      BASE="$(nn_base_dir codex)"
+      CRED_FILE="${BASE}/auth.json"
+      DEST="${CFG_DIR}/auth.json"
+      if [[ -f "$CRED_FILE" ]]; then
+        cp "$CRED_FILE" "$DEST"
+        chmod 600 "$DEST"
+        printf 'OK: credentials copied from %s\n' "$BASE"
+      else
+        printf 'WARN: no auth.json at %s — set OPENAI_API_KEY or fix AGENTS_CODEX_BASE\n' \
+          "$CRED_FILE" >&2
+      fi
+    fi
+
+    # Write config.toml with hooks enabled (defensive for issue #16430;
+    # no-op on Codex 0.133.0 where hooks/plugin_hooks are stable=true)
+    CONFIG_TOML="${CFG_DIR}/config.toml"
+    if [[ ! -f "$CONFIG_TOML" ]]; then
+      printf '[features]\nhooks = true\n' > "$CONFIG_TOML"
+      printf 'OK: wrote %s\n' "$CONFIG_TOML"
+    else
+      printf 'NOTE: %s already exists — not overwriting\n' "$CONFIG_TOML"
+    fi
+
+    # Plugin install (idempotent)
+    printf '==> Registering Codex plugin marketplace...\n'
+    # Pass REPO_ROOT (not REPO_ROOT/.agents/plugins): codex resolves the
+    # manifest at <root>/.agents/plugins/marketplace.json internally, and
+    # relative plugin sources (./plugins/codex) are anchored to this root.
+    CODEX_HOME="$CFG_DIR" "$CMD" plugin marketplace add \
+      "${REPO_ROOT}" \
+      || printf 'NOTE: codex marketplace add returned non-zero (may already be registered)\n'
+
+    printf '==> Installing nearest-neighbor Codex plugin...\n'
+    # Must use <plugin>@<marketplace> form; bare name requires --marketplace flag.
+    CODEX_HOME="$CFG_DIR" "$CMD" plugin add nearest-neighbor@nearest-neighbor \
+      || printf 'NOTE: codex plugin add returned non-zero (may already be installed)\n'
+
+    printf 'OK: Codex agent %s configured at %s\n' "$NAME" "$CFG_DIR"
+    ;;
+
+  # ──────────────────────────────────────────────
+  # HERMES
+  # ──────────────────────────────────────────────
+  hermes)
+    PROFILE_DIR="$(nn_hermes_profile "$NAME")"
+
+    # Create Hermes profile (idempotent: only tolerate the already-exists error;
+    # all other failures are propagated so real problems are not swallowed).
+    printf '==> Creating Hermes profile nbr-%s...\n' "$NAME"
+    _hermes_stderr="$(mktemp)"
+    if ! "$CMD" profile create "nbr-${NAME}" 2>"$_hermes_stderr"; then
+      if grep -qi 'already exist' "$_hermes_stderr"; then
+        printf 'NOTE: Hermes profile nbr-%s already exists — continuing\n' "$NAME"
+      else
+        cat "$_hermes_stderr" >&2
+        rm -f "$_hermes_stderr"
+        exit 1
+      fi
+    fi
+    rm -f "$_hermes_stderr"
+
+    # Credential inheritance: explicit cp because hermes profile create
+    # may not copy auth.json from the base automatically (unconfirmed)
+    BASE="$(nn_base_dir hermes)"
+    CRED_FILE="${BASE}/auth.json"
+    DEST="${PROFILE_DIR}/auth.json"
+    if [[ -f "$CRED_FILE" ]]; then
+      cp "$CRED_FILE" "$DEST"
+      chmod 600 "$DEST"
+      printf 'OK: credentials copied from %s\n' "$BASE"
+    else
+      printf 'WARN: no auth.json at %s — Hermes agent will need to re-authenticate\n' \
+        "$CRED_FILE" >&2
+    fi
+
+    # Copy plugin dir (hooks.py hardcodes _DATA_DIR=plugin_dir/data;
+    # a symlink would write into the source tree — copy required)
+    PLUGIN_DEST="${PROFILE_DIR}/plugins/nearest-neighbor"
+    mkdir -p "${PROFILE_DIR}/plugins"
+    if [[ -d "$PLUGIN_DEST" ]]; then
+      printf 'NOTE: Hermes plugin already copied at %s — removing stale copy for idempotency\n' \
+        "$PLUGIN_DEST"
+      rm -rf "$PLUGIN_DEST"
+    fi
+    cp -r "${REPO_ROOT}/plugins/hermes" "$PLUGIN_DEST"
+    printf 'OK: Hermes plugin copied to %s\n' "$PLUGIN_DEST"
+
+    # Enable the plugin (this may trigger uv sync internally;
+    # if it does not, the fallback is documented in docs/local-agents.md)
+    printf '==> Enabling nearest-neighbor Hermes plugin...\n'
+    HERMES_HOME="$PROFILE_DIR" "$CMD" plugins enable nearest-neighbor \
+      || printf 'NOTE: hermes plugins enable returned non-zero (may already be enabled)\n'
+
+    # Symlink sandbox/agents/<name>/config -> profile for uniform D11 layout
+    LINK="${AGENT_DIR}/config"
+    if [[ -L "$LINK" ]]; then
+      rm "$LINK"
+    fi
+    ln -sfn "$PROFILE_DIR" "$LINK"
+    printf 'OK: symlinked %s -> %s\n' "$LINK" "$PROFILE_DIR"
+
+    printf 'OK: Hermes agent %s configured (profile: %s)\n' "$NAME" "$PROFILE_DIR"
+    ;;
+
+  *)
+    printf 'ERROR: unknown HARNESS "%s" (must be claude|codex|hermes)\n' "$HARNESS" >&2
+    exit 1
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Persist agent metadata
+# ---------------------------------------------------------------------------
+nn_write_meta "$NAME" "$HARNESS" "$MODEL" "$EFFORT"
+printf 'OK: agent.json written at %s/agent.json\n' "$AGENT_DIR"
+
+printf '\nagents:setup complete — agent "%s" (%s) is ready.\n' "$NAME" "$HARNESS"
+printf '  Next: mise run agents:up (interactive) or mise run agents:headless\n'
