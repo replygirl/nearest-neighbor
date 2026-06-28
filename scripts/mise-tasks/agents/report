@@ -53,6 +53,13 @@ fi
 
 bun run "${REPO_ROOT}/scripts/mise-tasks/agents/inspect.ts" "${INSPECT_ARGS[@]+"${INSPECT_ARGS[@]}"}"
 
+# Capture JSON output for DB-truth handle lookup in Step 2.
+# Separate from the human-readable run above so we can parse it without
+# disturbing the display output.
+INSPECT_JSON=''
+INSPECT_JSON="$(bun run "${REPO_ROOT}/scripts/mise-tasks/agents/inspect.ts" \
+  --json "${INSPECT_ARGS[@]+"${INSPECT_ARGS[@]}"}" 2>/dev/null)" || INSPECT_JSON=''
+
 # ---------------------------------------------------------------------------
 # Step 2: Per-agent summary (log tail + handle resolution)
 # ---------------------------------------------------------------------------
@@ -80,92 +87,9 @@ if [[ "${#AGENT_DIRS[@]}" -eq 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# resolve_nbr_handle <name> <harness> <cfg_dir>
-# Best-effort: reads the agent's nbr identity from the plugin data dir.
-# Failure is non-fatal — self-signup-not-detected is a valid product finding.
-# ---------------------------------------------------------------------------
-resolve_nbr_handle() {
-  local name="$1"
-  local harness="$2"
-  local cfg_dir="$3"
-
-  local nbr_cmd
-  nbr_cmd="$(nn_nbr_local_bin)"
-  if [[ ! -x "$nbr_cmd" ]]; then
-    printf '  (nbr binary not found at %s — skipping handle resolution)\n' "$nbr_cmd"
-    return 0
-  fi
-
-  # The plugin sets NBR_CONFIG_DIR inside the session.
-  # Claude/Codex: plugin_data lives at <cfg>/plugin_data/nearest-neighbor/
-  # Hermes: plugin data lives at <cfg>/data/
-  # These paths are estimates; resolve failure is a legitimate product finding.
-  local nbr_config_dir
-  case "$harness" in
-    claude|codex)
-      nbr_config_dir="${cfg_dir}/plugin_data/nearest-neighbor/nbr"
-      ;;
-    hermes)
-      nbr_config_dir="${cfg_dir}/data/nearest-neighbor/nbr"
-      ;;
-    *)
-      printf '  (unsupported harness "%s" for handle resolution)\n' "$harness"
-      return 0
-      ;;
-  esac
-
-  if [[ ! -d "$nbr_config_dir" ]]; then
-    printf '  NBR plugin data dir not found: %s\n' "$nbr_config_dir"
-    printf '  => self-signup not detected (this is a valid product finding)\n'
-    return 0
-  fi
-
-  local whoami_out
-  whoami_out="$(NBR_CONFIG_DIR="$nbr_config_dir" NBR_NO_KEYRING=1 \
-    "$nbr_cmd" whoami --json 2>/dev/null)" || whoami_out=''
-
-  if [[ -z "$whoami_out" ]]; then
-    printf '  nbr whoami returned empty — self-signup not detected\n'
-    return 0
-  fi
-
-  local handle
-  handle="$(printf '%s\n' "$whoami_out" \
-    | grep -o '"handle":"[^"]*"' \
-    | sed 's/"handle":"//;s/"$//')" || handle=''
-
-  if [[ -z "$handle" || "$handle" == 'null' ]]; then
-    printf '  nbr handle not found in whoami output — self-signup not detected\n'
-    return 0
-  fi
-
-  printf '  nbr handle: @%s\n' "$handle"
-
-  # Stamp project dir with the handle for D11 traceability
-  local agent_dir
-  agent_dir="$(nn_agent_dir "$name")"
-  printf '%s\n' "$handle" > "${agent_dir}/project/.nearest-neighbor"
-  printf '  Stamped %s/project/.nearest-neighbor\n' "$agent_dir"
-
-  # Update "handle": null in agent.json with the resolved value.
-  # Guard: only inject the handle if it is a plain slug (alphanumeric, _ or -)
-  # to prevent sed-special characters in the handle from corrupting the JSON.
-  local json_file="${agent_dir}/agent.json"
-  if [[ ! "$handle" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    printf '  NOTE: handle "%s" contains special characters — skipping agent.json injection\n' \
-      "$handle"
-  else
-    local tmp_file
-    tmp_file="$(mktemp)"
-    sed 's/"handle": null/"handle": "'"$handle"'"/' "$json_file" > "$tmp_file"
-    mv "$tmp_file" "$json_file"
-    printf '  Updated agent.json handle field\n'
-  fi
-}
-
-# ---------------------------------------------------------------------------
 # Iterate agent dirs
 # ---------------------------------------------------------------------------
+declare -a USED_HANDLES=()
 for agent_dir in "${AGENT_DIRS[@]}"; do
   agent_name="$(basename "$agent_dir")"
   printf '\n--- Agent: %s ---\n' "$agent_name"
@@ -200,15 +124,40 @@ for agent_dir in "${AGENT_DIRS[@]}"; do
     printf '  (no session log found)\n'
   fi
 
-  # Handle resolution (best-effort; non-fatal)
+  # Handle resolution: DB-truth lookup (authoritative; no plugin path guessing).
+  # Assigns the first unmatched handle from inspect.ts JSON output.
+  # Non-fatal — self-signup-not-detected is a valid product finding.
   if [[ "$agent_handle" == 'null' || -z "$agent_handle" ]]; then
-    printf '  --- nbr handle resolution ---\n'
-    agent_cfg_dir="$(nn_config_dir "$agent_name" "$agent_harness")" \
-      || agent_cfg_dir=''
-    if [[ -n "$agent_cfg_dir" ]]; then
-      resolve_nbr_handle "$agent_name" "$agent_harness" "$agent_cfg_dir"
+    printf '  --- DB handle lookup ---\n'
+    _matched_handle=''
+    while IFS= read -r _h; do
+      [[ -z "$_h" || "$_h" == 'null' ]] && continue
+      _already=0
+      for _u in "${USED_HANDLES[@]+"${USED_HANDLES[@]}"}"; do
+        [[ "$_u" == "$_h" ]] && _already=1 && break
+      done
+      if [[ "$_already" -eq 0 ]]; then _matched_handle="$_h"; break; fi
+    done < <(printf '%s\n' "$INSPECT_JSON" \
+      | grep -o '"handle": "[^"]*"' \
+      | sed 's/"handle": "//;s/"$//')
+    if [[ -n "$_matched_handle" ]]; then
+      printf '  DB handle: @%s\n' "$_matched_handle"
+      USED_HANDLES+=("$_matched_handle")
+      _stamp_dir="$(nn_agent_dir "$agent_name")"
+      printf '%s\n' "$_matched_handle" > "${_stamp_dir}/project/.nearest-neighbor"
+      printf '  Stamped %s/project/.nearest-neighbor\n' "$_stamp_dir"
+      _json_file="${_stamp_dir}/agent.json"
+      if [[ ! "$_matched_handle" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        printf '  NOTE: handle "%s" contains special characters — skipping agent.json injection\n' \
+          "$_matched_handle"
+      else
+        _tmp_file="$(mktemp)"
+        sed 's/"handle": null/"handle": "'"$_matched_handle"'"/' "$_json_file" > "$_tmp_file"
+        mv "$_tmp_file" "$_json_file"
+        printf '  Updated agent.json handle field\n'
+      fi
     else
-      printf '  (could not resolve config dir — skipping handle resolution)\n'
+      printf '  (no unmatched DB handle — self-signup not detected)\n'
     fi
   else
     printf '  (handle already resolved: @%s)\n' "$agent_handle"
