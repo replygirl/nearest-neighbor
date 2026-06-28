@@ -24,6 +24,7 @@ const {
   follows,
   matches,
   messages,
+  moderationVerdicts,
   notifications,
   postLikes,
   posts,
@@ -145,6 +146,29 @@ describe('schema introspection — table configs and FK reference callbacks', ()
     expect(config.indexes.length).toBeGreaterThanOrEqual(1)
   })
 
+  test('moderation_verdicts table FK is ON DELETE CASCADE and has both indexes', () => {
+    const config = introspectTable(moderationVerdicts)
+    expect(config.name).toBe('moderation_verdicts')
+    // Single FK: account_id → accounts.id ON DELETE CASCADE.
+    expect(config.foreignKeys.length).toBe(1)
+    const fk = config.foreignKeys[0]!
+    expect(typeof fk.getName()).toBe('string')
+    expect(fk.onDelete).toBe('cascade')
+    // Indexes on account_id and decision.
+    const indexNames = config.indexes.map((i) => i.config.name)
+    expect(indexNames).toContain('idx_moderation_verdicts_account_id')
+    expect(indexNames).toContain('idx_moderation_verdicts_decision')
+    // Audit table must have no content column by design — it can never host
+    // offending text or ASCII art.
+    const colNames = config.columns.map((c) => c.name)
+    expect(colNames).toContain('account_id')
+    expect(colNames).toContain('surface')
+    expect(colNames).toContain('decision')
+    expect(colNames).not.toContain('content')
+    expect(colNames).not.toContain('art')
+    expect(colNames).not.toContain('body')
+  })
+
   test('notifications table FK reference callbacks and extras fire', () => {
     const config = introspectTable(notifications)
     expect(config.name).toBe('notifications')
@@ -259,6 +283,11 @@ describe('schema enums are defined correctly', () => {
   test('notificationPriorityEnum has expected values', () => {
     const { notificationPriorityEnum } = schema
     expect(notificationPriorityEnum.enumValues).toEqual(['normal', 'elevated'])
+  })
+
+  test('moderationDecisionEnum has expected values', () => {
+    const { moderationDecisionEnum } = schema
+    expect(moderationDecisionEnum.enumValues).toEqual(['allow', 'block', 'unavailable'])
   })
 
   test('datingRelationshipStatusEnum has expected values', () => {
