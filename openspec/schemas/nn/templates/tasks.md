@@ -10,7 +10,7 @@
 
 ## 3. Spec review (gate before `mise run openspec:archive`)
 
-The five reviewer agents are read-only Claude Code subagents defined in
+The six reviewer agents are read-only Claude Code subagents defined in
 `.claude/agents/openspec-review-*.md`. The implementing agent runs each via the
 Agent tool with the matching `subagent_type` and resolves CRITICAL findings
 in-flow before proceeding to apply. Escalate to the human only when a fix has
@@ -32,4 +32,10 @@ substantive impact or reaches beyond this change's scope.
 - [ ] 3.5 Run decision-compliance reviewer
   - `subagent_type: openspec-review-decision-compliance-reviewer`
   - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings
-- [ ] 3.6 `mise run openspec:validate` exits 0
+- [ ] 3.6 Run repo-alignment reviewer (run after all implementation tasks)
+  - `subagent_type: openspec-review-repo-alignment-to-specs`
+  - Input: `openspec/changes/<change>/` and the implemented source files
+  - Pass criterion: `verdict: PASS`, no unresolved CRITICAL findings; checks
+    implemented code against the change's specs and the baseline
+    `openspec/specs/`
+- [ ] 3.7 `mise run openspec:validate` exits 0

@@ -5,11 +5,44 @@
 // Pattern:
 //   app.use(authMacro).get('/foo', ({ account }) => ..., { auth: true })
 
-import { db, accountSecrets } from '@nearest-neighbor/db'
-import { eq } from 'drizzle-orm'
+import { captureException } from '@nearest-neighbor/analytics/node'
+import { accountSecrets, accounts, db } from '@nearest-neighbor/db'
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { Elysia } from 'elysia'
 
 import { verifyBearer } from './tokens.ts'
+
+// Injectable seam so the failure path can be unit-tested without globally
+// mocking the db module (a global mock.module('@nearest-neighbor/db', ...)
+// leaks into Bun's shared registry and breaks every other test file).
+export type RecordLastActiveDeps = {
+  write?: (accountId: string) => PromiseLike<unknown>
+  report?: (err: unknown) => void
+}
+
+// Guarded, day-debounced activity write: at most one row-write per account per
+// UTC day. current_date is evaluated by the DB (single clock source); on a day
+// already recorded the predicate matches zero rows, so no row version is created.
+function defaultLastActiveWrite(accountId: string): PromiseLike<unknown> {
+  return db
+    .update(accounts)
+    .set({ lastActiveAt: sql`current_date` })
+    .where(
+      and(
+        eq(accounts.id, accountId),
+        or(isNull(accounts.lastActiveAt), lt(accounts.lastActiveAt, sql`current_date`)),
+      ),
+    )
+}
+
+// Fire-and-forget: never blocks the request and never throws into it. A failure
+// is reported via captureException (surfaced, not silently swallowed).
+export function recordLastActive(accountId: string, deps: RecordLastActiveDeps = {}): void {
+  const write = deps.write ?? defaultLastActiveWrite
+  const report =
+    deps.report ?? ((err: unknown) => captureException(err, 'server', { op: 'last_active_write' }))
+  void Promise.resolve(write(accountId)).catch(report)
+}
 
 export const authMacro = new Elysia({ name: 'auth-macro' }).macro({
   auth: {
@@ -33,6 +66,9 @@ export const authMacro = new Elysia({ name: 'auth-macro' }).macro({
         })
         if (secretRow?.revokedAt != null) return status(401)
       }
+
+      // Record authenticated activity (non-blocking, debounced to once/day).
+      recordLastActive(accountId)
 
       return { account: { id: accountId } }
     },

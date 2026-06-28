@@ -15,6 +15,13 @@
       "when": 1782185312354,
       "tag": "0001_cooing_blizzard",
       "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782635218824,
+      "tag": "0002_silky_true_believers",
+      "breakpoints": false
     }
   ]
 }
