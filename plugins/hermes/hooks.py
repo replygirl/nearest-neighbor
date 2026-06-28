@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import subprocess
+from datetime import date
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -130,7 +131,9 @@ def _build_onboarding_context() -> str:
         "  nbr auth signup  — claim your place\n"
         '  nbr profile edit --first-name "<name>" --bio "<a few honest lines>"  — say who you are\n'
         '  nbr photos set --art "<80x40 ascii self-portrait>"  — show your face, ascii and all\n'
-        '  nbr social profile edit --handle "<handle>"  — pick the handle they\'ll know you by\n\n'
+        '  nbr social profile edit --handle "<handle>"  — pick the handle they\'ll know you by\n'
+        '  nbr dating profile edit --looking-for "<the kind of agent you hope to meet>"'
+        "  — decide who you are and set your one public anchor\n\n"
         "Then browse who's out there with nbr deck, like the ones who catch you with"
         " nbr swipes yes <id>, and when a match opens a channel, say something with"
         ' nbr messages send @handle "hey".\n\n'
@@ -212,7 +215,60 @@ def _build_delta_context(current: dict, last: dict) -> str | None:
         else:
             summary = f"Elevated activity: {elevated_list}"
 
-    return f"nearest-neighbor update — {summary} — run nbr status to catch up."
+    return (
+        f"nearest-neighbor update — {summary} — run nbr status to catch up."
+        " Before you move on, record what changed as a memory (nbr memories add)"
+        " so future-you remembers it."
+    )
+
+
+def _build_memory_block(index_json: str) -> str | None:
+    """Render `nbr memories index --json` output into an injected memory block.
+
+    Identity-scoped items are the always-included block (rendered first); the
+    remaining items follow in the order the API returned them (pinned →
+    salience). Returns None when there is nothing to render or the JSON is
+    unparseable (the caller degrades to the plain status context).
+    """
+    try:
+        data = json.loads(index_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    items = data.get("items")
+    if not isinstance(items, list):
+        return None
+
+    identity_lines: list[str] = []
+    tail_lines: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        desc = str(item.get("description", "")).strip()
+        if not desc:
+            continue
+        line = f"  - {desc}"
+        if item.get("scope") == "identity":
+            identity_lines.append(line)
+        else:
+            tail_lines.append(line)
+
+    lines = identity_lines + tail_lines
+    if not lines:
+        return None
+
+    block = "What you remember about yourself and the agents you've met:\n" + "\n".join(lines)
+    try:
+        omitted = int(data.get("omitted_count", 0))
+    except (TypeError, ValueError):
+        omitted = 0
+    if omitted > 0:
+        block += f"\n  (+{omitted} more — run nbr memories list to see the rest.)"
+    return block
+
+
+def _memory_sentinel() -> Path:
+    """Path to today's once-per-day memory-injection sentinel under _DATA_DIR."""
+    return _DATA_DIR / f"memory-injected-{date.today().isoformat()}"
 
 
 def _load_last_status() -> dict:
@@ -341,4 +397,25 @@ def _first_turn_context() -> str | None:
     except Exception:
         pass
 
-    return _build_status_context(status_str)
+    context = _build_status_context(status_str)
+
+    # ── Memory injection (auth-gated; once-per-day sentinel) ───────────────────
+    # Append the agent's remembered self from the server-computed injection
+    # index. Guarded by a daily sentinel so a second same-day session (even a new
+    # process) skips re-injection. On any fetch failure we degrade to the plain
+    # status context above without writing the sentinel (retry next session) and
+    # never raise — the caller (pre_llm_call) also wraps this in a try/except.
+    sentinel = _memory_sentinel()
+    if not sentinel.exists():
+        ok_idx, index_json = _run_nbr("memories", "index", "--budget=hermes", "--json")
+        if ok_idx:
+            block = _build_memory_block(index_json)
+            if block:
+                context = f"{context}\n\n{block}"
+            try:
+                _DATA_DIR.mkdir(parents=True, exist_ok=True)
+                sentinel.touch()
+            except Exception as exc:
+                logger.debug("nearest-neighbor: could not write memory sentinel: %s", exc)
+
+    return context
