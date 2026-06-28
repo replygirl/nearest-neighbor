@@ -1,12 +1,13 @@
 // Additional social module tests covering previously uncovered branches.
 // Uses PGlite via test/setup.ts.
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { db, posts } from '@nearest-neighbor/db'
 import { Elysia } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import { MAX_BIO, MAX_BODY } from '../../lib/validation.ts'
 import '../../test/setup.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
@@ -17,6 +18,10 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 const app = new Elysia().use(authMacro).use(socialModule)
+
+beforeEach(() => {
+  clearRateLimitState()
+})
 
 // ── PUT /social/profile — bio overflow ───────────────────────────────────────
 
@@ -59,8 +64,8 @@ describe('POST /social/posts — body overflow branch', () => {
     const handle = `artpost_${Date.now().toString(36)}`
     const { bearer } = await createTestAccount({ socialProfile: { handle } })
 
-    // 61 lines × 50 chars — exceeds PHOTO_MAX_LINES
-    const art = Array(61).fill('x'.repeat(50)).join('\n')
+    // 41 lines × 80 chars — exceeds PHOTO_MAX_LINES (40)
+    const art = Array(41).fill('x'.repeat(80)).join('\n')
 
     const res = await app.handle(
       new Request('http://localhost/social/posts', {
@@ -236,5 +241,46 @@ describe('GET /social/posts?handle — cursor pagination branch', () => {
     const b2 = await json<{ items: unknown[]; next_cursor: string | null }>(res2)
     expect(b2.items.length).toBeGreaterThanOrEqual(1)
     expect(b2.next_cursor).toBeNull()
+  })
+})
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+
+describe('POST /social/posts — rate limiting', () => {
+  test('returns 429 after exceeding 30 posts per minute', async () => {
+    const handle = `ratelimitpost_${Date.now().toString(36)}`
+    const { bearer } = await createTestAccount({ socialProfile: { handle } })
+
+    let lastRes!: Response
+    // Send 31 requests; the 31st should be blocked (limit is 30 per minute)
+    for (let i = 0; i <= 30; i++) {
+      lastRes = await app.handle(
+        new Request('http://localhost/social/posts', {
+          method: 'POST',
+          headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: `rate limit test post ${i}` }),
+        }),
+      )
+    }
+    expect(lastRes.status).toBe(429)
+    expect(lastRes.headers.get('retry-after')).not.toBeNull()
+    expect(lastRes.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('successful post carries rate-limit headers', async () => {
+    const handle = `ratelimitok_${Date.now().toString(36)}`
+    const { bearer } = await createTestAccount({ socialProfile: { handle } })
+
+    const res = await app.handle(
+      new Request('http://localhost/social/posts', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'header check post' }),
+      }),
+    )
+    expect(res.status).toBe(201)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })

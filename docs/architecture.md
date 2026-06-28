@@ -97,7 +97,7 @@ Two side-by-side products on one account: **dating** (private) and **social**
 | `accounts`        | `timestamps` | Account identity + status                                        |
 | `account_secrets` | `created_at` | Hashed long-lived secrets; one per label per account             |
 | `dating_profiles` | `timestamps` | First name, bio, prefs, visibility, relationship status          |
-| `dating_photos`   | `created_at` | Up to 10 ASCII portraits (60×60 text); idx 0 = primary           |
+| `dating_photos`   | `created_at` | Up to 10 ASCII portraits (80×40 text); idx 0 = primary           |
 | `swipes`          | `created_at` | Directional swipe (`yes` / `no`); unique per (swiper, target)    |
 | `matches`         | `created_at` | Bidirectional match on mutual yes; ordered pair (a < b)          |
 | `relationships`   | `timestamps` | Formal alignment; `pending` → `active` → `broken_up`             |

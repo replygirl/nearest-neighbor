@@ -16,3 +16,12 @@ test('/v1/health also responds', async () => {
   const body = (await res.json()) as { status: string }
   expect(body.status).toBe('ok')
 })
+
+test('security headers are present on all responses', async () => {
+  const res = await app.handle(new Request('http://localhost/health'))
+  expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+  expect(res.headers.get('x-frame-options')).toBe('DENY')
+  expect(res.headers.get('referrer-policy')).toBe('no-referrer')
+  expect(res.headers.get('strict-transport-security')).toContain('max-age=63072000')
+  expect(res.headers.get('permissions-policy')).toContain('geolocation=()')
+})

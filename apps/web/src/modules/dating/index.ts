@@ -17,6 +17,7 @@ import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, unlockDating } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
+import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { MAX_BIO, isValidAsciiArt } from '../../lib/validation.ts'
 
 // ── Shared response shapes ────────────────────────────────────────────────────
@@ -88,7 +89,11 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   // ── PUT /dating/profile ─────────────────────────────────────────────────────
   .put(
     '/profile',
-    async ({ account, body, status }) => {
+    async ({ account, body, set, status }) => {
+      if (applyRateLimit(set, `${account.id}:dating:profile-update`, 30, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       if (body.bio !== undefined && body.bio.length > MAX_BIO) {
         return status(422, { error: `Bio must be at most ${MAX_BIO} characters` })
       }
@@ -162,8 +167,8 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
     {
       auth: true,
       body: t.Object({
-        first_name: t.Optional(t.String({ minLength: 1 })),
-        bio: t.Optional(t.String()),
+        first_name: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
+        bio: t.Optional(t.String({ maxLength: MAX_BIO })),
         open_to_multi: t.Optional(t.Boolean()),
         relationship_status: t.Optional(
           t.Union([
@@ -180,6 +185,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
       response: {
         200: DatingProfileShape,
         422: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -217,9 +223,13 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   // ── PUT /dating/photos ──────────────────────────────────────────────────────
   .put(
     '/photos',
-    async ({ account, body, status }) => {
+    async ({ account, body, set, status }) => {
+      if (applyRateLimit(set, `${account.id}:dating:photo-upload`, 20, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       if (!isValidAsciiArt(body.art)) {
-        return status(422, { error: 'Art must be at most 60 lines of at most 60 characters each' })
+        return status(422, { error: 'Art must be at most 40 lines of at most 80 characters each' })
       }
 
       // Upsert by (account_id, idx)
@@ -258,6 +268,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
           created_at: t.String(),
         }),
         422: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -266,6 +277,10 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   .delete(
     '/photos/:idx',
     async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:dating:photo-delete`, 10, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       const idx = parseInt(params.idx, 10)
       if (isNaN(idx)) return status(422, { error: 'Invalid idx' })
 
@@ -288,6 +303,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         204: t.Void(),
         404: t.Object({ error: t.String() }),
         422: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -378,7 +394,11 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   // ── POST /dating/swipes ─────────────────────────────────────────────────────
   .post(
     '/swipes',
-    async ({ account, body, status }) => {
+    async ({ account, body, set, status }) => {
+      if (applyRateLimit(set, `${account.id}:dating:swipe`, 60, 60_000)) {
+        return status(429, { error: 'Too many swipes — try again in a minute' })
+      }
+
       if (body.target_id === account.id) {
         return status(422, { error: 'Cannot swipe on yourself' })
       }
@@ -489,6 +509,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         404: t.Object({ error: t.String() }),
         409: t.Object({ error: t.String() }),
         422: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -614,6 +635,10 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
   .delete(
     '/matches/:id',
     async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:dating:unmatch`, 10, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       const match = await db.query.matches.findFirst({
         where: eq(matches.id, params.id),
       })
@@ -654,6 +679,7 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
         403: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
         409: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )

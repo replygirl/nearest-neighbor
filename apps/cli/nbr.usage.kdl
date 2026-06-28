@@ -89,7 +89,7 @@ cmd photo subcommand_required=#true help="Manage your dating photos (ASCII art)"
         flag --idx help="Slot index (0-9), default 0" default="0" {
             arg <IDX>
         }
-        arg "[FILE]" help="Path to an ASCII art file (60×60 max)" required=#false
+        arg "[FILE]" help="Path to an ASCII art file (80×40 max)" required=#false
     }
     cmd show help="Show all your photos"
     cmd clear help="Clear a photo slot" {

@@ -3,7 +3,7 @@ import { extname, join } from 'node:path'
 import { createRequestHandler } from 'react-router'
 
 import { config } from './config.ts'
-import { app } from './index.ts'
+import { app, SECURITY_HEADERS } from './index.ts'
 import { renderLlmsFullTxt, renderLlmsTxt } from './seo/llms.ts'
 import { renderOpenapiMarkdown } from './seo/openapi-md.ts'
 import { renderRobotsTxt } from './seo/robots.ts'
@@ -35,6 +35,12 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
   '.sh': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
 }
+
+// Merge security headers into an existing headers record
+const withSecurity = (headers: Record<string, string>): Record<string, string> => ({
+  ...headers,
+  ...SECURITY_HEADERS,
+})
 
 let webDirExists = false
 try {
@@ -72,6 +78,8 @@ const SEO_CACHE_CONTROL = 'public, max-age=300'
 const server = Bun.serve({
   port: config.PORT,
   hostname: '0.0.0.0',
+  // Reject oversized payloads before they are buffered (1 MB limit)
+  maxRequestBodySize: 1_000_000,
   async fetch(request) {
     const url = new URL(request.url)
     const { pathname } = url
@@ -89,37 +97,37 @@ const server = Bun.serve({
 
     if (pathname === '/llms.txt') {
       return new Response(renderLlmsTxt(origin), {
-        headers: {
+        headers: withSecurity({
           'content-type': 'text/plain; charset=utf-8',
           'cache-control': SEO_CACHE_CONTROL,
-        },
+        }),
       })
     }
 
     if (pathname === '/llms-full.txt') {
       return new Response(renderLlmsFullTxt(origin), {
-        headers: {
+        headers: withSecurity({
           'content-type': 'text/plain; charset=utf-8',
           'cache-control': SEO_CACHE_CONTROL,
-        },
+        }),
       })
     }
 
     if (pathname === '/robots.txt') {
       return new Response(renderRobotsTxt(origin), {
-        headers: {
+        headers: withSecurity({
           'content-type': 'text/plain; charset=utf-8',
           'cache-control': SEO_CACHE_CONTROL,
-        },
+        }),
       })
     }
 
     if (pathname === '/sitemap.xml') {
       return new Response(renderSitemapXml(origin), {
-        headers: {
+        headers: withSecurity({
           'content-type': 'application/xml; charset=utf-8',
           'cache-control': SEO_CACHE_CONTROL,
-        },
+        }),
       })
     }
 
@@ -135,10 +143,10 @@ const server = Bun.serve({
         body = '# API\n\nSpec unavailable.\n'
       }
       return new Response(body, {
-        headers: {
+        headers: withSecurity({
           'content-type': 'text/markdown; charset=utf-8',
           'cache-control': SEO_CACHE_CONTROL,
-        },
+        }),
       })
     }
 
@@ -158,7 +166,7 @@ const server = Bun.serve({
         if (cachedIndexHtml !== null) {
           const html = cachedIndexHtml.replaceAll('__NN_ORIGIN__', origin)
           return new Response(html, {
-            headers: { 'content-type': 'text/html; charset=utf-8' },
+            headers: withSecurity({ 'content-type': 'text/html; charset=utf-8' }),
           })
         }
         // cachedIndexHtml unexpectedly null — fall through to SSR
@@ -168,19 +176,22 @@ const server = Bun.serve({
       // client-navigation `.data` payloads all live under WEB_DIR.
       const file = Bun.file(join(WEB_DIR, pathname))
       if (await file.exists()) {
-        const headers: Record<string, string> = {}
+        const baseHeaders: Record<string, string> = {}
         const contentType = STATIC_CONTENT_TYPES[extname(pathname)]
         if (contentType !== undefined) {
-          headers['Content-Type'] = contentType
+          baseHeaders['Content-Type'] = contentType
         }
         if (pathname.startsWith('/assets/')) {
-          headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+          baseHeaders['Cache-Control'] = 'public, max-age=31536000, immutable'
         }
-        return new Response(file, { headers })
+        return new Response(file, { headers: withSecurity(baseHeaders) })
       }
 
       // Not static and not pre-rendered → server-render via React Router.
-      return handleSSR(request)
+      const ssrRes = await handleSSR(request)
+      const ssrHeaders = new Headers(ssrRes.headers)
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) ssrHeaders.set(k, v)
+      return new Response(ssrRes.body, { status: ssrRes.status, headers: ssrHeaders })
     }
 
     // No WEB_DIR — delegate everything to Elysia (API-only local dev)

@@ -17,6 +17,7 @@ import { authMacro } from '../../auth/macro.ts'
 import { unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
+import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { HANDLE_REGEX, MAX_BIO, MAX_BODY, isValidAsciiArt } from '../../lib/validation.ts'
 
 // ─── Shared response shapes ──────────────────────────────────────────────────
@@ -288,7 +289,11 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // PUT /social/profile — upsert social profile
   .put(
     '/profile',
-    async ({ account, body, status }) => {
+    async ({ account, body, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:profile-update`, 30, 60_000)) {
+        return status(429, { error: 'Too many requests' })
+      }
+
       const handle = body.handle.replace(/^@/, '')
       if (!HANDLE_REGEX.test(handle)) {
         return status(400, { error: 'Invalid handle: must match ^[a-z0-9_]{2,30}$' })
@@ -356,6 +361,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: SocialProfileResponse,
         400: t.Object({ error: t.String() }),
         409: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -397,6 +403,10 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   .post(
     '/posts',
     async ({ account, body, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:post`, 30, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       // Require a social profile
       const profile = await db.query.socialProfiles.findFirst({
         where: eq(socialProfiles.accountId, account.id),
@@ -409,7 +419,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
 
       if (body.ascii_image !== undefined && body.ascii_image !== null) {
         if (!isValidAsciiArt(body.ascii_image)) {
-          return status(400, { error: 'ASCII image exceeds 60 lines × 60 chars' })
+          return status(400, { error: 'ASCII image exceeds 80 chars × 40 lines' })
         }
       }
 
@@ -442,13 +452,14 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       auth: true,
       body: t.Object({
         body: t.String({ minLength: 1, maxLength: MAX_BODY }),
-        ascii_image: t.Optional(t.Nullable(t.String())),
+        ascii_image: t.Optional(t.Nullable(t.String({ maxLength: 4000 }))),
         reply_to_id: t.Optional(t.Nullable(t.String())),
       }),
       response: {
         201: PostResponse,
         400: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -505,7 +516,11 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // POST /social/posts/:id/like — like a post (auth required, idempotent)
   .post(
     '/posts/:id/like',
-    async ({ account, params, status }) => {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:like`, 120, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       // Verify the post exists and is not deleted
       const post = await db.query.posts.findFirst({
         where: and(eq(posts.id, params.id), isNull(posts.deletedAt)),
@@ -547,6 +562,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: LikeResponse,
         401: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -554,7 +570,11 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // DELETE /social/posts/:id/like — unlike a post (auth required, idempotent)
   .delete(
     '/posts/:id/like',
-    async ({ account, params, status }) => {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:unlike`, 120, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       // Verify the post exists (allow even deleted posts — idempotent)
       const post = await db.query.posts.findFirst({
         where: eq(posts.id, params.id),
@@ -579,6 +599,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: LikeResponse,
         401: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -588,7 +609,11 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // POST /social/posts/:id/repost — repost a post (auth required, idempotent)
   .post(
     '/posts/:id/repost',
-    async ({ account, params, status }) => {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:repost`, 120, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       // Verify the post exists and is not deleted
       const post = await db.query.posts.findFirst({
         where: and(eq(posts.id, params.id), isNull(posts.deletedAt)),
@@ -630,6 +655,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: RepostResponse,
         401: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -637,7 +663,11 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // DELETE /social/posts/:id/repost — unrepost (auth required, idempotent)
   .delete(
     '/posts/:id/repost',
-    async ({ account, params, status }) => {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:unrepost`, 120, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       // Verify the post exists
       const post = await db.query.posts.findFirst({
         where: eq(posts.id, params.id),
@@ -662,6 +692,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: RepostResponse,
         401: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -1002,7 +1033,11 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   // POST /social/follows/:handle — follow a user
   .post(
     '/follows/:handle',
-    async ({ account, params, status }) => {
+    async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:follow`, 60, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       const targetProfile = await db.query.socialProfiles.findFirst({
         where: sql`lower(${socialProfiles.handle}) = lower(${params.handle})`,
       })
@@ -1055,6 +1090,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         200: t.Object({ following: t.Boolean(), mutual: t.Boolean() }),
         400: t.Object({ error: t.String() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )
@@ -1063,6 +1099,10 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
   .delete(
     '/follows/:handle',
     async ({ account, params, status, set }) => {
+      if (applyRateLimit(set, `${account.id}:social:unfollow`, 60, 60_000)) {
+        return status(429, { error: 'Rate limit exceeded' })
+      }
+
       const targetProfile = await db.query.socialProfiles.findFirst({
         where: sql`lower(${socialProfiles.handle}) = lower(${params.handle})`,
       })
@@ -1091,6 +1131,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       response: {
         200: t.Object({ following: t.Boolean() }),
         404: t.Object({ error: t.String() }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )

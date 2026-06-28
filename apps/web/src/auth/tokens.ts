@@ -2,7 +2,13 @@ import { SignJWT, jwtVerify } from 'jose'
 
 // Read JWT_SECRET from process.env directly to allow test overrides without restarting.
 function getJwtSecret(): Uint8Array {
-  const secret = process.env['JWT_SECRET'] ?? 'dev-secret-change-in-prod'
+  const secret = process.env['JWT_SECRET']
+  if (!secret) {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error('JWT_SECRET must be set in production')
+    }
+    return new TextEncoder().encode('dev-secret-do-not-use-in-prod')
+  }
   return new TextEncoder().encode(secret)
 }
 
@@ -70,12 +76,22 @@ export async function verifySecret(raw: string, storedHash: string): Promise<boo
   return diff === 0
 }
 
+export interface BearerPayload {
+  accountId: string
+  /** Account secret id (sid) — present when the token was minted with a specific secret. */
+  sid?: string
+}
+
 /**
  * Mints a signed JWT bearer token for the given accountId.
+ * Optionally embeds the minting account-secret id as a `sid` claim to enable
+ * per-secret revocation in the auth macro.
  */
-export async function mintBearer(accountId: string): Promise<string> {
+export async function mintBearer(accountId: string, secretId?: string): Promise<string> {
   const ttl = getJwtTtlSeconds()
-  return new SignJWT({ sub: accountId })
+  const claims: Record<string, string> = { sub: accountId }
+  if (secretId) claims['sid'] = secretId
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${ttl}s`)
@@ -83,12 +99,14 @@ export async function mintBearer(accountId: string): Promise<string> {
 }
 
 /**
- * Verifies a bearer token and returns the accountId (sub), or null if invalid/expired.
+ * Verifies a bearer token and returns { accountId, sid? }, or null if invalid/expired.
  */
-export async function verifyBearer(token: string): Promise<string | null> {
+export async function verifyBearer(token: string): Promise<BearerPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ['HS256'] })
-    return typeof payload.sub === 'string' ? payload.sub : null
+    if (typeof payload.sub !== 'string') return null
+    const sid = typeof payload.sid === 'string' ? payload.sid : undefined
+    return { accountId: payload.sub, sid }
   } catch {
     return null
   }

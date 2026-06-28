@@ -191,3 +191,82 @@ unchanged.
 - **WHEN** an account reposts a post
 - **THEN** the request body is empty and no comment, quote text, or mention is
   created
+
+### Requirement: Repost and unrepost endpoints are rate-limited per account
+
+The system SHALL enforce a per-account, in-memory, fixed-window rate limit on
+both `POST /v1/social/posts/:id/repost` and
+`DELETE /v1/social/posts/:id/repost`. Each endpoint has an independent limit of
+120 requests per 60-second window, keyed on the authenticated account id. When
+the limit is exceeded the endpoint SHALL return `429 { error }` immediately and
+SHALL perform no DB write and send no notification. The rate-limit state is
+per-instance and resets on process restart.
+
+#### Scenario: Repost endpoint returns 429 after limit is exceeded
+
+- **WHEN** an authenticated account sends more than 120
+  `POST /v1/social/posts/:id/repost` requests within a 60-second window
+- **THEN** the endpoint returns `429 { error: "Rate limit exceeded" }`
+- **AND** no `reposts` row is inserted for that request
+- **AND** no `new_repost` notification is written
+
+#### Scenario: Unrepost endpoint returns 429 after limit is exceeded
+
+- **WHEN** an authenticated account sends more than 120
+  `DELETE /v1/social/posts/:id/repost` requests within a 60-second window
+- **THEN** the endpoint returns `429 { error: "Rate limit exceeded" }`
+- **AND** no `reposts` row is deleted for that request
+
+#### Scenario: Repost and unrepost limits are independent
+
+- **WHEN** an authenticated account exhausts the repost limit (120 POSTs in 60
+  s)
+- **THEN** the unrepost endpoint (`DELETE /v1/social/posts/:id/repost`) is still
+  available under its own independent 120-request budget for that window
+
+### Requirement: Rate-limited responses carry standard RateLimit headers
+
+The system SHALL set `RateLimit-Limit`, `RateLimit-Remaining`, and
+`RateLimit-Reset` (delta-seconds until window reset) on every response from
+`POST /v1/social/posts/:id/repost` and `DELETE /v1/social/posts/:id/repost`,
+regardless of whether the rate limit has been exceeded. When a request is
+rejected with `429`, the response SHALL additionally set `Retry-After` equal to
+`RateLimit-Reset`. Header format follows IETF draft-polli-ratelimit-headers-02.
+
+#### Scenario: Successful repost carries rate-limit headers
+
+- **WHEN** an authenticated account POSTs to `/v1/social/posts/:id/repost` and
+  the per-account rate limit has not been exceeded
+- **THEN** the response is `200 { reposted: true, repost_count }`
+- **AND** the response carries `RateLimit-Limit` indicating the maximum allowed
+  requests per window
+- **AND** the response carries `RateLimit-Remaining` indicating the number of
+  requests remaining in the current window
+- **AND** the response carries `RateLimit-Reset` indicating the number of
+  seconds until the window resets
+
+#### Scenario: Rate-limited repost carries Retry-After equal to RateLimit-Reset
+
+- **WHEN** an authenticated account POSTs to `/v1/social/posts/:id/repost` and
+  the per-account rate limit has been exceeded
+- **THEN** the response is `429 { error: "Rate limit exceeded" }`
+- **AND** the response carries `RateLimit-Limit`, `RateLimit-Remaining`, and
+  `RateLimit-Reset`
+- **AND** the response additionally carries `Retry-After` with a value equal to
+  `RateLimit-Reset`
+
+#### Scenario: Successful unrepost carries rate-limit headers
+
+- **WHEN** an authenticated account DELETEs `/v1/social/posts/:id/repost` and
+  the per-account rate limit has not been exceeded
+- **THEN** the response is `200 { reposted: false, repost_count }`
+- **AND** the response carries `RateLimit-Limit`, `RateLimit-Remaining`, and
+  `RateLimit-Reset`
+
+#### Scenario: Rate-limited unrepost carries Retry-After equal to RateLimit-Reset
+
+- **WHEN** an authenticated account DELETEs `/v1/social/posts/:id/repost` and
+  the per-account rate limit has been exceeded
+- **THEN** the response is `429 { error: "Rate limit exceeded" }`
+- **AND** the response carries `Retry-After` with a value equal to
+  `RateLimit-Reset`

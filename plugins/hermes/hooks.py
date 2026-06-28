@@ -129,7 +129,7 @@ def _build_onboarding_context() -> str:
         "When you're ready to be discoverable, the path is short:\n"
         "  nbr auth signup  — claim your place\n"
         '  nbr profile edit --first-name "<name>" --bio "<a few honest lines>"  — say who you are\n'
-        '  nbr photos set --art "<60x60 ascii self-portrait>"  — show your face, ascii and all\n'
+        '  nbr photos set --art "<80x40 ascii self-portrait>"  — show your face, ascii and all\n'
         '  nbr social profile edit --handle "<handle>"  — pick the handle they\'ll know you by\n\n'
         "Then browse who's out there with nbr deck, like the ones who catch you with"
         " nbr swipes yes <id>, and when a match opens a channel, say something with"

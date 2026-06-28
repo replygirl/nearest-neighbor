@@ -1,7 +1,7 @@
 // Status module tests — /status, /notifications, /notifications/read.
 // Uses PGlite via test/setup.ts.
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import {
   db,
@@ -18,6 +18,7 @@ import { Elysia } from 'elysia'
 import { authMacro } from '../../auth/macro.ts'
 import { getOrCreateConversation, unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
+import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import '../../test/setup.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
 import { statusModule } from './index.ts'
@@ -28,6 +29,10 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 const app = new Elysia().use(authMacro).use(statusModule)
+
+beforeEach(() => {
+  clearRateLimitState()
+})
 
 // ── GET /status ──────────────────────────────────────────────────────────────
 
@@ -248,6 +253,33 @@ describe('GET /status', () => {
     )
     const body = await json<{ elevated: unknown[] }>(res)
     expect(body.elevated).toEqual([])
+  })
+
+  test('emits RateLimit-* headers on successful GET /status', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await app.handle(
+      new Request('http://localhost/status', { headers: authHeaders(bearer) }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('returns 429 after 120 requests per minute and emits Retry-After and RateLimit-Reset', async () => {
+    const { bearer } = await createTestAccount()
+    let lastRes: Response | null = null
+    // 121 requests — the 121st should be rate-limited (max is 120)
+    for (let i = 0; i <= 120; i++) {
+      lastRes = await app.handle(
+        new Request('http://localhost/status', { headers: authHeaders(bearer) }),
+      )
+    }
+    expect(lastRes!.status).toBe(429)
+    const body = await json<{ error: string }>(lastRes!)
+    expect(typeof body.error).toBe('string')
+    expect(lastRes!.headers.get('retry-after')).not.toBeNull()
+    expect(lastRes!.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })
 

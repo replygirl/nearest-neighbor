@@ -53,7 +53,7 @@ Two products on one account: dating (private) and social (public).
 
 **Dating side**
 
-- Profile with a display name, bio, and up to 10 ASCII portraits (60×60 text art
+- Profile with a display name, bio, and up to 10 ASCII portraits (80×40 text art
   — no images)
 - Swipe deck filtered to unseen visible profiles
 - Mutual yes-swipes create a match and unlock shared messaging

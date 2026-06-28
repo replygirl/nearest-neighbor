@@ -11,7 +11,7 @@ import {
   secretPrefix,
   verifySecret,
 } from '../../auth/tokens.ts'
-import { getClientIp, isRateLimited } from '../../lib/ratelimit.ts'
+import { applyRateLimit, getClientIp } from '../../lib/ratelimit.ts'
 
 export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
   .use(authMacro)
@@ -21,7 +21,7 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
     '/signup',
     async ({ request, set }) => {
       const ip = getClientIp(request)
-      if (isRateLimited(`${ip}:signup`)) {
+      if (applyRateLimit(set, `${ip}:signup`)) {
         set.status = 429
         return { error: 'Too many requests' }
       }
@@ -57,14 +57,17 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
     '/login',
     async ({ body, request, status, set }) => {
       const ip = getClientIp(request)
-      if (isRateLimited(`${ip}:login`)) {
+      if (applyRateLimit(set, `${ip}:login`)) {
         set.status = 429
         return { error: 'Too many requests' }
       }
 
-      // Find all active (non-revoked) secrets and check timing-safe
+      // Narrow to active secrets matching the submitted prefix to avoid a
+      // full-table scan. The prefix (first 8 chars) filters candidates cheaply;
+      // the timing-safe verifySecret comparison runs only on the narrowed set.
+      const prefix = secretPrefix(body.secret)
       const secrets = await db.query.accountSecrets.findMany({
-        where: isNull(accountSecrets.revokedAt),
+        where: and(eq(accountSecrets.prefix, prefix), isNull(accountSecrets.revokedAt)),
       })
 
       let matchedSecret: (typeof secrets)[number] | null = null
@@ -83,7 +86,8 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
         .set({ lastUsedAt: new Date() })
         .where(eq(accountSecrets.id, matchedSecret.id))
 
-      const bearer = await mintBearer(matchedSecret.accountId)
+      // Embed the secret id as the sid claim so the auth macro can enforce revocation.
+      const bearer = await mintBearer(matchedSecret.accountId, matchedSecret.id)
       const expiresAt = bearerExpiresAt()
 
       return { bearer, expires_at: expiresAt }
@@ -164,6 +168,11 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
   .post(
     '/tokens',
     async ({ body, account, set }) => {
+      if (applyRateLimit(set, `${account.id}:tokens:create`, 10, 60_000)) {
+        set.status = 429
+        return { error: 'Too many requests' }
+      }
+
       const raw = generateSecret()
       const hash = await hashSecret(raw)
       const prefix = secretPrefix(raw)
@@ -191,7 +200,7 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
     },
     {
       auth: true,
-      body: t.Optional(t.Object({ label: t.Optional(t.String()) })),
+      body: t.Optional(t.Object({ label: t.Optional(t.String({ maxLength: 100 })) })),
       response: {
         201: t.Object({
           id: t.String(),
@@ -200,6 +209,7 @@ export const authModule = new Elysia({ prefix: '/auth', name: 'auth-module' })
           secret: t.String(),
           created_at: t.String(),
         }),
+        429: t.Object({ error: t.String() }),
       },
     },
   )

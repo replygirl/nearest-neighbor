@@ -17,6 +17,9 @@ npm.package_manager = "bun"
 [env]
 NODE_ENV = "development"
 HK_MISE = "1"
+# Dev-only insecure fallback — never used when JWT_SECRET is set in the environment.
+# In production, JWT_SECRET must be provided as a Fly secret; startup throws if absent.
+JWT_SECRET = "dev-secret-do-not-use-in-prod"
 # hk's built-in pkl evaluator (the default; no external pkl CLI needed).
 # Note: pklr had a config-cache-freshness bug (hk.pkl edits ignored until a
 # manual `hk cache clear`) fixed upstream in hk 1.44.2 (jdx/hk#879), so it

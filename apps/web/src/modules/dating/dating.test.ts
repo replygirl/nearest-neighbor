@@ -1,7 +1,7 @@
 // Dating module tests: profile, photos, deck, swipes, matches, likes.
 // Uses PGlite via test/setup.ts.
 
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { db, datingPhotos, matches, swipes } from '@nearest-neighbor/db'
 import { eq } from 'drizzle-orm'
@@ -9,6 +9,7 @@ import { Elysia } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
 import '../../test/setup.ts'
+import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import { authHeaders, createTestAccount } from '../../test/helpers.ts'
 import { datingModule } from './index.ts'
 
@@ -117,6 +118,18 @@ describe('PUT /dating/profile', () => {
     )
     expect(res.status).toBe(401)
   })
+
+  test('rejects first_name over 100 characters', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await app.handle(
+      new Request('http://localhost/dating/profile', {
+        method: 'PUT',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ first_name: 'a'.repeat(101) }),
+      }),
+    )
+    expect(res.status).toBe(422)
+  })
 })
 
 // ── GET /dating/photos ───────────────────────────────────────────────────────
@@ -193,9 +206,9 @@ describe('PUT /dating/photos', () => {
     expect(body.art).toBe('updated')
   })
 
-  test('rejects art exceeding 60 lines', async () => {
+  test('rejects art exceeding 40 lines', async () => {
     const { bearer } = await createTestAccount()
-    const art = Array(61).fill('x').join('\n')
+    const art = Array(41).fill('x').join('\n')
     const res = await app.handle(
       new Request('http://localhost/dating/photos', {
         method: 'PUT',
@@ -206,9 +219,9 @@ describe('PUT /dating/photos', () => {
     expect(res.status).toBe(422)
   })
 
-  test('rejects art with a line exceeding 60 chars', async () => {
+  test('rejects art with a line exceeding 80 chars', async () => {
     const { bearer } = await createTestAccount()
-    const art = 'x'.repeat(61)
+    const art = 'x'.repeat(81)
     const res = await app.handle(
       new Request('http://localhost/dating/photos', {
         method: 'PUT',
@@ -355,6 +368,8 @@ describe('GET /dating/deck', () => {
 // ── POST /dating/swipes ──────────────────────────────────────────────────────
 
 describe('POST /dating/swipes', () => {
+  beforeEach(clearRateLimitState)
+
   test('creates a no-swipe without match', async () => {
     const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Alice' } })
     const { id: targetId } = await createTestAccount({ datingProfile: { firstName: 'Bob' } })
@@ -466,6 +481,50 @@ describe('POST /dating/swipes', () => {
       }),
     )
     expect(res.status).toBe(422)
+  })
+
+  test('returns 429 after 60 swipes in one window', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'RateLimitee' } })
+
+    // Fire 60 swipes against non-existent targets — they 404 but consume the limit
+    for (let i = 0; i < 60; i++) {
+      await app.handle(
+        new Request('http://localhost/dating/swipes', {
+          method: 'POST',
+          headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_id: crypto.randomUUID(), direction: 'yes' }),
+        }),
+      )
+    }
+
+    // 61st request should be rate-limited
+    const res = await app.handle(
+      new Request('http://localhost/dating/swipes', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: crypto.randomUUID(), direction: 'yes' }),
+      }),
+    )
+    expect(res.status).toBe(429)
+    expect(res.headers.get('retry-after')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+
+  test('successful swipe carries RateLimit headers', async () => {
+    const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Alice' } })
+    const { id: targetId } = await createTestAccount({ datingProfile: { firstName: 'Bob' } })
+
+    const res = await app.handle(
+      new Request('http://localhost/dating/swipes', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_id: targetId, direction: 'no' }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('ratelimit-limit')).not.toBeNull()
+    expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
+    expect(res.headers.get('ratelimit-reset')).not.toBeNull()
   })
 })
 
