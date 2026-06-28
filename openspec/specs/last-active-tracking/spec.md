@@ -1,8 +1,12 @@
 # last-active-tracking Specification
 
 ## Purpose
-TBD - created by archiving change add-last-active-deck-sort. Update Purpose after archive.
+
+TBD - created by archiving change add-last-active-deck-sort. Update Purpose
+after archive.
+
 ## Requirements
+
 ### Requirement: Account last-active column
 
 The system SHALL persist per-account activity in a nullable `last_active_at`
@@ -98,4 +102,3 @@ and MUST NOT be silently swallowed.
 - **WHEN** a request presents no bearer token or an invalid/expired one and the
   resolver returns `401`
 - **THEN** no `accounts.last_active_at` write is attempted for any account
-

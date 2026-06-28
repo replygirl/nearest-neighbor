@@ -1,8 +1,12 @@
 # dating-deck-ordering Specification
 
 ## Purpose
-TBD - created by archiving change add-last-active-deck-sort. Update Purpose after archive.
+
+TBD - created by archiving change add-last-active-deck-sort. Update Purpose
+after archive.
+
 ## Requirements
+
 ### Requirement: Deck ordered by recency of activity
 
 The system SHALL order `GET /v1/dating/deck` by
@@ -137,4 +141,3 @@ MUST NOT be partially applied.
 - **THEN** the decoder returns a cursor and the deck continues from the correct
   position under the activity-recency ordering
 - **AND** the response status is 200 and no error is raised
-
