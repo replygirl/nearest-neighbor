@@ -218,7 +218,10 @@ export const datingModule = new Elysia({ prefix: '/dating', name: 'dating-module
       auth: true,
       body: t.Object({
         first_name: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
-        bio: t.Optional(t.String({ maxLength: MAX_BIO })),
+        // bio: length cap enforced in the handler (per-field 422), not in the
+        // schema, so the cap rejects with an actionable message rather than a
+        // raw TypeBox 422 blob.
+        bio: t.Optional(t.String()),
         open_to_multi: t.Optional(t.Boolean()),
         relationship_status: t.Optional(
           t.Union([

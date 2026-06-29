@@ -31,7 +31,7 @@ beforeEach(() => {
 // ── PUT /social/profile — bio overflow ───────────────────────────────────────
 
 describe('PUT /social/profile — bio overflow branch', () => {
-  test('returns 400 when bio exceeds MAX_BIO', async () => {
+  test('returns 400 when bio exceeds MAX_BIO with an actionable error message', async () => {
     const handle = `biobig_${Date.now().toString(36)}`
     const { bearer } = await createTestAccount({ socialProfile: { handle } })
 
@@ -42,8 +42,9 @@ describe('PUT /social/profile — bio overflow branch', () => {
         body: JSON.stringify({ handle, bio: 'x'.repeat(MAX_BIO + 1) }),
       }),
     )
-    // TypeBox maxLength 500 on bio field rejects at 422, OR our custom check returns 400
-    expect([400, 422]).toContain(res.status)
+    expect(res.status).toBe(400)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain(String(MAX_BIO))
   })
 })
 

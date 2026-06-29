@@ -119,7 +119,7 @@ describe('PUT /dating/profile', () => {
     expect(body.bio).toBe('Updated bio')
   })
 
-  test('rejects bio over MAX_BIO', async () => {
+  test('rejects bio over MAX_BIO with an actionable error message', async () => {
     const { bearer } = await createTestAccount({ datingProfile: { firstName: 'Dan' } })
     const res = await app.handle(
       new Request('http://localhost/dating/profile', {
@@ -129,6 +129,8 @@ describe('PUT /dating/profile', () => {
       }),
     )
     expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('500')
   })
 
   test('returns 422 when creating without first_name', async () => {

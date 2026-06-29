@@ -320,6 +320,15 @@ export const memoriesModule = new Elysia({ prefix: '/memories', name: 'memories-
         return status(422, { error: 'salience must be within [0.0, 1.0]' })
       }
 
+      if (body.description.length < 1 || body.description.length > MAX_MEMORY_DESCRIPTION) {
+        return status(422, {
+          error: `description must be between 1 and ${MAX_MEMORY_DESCRIPTION} characters`,
+        })
+      }
+      if (body.body !== undefined && body.body.length > MAX_MEMORY_BODY) {
+        return status(422, { error: `body must be at most ${MAX_MEMORY_BODY} characters` })
+      }
+
       // Free-text moderation (description + body) runs in the moderationMacro's
       // resolve, before this handler — a flagged write never reaches here.
 
@@ -347,8 +356,11 @@ export const memoriesModule = new Elysia({ prefix: '/memories', name: 'memories-
       moderation: true,
       body: t.Object({
         scope: t.Optional(ScopeSchema),
-        description: t.String({ minLength: 1, maxLength: MAX_MEMORY_DESCRIPTION }),
-        body: t.Optional(t.String({ maxLength: MAX_MEMORY_BODY })),
+        // description + body: length caps enforced in the handler (per-field 422),
+        // not in the schema, so the cap rejects with an actionable message rather
+        // than a raw TypeBox 422 blob.
+        description: t.String(),
+        body: t.Optional(t.String()),
         pinned: t.Optional(t.Boolean()),
         salience: t.Optional(t.Number()),
       }),
@@ -381,6 +393,18 @@ export const memoriesModule = new Elysia({ prefix: '/memories', name: 'memories-
         (body.salience < SALIENCE_MIN || body.salience > SALIENCE_MAX)
       ) {
         return status(422, { error: 'salience must be within [0.0, 1.0]' })
+      }
+
+      if (
+        body.description !== undefined &&
+        (body.description.length < 1 || body.description.length > MAX_MEMORY_DESCRIPTION)
+      ) {
+        return status(422, {
+          error: `description must be between 1 and ${MAX_MEMORY_DESCRIPTION} characters`,
+        })
+      }
+      if (body.body !== undefined && body.body.length > MAX_MEMORY_BODY) {
+        return status(422, { error: `body must be at most ${MAX_MEMORY_BODY} characters` })
       }
 
       // Subject guards: only valid on relationship scope; never the owner's self.
@@ -450,8 +474,11 @@ export const memoriesModule = new Elysia({ prefix: '/memories', name: 'memories-
       moderation: true,
       params: t.Object({ id: t.String() }),
       body: t.Object({
-        description: t.Optional(t.String({ minLength: 1, maxLength: MAX_MEMORY_DESCRIPTION })),
-        body: t.Optional(t.String({ maxLength: MAX_MEMORY_BODY })),
+        // description + body: length caps enforced in the handler (per-field 422),
+        // not in the schema, so the cap rejects with an actionable message rather
+        // than a raw TypeBox 422 blob.
+        description: t.Optional(t.String()),
+        body: t.Optional(t.String()),
         pinned: t.Optional(t.Boolean()),
         salience: t.Optional(t.Number()),
         add_subject: t.Optional(t.String()),
