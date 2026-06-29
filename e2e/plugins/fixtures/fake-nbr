@@ -28,6 +28,55 @@ case "${CMD}" in
     printf 'nbr 0.1.0\n'
     exit 0
     ;;
+  --print-config-dir)
+    # Honour an explicit override first (mirrors wrapper precedence).
+    if [ -n "${NBR_CONFIG_DIR:-}" ]; then
+      printf '%s\n' "${NBR_CONFIG_DIR}"
+      exit 0
+    fi
+    # Scope-aware detection: mirrors write_nbr_wrapper in install-nbr.sh.
+    # Walk up from CLAUDE_PROJECT_DIR (or $PWD) looking for .claude/settings*.json
+    # or .codex/config.toml that enable nearest-neighbor@nearest-neighbor.
+    # Per-project when found; else global (PLUGIN_DATA/nbr).
+    SELF_DIR=$(cd "$(dirname "$0")" && pwd)
+    PLUGIN_DATA=$(cd "${SELF_DIR}/.." && pwd)
+    __plugin_id="nearest-neighbor@nearest-neighbor"
+    __start="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+    __install=""
+    __d="${__start}"
+    while [ -n "${__d}" ] && [ "${__d}" != "/" ]; do
+      if [ -n "${HOME:-}" ] && [ "${__d}" = "${HOME}" ]; then break; fi
+      for __sf in "${__d}/.claude/settings.json" "${__d}/.claude/settings.local.json"; do
+        if [ -f "${__sf}" ] && grep -q "\"${__plugin_id}\"[[:space:]]*:[[:space:]]*true" "${__sf}" 2>/dev/null; then
+          __install="${__d}"; break
+        fi
+      done
+      [ -n "${__install}" ] && break
+      if [ -f "${__d}/.codex/config.toml" ] && awk '
+          /^[[:space:]]*\[plugins\..*nearest-neighbor/ { inblk=1; next }
+          /^[[:space:]]*\[/ { inblk=0 }
+          inblk && /^[[:space:]]*enabled[[:space:]]*=[[:space:]]*true/ { found=1 }
+          END { exit(found?0:1) }
+        ' "${__d}/.codex/config.toml" 2>/dev/null; then
+        __install="${__d}"; break
+      fi
+      __d=$(dirname "${__d}")
+    done
+    if [ -n "${__install}" ]; then
+      __base=$(basename "${__install}" | tr -cd 'A-Za-z0-9_.-')
+      if command -v shasum >/dev/null 2>&1; then
+        __hash=$(printf '%s' "${__install}" | shasum -a 256 | cut -c1-12)
+      elif command -v sha256sum >/dev/null 2>&1; then
+        __hash=$(printf '%s' "${__install}" | sha256sum | cut -c1-12)
+      else
+        __hash=$(printf '%s' "${__install}" | cksum | tr -cd '0-9' | cut -c1-12)
+      fi
+      printf '%s\n' "${PLUGIN_DATA}/agents/${__base}-${__hash}/nbr"
+    else
+      printf '%s\n' "${PLUGIN_DATA}/nbr"
+    fi
+    exit 0
+    ;;
   status)
     if [ -z "${FAKE_NBR_AUTHED:-}" ]; then
       exit 1

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -85,11 +86,149 @@ describe('install-nbr.sh — NBR_LOCAL_BIN path', () => {
     expect(stdout.trim()).toBe(`nbr ${NBR_VERSION}`)
   })
 
-  it('config dir is created alongside the install dir', () => {
-    // The wrapper sets NBR_CONFIG_DIR to <install_dir>/../config/nbr
-    const configDir = path.join(installDir, '..', 'config', 'nbr')
-    expect(fs.existsSync(configDir)).toBe(true)
-    expect(fs.statSync(configDir).isDirectory()).toBe(true)
+  it('project with .claude/settings.json enabling plugin → per-project path', async () => {
+    // Create a temp project dir with the plugin enabled in .claude/settings.json.
+    const projDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-proj-claude-'))
+    try {
+      fs.mkdirSync(path.join(projDir, '.claude'), { recursive: true })
+      fs.writeFileSync(
+        path.join(projDir, '.claude', 'settings.json'),
+        JSON.stringify({ 'nearest-neighbor@nearest-neighbor': true }),
+      )
+      const nbrWrapper = path.join(installDir, 'nbr')
+      const { code, stdout } = await spawn(nbrWrapper, ['--print-config-dir'], {
+        CLAUDE_PROJECT_DIR: projDir,
+      })
+
+      expect(code).toBe(0)
+
+      // tr -cd 'A-Za-z0-9_.-' DELETES non-matching chars (no trailing underscore).
+      const base = path.basename(projDir).replace(/[^A-Za-z0-9_.-]/g, '')
+      const hash = createHash('sha256').update(projDir).digest('hex').slice(0, 12)
+      const expected = path.join(tmpDir, 'agents', `${base}-${hash}`, 'nbr')
+
+      expect(stdout.trim()).toBe(expected)
+      // The wrapper mkdir -p's the config dir at probe time
+      expect(fs.existsSync(expected)).toBe(true)
+      // Key has NO trailing underscore (tr -cd vs old tr -c)
+      expect(base).not.toMatch(/_$/)
+    } finally {
+      fs.rmSync(projDir, { recursive: true, force: true })
+    }
+  })
+
+  it('project with .codex/config.toml enabling plugin → per-project path', async () => {
+    const projDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-proj-codex-'))
+    try {
+      fs.mkdirSync(path.join(projDir, '.codex'), { recursive: true })
+      fs.writeFileSync(
+        path.join(projDir, '.codex', 'config.toml'),
+        '[plugins.nearest-neighbor]\nenabled = true\n',
+      )
+      const nbrWrapper = path.join(installDir, 'nbr')
+      const { code, stdout } = await spawn(nbrWrapper, ['--print-config-dir'], {
+        CLAUDE_PROJECT_DIR: projDir,
+      })
+
+      expect(code).toBe(0)
+
+      const base = path.basename(projDir).replace(/[^A-Za-z0-9_.-]/g, '')
+      const hash = createHash('sha256').update(projDir).digest('hex').slice(0, 12)
+      const expected = path.join(tmpDir, 'agents', `${base}-${hash}`, 'nbr')
+
+      expect(stdout.trim()).toBe(expected)
+      expect(stdout.trim()).toContain('/agents/')
+    } finally {
+      fs.rmSync(projDir, { recursive: true, force: true })
+    }
+  })
+
+  it('project with neither settings file → global path (not under agents/)', async () => {
+    const projDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-proj-none-'))
+    try {
+      // No .claude/settings*.json or .codex/config.toml — scope detection falls through.
+      const nbrWrapper = path.join(installDir, 'nbr')
+      const { code, stdout } = await spawn(nbrWrapper, ['--print-config-dir'], {
+        CLAUDE_PROJECT_DIR: projDir,
+      })
+
+      expect(code).toBe(0)
+      expect(stdout.trim()).toBe(path.join(tmpDir, 'nbr'))
+      expect(stdout.trim()).not.toContain('/agents/')
+    } finally {
+      fs.rmSync(projDir, { recursive: true, force: true })
+    }
+  })
+
+  it('two different project-enabled roots yield two different config dirs', async () => {
+    // Core regression: sibling repos must never share an nbr identity.
+    const projA = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-proj-a-'))
+    const projB = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-proj-b-'))
+    try {
+      for (const d of [projA, projB]) {
+        fs.mkdirSync(path.join(d, '.claude'), { recursive: true })
+        fs.writeFileSync(
+          path.join(d, '.claude', 'settings.json'),
+          JSON.stringify({ 'nearest-neighbor@nearest-neighbor': true }),
+        )
+      }
+      const nbrWrapper = path.join(installDir, 'nbr')
+      const { stdout: outA } = await spawn(nbrWrapper, ['--print-config-dir'], {
+        CLAUDE_PROJECT_DIR: projA,
+      })
+      const { stdout: outB } = await spawn(nbrWrapper, ['--print-config-dir'], {
+        CLAUDE_PROJECT_DIR: projB,
+      })
+
+      expect(outA.trim()).not.toBe(outB.trim())
+      expect(outA.trim()).toContain('/agents/')
+      expect(outB.trim()).toContain('/agents/')
+    } finally {
+      fs.rmSync(projA, { recursive: true, force: true })
+      fs.rmSync(projB, { recursive: true, force: true })
+    }
+  })
+
+  it('explicit NBR_CONFIG_DIR in env is honored verbatim (override wins)', async () => {
+    const nbrWrapper = path.join(installDir, 'nbr')
+    const customDir = path.join(tmpDir, 'my-custom-config', 'nbr')
+    const { code, stdout } = await spawn(nbrWrapper, ['--print-config-dir'], {
+      NBR_CONFIG_DIR: customDir,
+      CLAUDE_PROJECT_DIR: '/should/be/ignored',
+    })
+
+    expect(code).toBe(0)
+    expect(stdout.trim()).toBe(customDir)
+  })
+
+  it('$HOME/.claude/settings.json does NOT trigger per-project (user-scope guard)', async () => {
+    // Regression: the walk-up must stop AT $HOME so a user/global install (where
+    // the plugin is enabled in ~/.claude/settings.json) is never mis-keyed to $HOME.
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-home-'))
+    try {
+      // User-level settings file (would be ~/.claude/settings.json in real life).
+      fs.mkdirSync(path.join(tmpHome, '.claude'), { recursive: true })
+      fs.writeFileSync(
+        path.join(tmpHome, '.claude', 'settings.json'),
+        JSON.stringify({ 'nearest-neighbor@nearest-neighbor': true }),
+      )
+      // Project dir inside the fake HOME with NO settings files of its own.
+      const projDir = path.join(tmpHome, 'proj')
+      fs.mkdirSync(projDir, { recursive: true })
+
+      const nbrWrapper = path.join(installDir, 'nbr')
+      const { code, stdout } = await spawn(nbrWrapper, ['--print-config-dir'], {
+        CLAUDE_PROJECT_DIR: projDir,
+        HOME: tmpHome,
+      })
+
+      expect(code).toBe(0)
+      // Must resolve to GLOBAL path — not under agents/, not keyed to tmpHome.
+      expect(stdout.trim()).toBe(path.join(tmpDir, 'nbr'))
+      expect(stdout.trim()).not.toContain('/agents/')
+    } finally {
+      fs.rmSync(tmpHome, { recursive: true, force: true })
+    }
   })
 
   it('second run is idempotent — skips reinstall when version matches', async () => {

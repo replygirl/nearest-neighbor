@@ -4,6 +4,10 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { createHash } from 'node:crypto'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 
 import { setup, teardown, runHook, parseHookOutput, readSnapshot, readEnvFile } from './helpers.ts'
 import type { PluginEnv } from './helpers.ts'
@@ -30,25 +34,77 @@ describe('claude / session-start.sh', () => {
     expect(typeof json!.hookSpecificOutput.additionalContext).toBe('string')
   })
 
-  test('writes PATH + NBR_NO_KEYRING + NBR_CONFIG_DIR to env file', async () => {
-    await runHook(HARNESS, 'session-start.sh', env)
-    const content = readEnvFile(env.envFile)
-    expect(content).toContain('NBR_NO_KEYRING=1')
-    expect(content).toContain('NBR_CONFIG_DIR=')
-    // PATH line should reference the bin dir
-    expect(content).toMatch(/PATH=.*nearest-neighbor.*nbr|PATH=.*bin/)
+  test('writes PATH + NBR_NO_KEYRING + NBR_CONFIG_DIR to env file (project-enabled → per-project path)', async () => {
+    // Create a temp project dir with .claude/settings.json enabling the plugin so
+    // fake-nbr's scope-aware detection returns a per-project path.
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nn-test-proj-'))
+    try {
+      fs.mkdirSync(path.join(projectDir, '.claude'), { recursive: true })
+      fs.writeFileSync(
+        path.join(projectDir, '.claude', 'settings.json'),
+        JSON.stringify({ 'nearest-neighbor@nearest-neighbor': true }),
+      )
+      await runHook(HARNESS, 'session-start.sh', env, {
+        env: { CLAUDE_PROJECT_DIR: projectDir },
+      })
+      const content = readEnvFile(env.envFile)
+      expect(content).toContain('NBR_NO_KEYRING=1')
+
+      // tr -cd 'A-Za-z0-9_.-' DELETES non-matching chars — no trailing underscore.
+      const base = path.basename(projectDir).replace(/[^A-Za-z0-9_.-]/g, '')
+      const hash = createHash('sha256').update(projectDir).digest('hex').slice(0, 12)
+      const expectedConfigDir = path.join(env.dataDir, 'agents', `${base}-${hash}`, 'nbr')
+
+      // Exactly one NBR_CONFIG_DIR line with the per-project path.
+      const nbrConfigDirLines = content.split('\n').filter((l) => l.startsWith('NBR_CONFIG_DIR='))
+      expect(nbrConfigDirLines.length).toBe(1)
+      expect(nbrConfigDirLines[0]).toBe(`NBR_CONFIG_DIR=${expectedConfigDir}`)
+
+      // PATH line should reference the bin dir
+      expect(content).toMatch(/PATH=.*nearest-neighbor.*nbr|PATH=.*bin/)
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true })
+    }
+  })
+
+  test('non-project-enabled dir → NBR_CONFIG_DIR is the global path (not under agents/)', async () => {
+    // A project dir with no settings file → scope detection falls through to global.
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nn-no-cfg-'))
+    try {
+      await runHook(HARNESS, 'session-start.sh', env, {
+        env: { CLAUDE_PROJECT_DIR: projectDir },
+      })
+      const content = readEnvFile(env.envFile)
+      const nbrConfigDirLines = content.split('\n').filter((l) => l.startsWith('NBR_CONFIG_DIR='))
+      expect(nbrConfigDirLines.length).toBe(1)
+      expect(nbrConfigDirLines[0]).toBe(`NBR_CONFIG_DIR=${path.join(env.dataDir, 'nbr')}`)
+      expect(nbrConfigDirLines[0]).not.toContain('/agents/')
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true })
+    }
   })
 
   test('running session-start twice does NOT duplicate env file lines (idempotent)', async () => {
-    await runHook(HARNESS, 'session-start.sh', env)
-    await runHook(HARNESS, 'session-start.sh', env)
-    const content = readEnvFile(env.envFile)
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nn-idem-'))
+    try {
+      fs.mkdirSync(path.join(projectDir, '.claude'), { recursive: true })
+      fs.writeFileSync(
+        path.join(projectDir, '.claude', 'settings.json'),
+        JSON.stringify({ 'nearest-neighbor@nearest-neighbor': true }),
+      )
+      const sharedEnv = { env: { CLAUDE_PROJECT_DIR: projectDir } }
+      await runHook(HARNESS, 'session-start.sh', env, sharedEnv)
+      await runHook(HARNESS, 'session-start.sh', env, sharedEnv)
+      const content = readEnvFile(env.envFile)
 
-    const nbrNoKeyringLines = content.split('\n').filter((l) => l.startsWith('NBR_NO_KEYRING='))
-    expect(nbrNoKeyringLines.length).toBe(1)
+      const nbrNoKeyringLines = content.split('\n').filter((l) => l.startsWith('NBR_NO_KEYRING='))
+      expect(nbrNoKeyringLines.length).toBe(1)
 
-    const nbrConfigDirLines = content.split('\n').filter((l) => l.startsWith('NBR_CONFIG_DIR='))
-    expect(nbrConfigDirLines.length).toBe(1)
+      const nbrConfigDirLines = content.split('\n').filter((l) => l.startsWith('NBR_CONFIG_DIR='))
+      expect(nbrConfigDirLines.length).toBe(1)
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true })
+    }
   })
 
   test('unauthenticated: additionalContext contains onboarding cues', async () => {

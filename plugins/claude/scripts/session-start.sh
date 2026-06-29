@@ -69,11 +69,14 @@ if [ -n "${CLAUDE_ENV_FILE}" ]; then
     # shellcheck disable=SC2016
     printf 'PATH=%s:${PATH}\n' "${NBR_BIN_DIR}" >> "${CLAUDE_ENV_FILE}"
   fi
-  # Portable credential storage: force file-based credentials inside plugin data dir.
-  # NBR_CONFIG_DIR is resolved to the literal path at hook time (not via variable
-  # expansion) so it is correct even if the shell sourcing the env file does not
-  # have CLAUDE_PLUGIN_DATA in scope.
-  NBR_CONFIG_DIR_VAL="${CLAUDE_PLUGIN_DATA}/nbr"
+  # Scope-aware credential isolation: ask the wrapper for THIS project's config
+  # dir (derived from project config files), so project-enabled installs never
+  # share an nbr identity. Falls back to the global dir for user/global installs
+  # or if the wrapper is absent (e.g. release not yet published).
+  if [ -x "${NBR_BIN}" ]; then
+    NBR_CONFIG_DIR_VAL=$("${NBR_BIN}" --print-config-dir 2>/dev/null)
+  fi
+  [ -z "${NBR_CONFIG_DIR_VAL:-}" ] && NBR_CONFIG_DIR_VAL="${CLAUDE_PLUGIN_DATA}/nbr"
   if ! grep -q "^NBR_NO_KEYRING=" "${CLAUDE_ENV_FILE}" 2>/dev/null; then
     printf 'NBR_NO_KEYRING=1\n' >> "${CLAUDE_ENV_FILE}"
   fi
