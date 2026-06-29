@@ -54,7 +54,7 @@ pub fn capture(ctx: AnalyticsContext) {
         "properties": {
             "command": ctx.command,
             "subcommand": ctx.subcommand,
-            "version": env!("CARGO_PKG_VERSION"),
+            "version": env!("NBR_VERSION"),
         },
     });
 
@@ -197,7 +197,7 @@ mod tests {
             "properties": {
                 "command": "status",
                 "subcommand": null,
-                "version": env!("CARGO_PKG_VERSION"),
+                "version": env!("NBR_VERSION"),
             },
         });
 

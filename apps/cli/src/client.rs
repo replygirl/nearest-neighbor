@@ -20,7 +20,7 @@ pub struct ApiClient {
 impl ApiClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let http = Client::builder()
-            .user_agent(concat!("nbr/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("nbr/", env!("NBR_VERSION")))
             .build()
             .expect("Failed to build HTTP client");
         ApiClient {
