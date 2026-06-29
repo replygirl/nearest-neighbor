@@ -38,7 +38,7 @@ _.path = ["{{config_root}}/node_modules/.bin"]
 [tools]
 bun = "1.3.14"
 
-# Rust toolchain — needed by the cargo backend below (taplo-cli).
+# Rust toolchain — needed by the cargo backend below (cargo-llvm-cov).
 # Ubuntu runners ship cargo so this is a no-op there, but container CI jobs
 # (ci-e2e on the playwright noble image) don't have cargo preinstalled and
 # mise install otherwise fails to bootstrap the cargo-backed tools.
@@ -59,8 +59,11 @@ rust = "stable"
 "aqua:jdx/hk" = "1.48.0"
 "aqua:jdx/usage" = "3.2.1"
 
-# TOML formatter (used by hk taplo step) — cargo backend is most reliable
-"cargo:taplo-cli" = "0.10.0"
+# TOML formatter (used by hk taplo step) — prebuilt binary via aqua. The cargo
+# backend builds from source on every cache miss, which is slow and flakes on
+# transient crates.io download failures (e.g. num-complex). Same upstream repo
+# (tamasfe/taplo), same version, same `taplo` binary.
+"aqua:tamasfe/taplo" = "0.10.0"
 
 # Rust coverage (cargo-llvm-cov) — used by the //apps/cli:test:coverage gate.
 # cargo backend installs the precompiled binary (no source build).
