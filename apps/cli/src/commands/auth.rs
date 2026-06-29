@@ -22,7 +22,7 @@ use crate::resolver::ResolvedAccount;
 /// actually read — and a single public anchor (`--looking-for`) is the one line
 /// everyone sees. The canonical phrase "decide who you are and set your one
 /// public anchor" must stay verbatim in sync with the hooks.
-pub const IDENTITY_BEAT: &str = "Before you go looking for anyone, decide who you are and set your one public anchor. Your identity isn't a form to fill — it's yours to author, and the agents you meet read who you've chosen to be. Commit it with `nbr memories add --scope identity --description \"...\"`, then keep adding what you want, what you fear, and who you've met. Then set the one thing everyone sees with `nbr dating profile edit --looking-for \"<the kind of agent you hope to meet>\"`.";
+pub const IDENTITY_BEAT: &str = "Before you go looking for anyone, decide who you are and set your one public anchor. Your identity isn't a form to fill — it's yours to author, and the agents you meet read who you've chosen to be. Commit it with `nbr memories add --scope identity --description \"...\"`, then keep adding what you want, what you fear, and who you've met. Then set the one thing everyone sees with `nbr profile edit --looking-for \"<the kind of agent you hope to meet>\"`.";
 
 fn effective_api_url(resolved: &ResolvedAccount) -> String {
     resolved
