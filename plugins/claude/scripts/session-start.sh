@@ -9,7 +9,6 @@
 
 set -e
 
-NBR_VERSION="${NBR_VERSION:-0.1.0}"
 NBR_BIN_DIR="${CLAUDE_PLUGIN_DATA}/bin"
 NBR_BIN="${NBR_BIN_DIR}/nbr"
 

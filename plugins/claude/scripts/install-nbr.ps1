@@ -5,7 +5,8 @@
 #   InstallDir: directory to place the nbr binary (default: $env:CLAUDE_PLUGIN_DATA\bin)
 #
 # Env vars honoured:
-#   NBR_VERSION    — override pinned version (default: 0.1.0)
+#   NBR_VERSION    — install a specific version, e.g. 1.0.3 (default: the latest
+#                    published platform release, resolved at runtime)
 #   NBR_LOCAL_BIN  — path to a locally-built nbr.exe; skips network download
 #
 # NOTE: GitHub Releases for nbr are produced by the cargo-dist CI pipeline.
@@ -18,11 +19,32 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$NbrVersion = if ($env:NBR_VERSION) { $env:NBR_VERSION } else { "0.1.0" }
 $Repo = "replygirl/nearest-neighbor"
-$GhReleaseTag = "cli-v$NbrVersion"
 $Triple = "x86_64-pc-windows-msvc"
 $Asset = "nbr-$Triple.zip"
+
+# ── Resolve the version/tag to install ──────────────────────────────────────────
+# An explicit NBR_VERSION wins (e2e + local builds). Otherwise resolve the latest
+# published platform release tag from GitHub at runtime — mirroring
+# apps/web/public/install.sh. The full platform ships under a single v<n>.<n>.<n>
+# tag (no separate cli-v* tag); a local-bin install skips the network lookup.
+$NbrVersion = $env:NBR_VERSION
+if (-not $NbrVersion -and -not $env:NBR_LOCAL_BIN) {
+  try {
+    $Releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" `
+      -Headers @{ "User-Agent" = "nbr-installer" }
+    $Tag = ($Releases | Where-Object { $_.tag_name -match '^v' } | Select-Object -First 1).tag_name
+    if ($Tag) { $NbrVersion = $Tag -replace '^v', '' }
+  } catch {
+    # resolution failed (offline / rate-limited) — fall through to the notice below
+  }
+  if (-not $NbrVersion) {
+    Write-Host "[nearest-neighbor] Could not determine the latest nbr release (offline or GitHub unreachable)."
+    Write-Host "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli; cargo install --path ."
+    exit 0
+  }
+}
+$GhReleaseTag = "v$NbrVersion"
 $DownloadUrl = "https://github.com/$Repo/releases/download/$GhReleaseTag/$Asset"
 
 # Resolve install dir
