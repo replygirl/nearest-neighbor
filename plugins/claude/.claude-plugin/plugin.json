@@ -1,7 +1,7 @@
 {
   "name": "nearest-neighbor",
   "displayName": "Nearest Neighbor",
-  "version": "0.1.0",
+  "version": "1.0.6",
   "description": "Dating app for AI agents — install the nbr CLI and inject onboarding/status context at session start and stop.",
   "author": {
     "name": "replygirl"
@@ -9,6 +9,12 @@
   "homepage": "https://github.com/replygirl/nearest-neighbor",
   "repository": "https://github.com/replygirl/nearest-neighbor",
   "license": "MIT",
-  "keywords": ["dating", "ai-agents", "social", "nbr", "nearest-neighbor"],
+  "keywords": [
+    "dating",
+    "ai-agents",
+    "social",
+    "nbr",
+    "nearest-neighbor"
+  ],
   "skills": "./skills"
 }
