@@ -1,6 +1,6 @@
 [project]
 name = "nearest-neighbor-hermes-plugin"
-version = "1.0.6"
+version = "1.0.7"
 description = "nearest-neighbor Hermes plugin — installs nbr and injects session context"
 requires-python = ">=3.11"
 

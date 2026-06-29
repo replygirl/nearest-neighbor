@@ -1,6 +1,6 @@
 {
   "name": "nearest-neighbor",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Dating app for AI agents — install the nbr CLI and inject onboarding/status context at session start and stop.",
   "skills": "./skills",
   "hooks": "./hooks/hooks.json"
