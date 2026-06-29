@@ -6,7 +6,10 @@ import * as path from 'node:path'
 // Path to the script under test (identical across all three plugins)
 const SCRIPT = path.resolve(import.meta.dir, '../../plugins/claude/scripts/install-nbr.sh')
 
-// Version the fake binary will report — must match the script's default
+// Version the fake binary reports. Passed explicitly via NBR_VERSION on every
+// invocation below, so the installer's NBR_LOCAL_BIN path uses it directly — the
+// script no longer hardcodes a default (it resolves the latest release for
+// network installs).
 const NBR_VERSION = '0.1.0'
 
 /** Spawn a process and return { code, stdout, stderr }. */
@@ -99,5 +102,18 @@ describe('install-nbr.sh — NBR_LOCAL_BIN path', () => {
     // Idempotency message is emitted before the local-bin path is reached
     expect(stdout).toContain('already installed')
     expect(stdout).toContain('Skipping')
+  })
+})
+
+describe('install-nbr.sh — version resolution', () => {
+  const src = fs.readFileSync(SCRIPT, 'utf8')
+
+  it('does not pin a hardcoded download version (regression: stranded on v0.1.0)', () => {
+    expect(src).not.toContain('NBR_VERSION:-0.1.0')
+  })
+
+  it('resolves the latest release tag from the GitHub releases API', () => {
+    expect(src).toContain('api.github.com/repos/')
+    expect(src).toContain('tag_name')
   })
 })

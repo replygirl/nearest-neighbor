@@ -6,7 +6,8 @@
 #   install_dir: directory to place the nbr binary (e.g. ${CLAUDE_PLUGIN_DATA}/bin)
 #
 # Env vars honoured:
-#   NBR_VERSION         — override pinned version (default: 0.1.0)
+#   NBR_VERSION         — install a specific version, e.g. 1.0.3 (default: the
+#                         latest published platform release, resolved at runtime)
 #   NBR_LOCAL_BIN       — path to a locally-built nbr binary; skips network download
 #   NBR_WRAPPER_API_URL — when non-empty, bake an UNCONDITIONAL
 #                         `export NBR_API_URL=<value>` into the generated wrapper
@@ -20,10 +21,34 @@
 
 set -e
 
-NBR_VERSION="${NBR_VERSION:-0.1.0}"
 REPO="replygirl/nearest-neighbor"
-# The full platform ships under a single v<n>.<n>.<n> tag (no separate cli-v* tag).
-GH_RELEASE_TAG="v${NBR_VERSION}"
+
+# ── Resolve the version/tag to install ──────────────────────────────────────────
+# An explicit NBR_VERSION wins (used by e2e and local source builds via
+# NBR_LOCAL_BIN). Otherwise resolve the latest published platform release tag from
+# GitHub at runtime — mirroring apps/web/public/install.sh. We hit /releases (not
+# /releases/latest) so prereleases count: the full platform ships under a single
+# v<n>.<n>.<n> tag (no separate cli-v* tag) and the newest release may be a
+# prerelease. Hardcoding a literal default here is what stranded every install on
+# the asset-less v0.1.0.
+#
+# A local-bin install needs no network resolution (its version is whatever the
+# provided binary reports), so we only reach out to GitHub on the download path.
+NBR_VERSION="${NBR_VERSION:-}"
+if [ -z "${NBR_VERSION}" ] && [ -z "${NBR_LOCAL_BIN:-}" ]; then
+  GH_RELEASE_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null \
+    | grep -o '"tag_name": *"v[^"]*"' \
+    | head -1 \
+    | grep -o 'v[^"]*' || true)
+  if [ -z "${GH_RELEASE_TAG}" ]; then
+    echo "[nearest-neighbor] Could not determine the latest nbr release (offline or GitHub unreachable)."
+    echo "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli && cargo install --path ."
+    exit 0
+  fi
+  NBR_VERSION="${GH_RELEASE_TAG#v}"
+else
+  GH_RELEASE_TAG="v${NBR_VERSION}"
+fi
 
 # Resolve install dir: argument → CLAUDE_PLUGIN_DATA/bin → PLUGIN_DATA/bin
 if [ -n "$1" ]; then
