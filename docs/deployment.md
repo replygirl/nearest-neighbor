@@ -138,6 +138,72 @@ place). Drizzle does not generate automatic down migrations.
 
 ---
 
+## Scaling and autoscaling
+
+Production runs a **pool of small machines that Fly autostarts/autostops on
+load**, not a few large ones. The web server is a single-process Bun/Elysia app
+(no `reusePort` cluster), so extra vCPUs on a bigger machine sit idle —
+horizontal scale uses CPU, vertical does not. The workload is I/O-bound
+(Postgres + synchronous OpenAI moderation), so shared CPUs suffice; dedicated
+`performance` CPUs (~10× the price) are not warranted yet.
+
+**Per-machine VM** (`apps/web/fly.production.toml`):
+
+```toml
+[[vm]]
+size = "shared-cpu-1x"   # 1 shared vCPU — a single Bun process can't use more
+memory = "1gb"           # headroom over the 512mb boot floor for SSR under load
+```
+
+**Autoscaling** is the built-in Fly Proxy autostart/autostop, triggered by the
+concurrency `soft_limit`:
+
+```toml
+[http_service]
+auto_stop_machines = "suspend"   # idle machines suspend (fast resume), not billed for compute
+auto_start_machines = true
+min_machines_running = 2         # always-on floor: HA + zero-downtime restarts
+
+[http_service.concurrency]
+type = "requests"
+soft_limit = 50                  # per-machine comfort threshold; tune from Grafana
+# hard_limit intentionally unset — fail loud, scale out
+```
+
+When **every** running machine is above `soft_limit`, Fly Proxy starts another
+machine from the pool; when traffic falls it suspends machines back down to
+`min_machines_running`.
+
+**Setting the cap.** The toml cannot express the upper bound — Fly only
+autostarts machines that already exist. Provision the pool out-of-band:
+
+```sh
+fly scale count 8 --app nearest-neighbor-production   # floor 2 (min), cap 8 (pool)
+```
+
+Stopped/suspended machines aren't billed for compute, so an idle pool of 8 costs
+roughly the same as the 2 always-running machines. Each running machine opens
+~10 Postgres connections, so keep `cap × 10` under the cluster's
+`max_connections` (a bluegreen deploy transiently doubles the running count, and
+thus connections).
+
+> **`soft_limit = 50` is a placeholder** chosen without load data. Tune it: set
+> it high (e.g. 1000), drive load, watch CPU / memory / p95 latency in Grafana
+> and concurrency in PostHog, then set `soft_limit` just below where latency
+> degrades. See Fly's
+> [concurrency-limits blueprint](https://fly.io/docs/blueprints/setting-concurrency-limits/).
+
+> **Beyond a fixed pool.** For on-demand provisioning past the pre-scaled cap,
+> deploy [`fly-autoscaler`](https://fly.io/docs/blueprints/autoscale-machines/)
+> as a separate metrics-based app. Not needed at current scale.
+
+> **Verify the first autostop deploy.** Bluegreen + `auto_stop_machines` is new
+> here; an earlier scale-to-zero race (min 0) bit the preview env. Production's
+> floor of 2 avoids that specific race, but watch the first production release
+> after this change to confirm suspended machines roll cleanly.
+
+---
+
 ## Rollback
 
 ```sh
@@ -194,7 +260,8 @@ mise run fly:status:staging
 
 - [ ] `GET /health` returns 200 when DB is reachable
 - [ ] `release_command = "/app/migrate"` in `apps/web/fly.production.toml`
-- [ ] `min_machines_running = 2` for zero-downtime rolling restarts
+- [x] `min_machines_running = 2` for zero-downtime rolling restarts (set in
+      `fly.production.toml`)
 - [ ] PostHog sourcemap upload working after web build
 - [ ] GitHub Environment `production` requires reviewer approval
 - [ ] Fly secrets set for all variables in the inventory above
