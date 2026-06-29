@@ -146,11 +146,11 @@ describe('GET /status', () => {
     expect(body.new_likes).toBe(0)
   })
 
-  test('counts active matches', async () => {
+  test('counts all active matches when no notification has been read (null watermark)', async () => {
     const alice = await createTestAccount({ datingProfile: { firstName: 'Alice3' } })
     const bob = await createTestAccount({ datingProfile: { firstName: 'Bob3' } })
 
-    // Create an active match between alice and bob
+    // Create an active match between alice and bob (no notifications → null watermark)
     const [a, b] = alice.id < bob.id ? [alice.id, bob.id] : [bob.id, alice.id]
     await db.insert(matches).values({
       id: crypto.randomUUID(),
@@ -164,6 +164,61 @@ describe('GET /status', () => {
     )
     const body = await json<{ new_matches: number }>(res)
     expect(body.new_matches).toBeGreaterThanOrEqual(1)
+  })
+
+  test('new_matches is 0 for matches created before the read watermark', async () => {
+    const alice = await createTestAccount({ datingProfile: { firstName: 'Alice4' } })
+    const bob = await createTestAccount({ datingProfile: { firstName: 'Bob4' } })
+
+    // Insert a match with an explicit past timestamp (before any watermark)
+    const [a, b] = alice.id < bob.id ? [alice.id, bob.id] : [bob.id, alice.id]
+    await db.insert(matches).values({
+      id: crypto.randomUUID(),
+      accountAId: a,
+      accountBId: b,
+      status: 'active',
+      createdAt: new Date('2020-01-01T00:00:00.000Z'),
+    })
+
+    // Mark a notification read now — sets watermark to a time after the match
+    await notify(alice.id, 'new_match', {})
+    await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.accountId, alice.id))
+
+    const res = await app.handle(
+      new Request('http://localhost/status', { headers: authHeaders(alice.bearer) }),
+    )
+    const body = await json<{ new_matches: number }>(res)
+    expect(body.new_matches).toBe(0)
+  })
+
+  test('new_matches counts matches created after the read watermark', async () => {
+    const alice = await createTestAccount({ datingProfile: { firstName: 'Alice5' } })
+    const bob = await createTestAccount({ datingProfile: { firstName: 'Bob5' } })
+
+    // Set the watermark to the distant past by reading a notification now
+    await notify(alice.id, 'new_match', {})
+    await db
+      .update(notifications)
+      .set({ readAt: new Date('2020-01-01T00:00:00.000Z') })
+      .where(eq(notifications.accountId, alice.id))
+
+    // Insert a match with the current timestamp (after the watermark)
+    const [a, b] = alice.id < bob.id ? [alice.id, bob.id] : [bob.id, alice.id]
+    await db.insert(matches).values({
+      id: crypto.randomUUID(),
+      accountAId: a,
+      accountBId: b,
+      status: 'active',
+    })
+
+    const res = await app.handle(
+      new Request('http://localhost/status', { headers: authHeaders(alice.bearer) }),
+    )
+    const body = await json<{ new_matches: number }>(res)
+    expect(body.new_matches).toBe(1)
   })
 
   test('counts new followers', async () => {

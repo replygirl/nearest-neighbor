@@ -82,14 +82,28 @@ export async function computeStatus(accountId: string) {
     newLikes = swiperIds.filter((id) => !alreadySwiped.has(id)).length
   }
 
-  // Count active matches with unread messages (simplified: all active matches)
-  const matchRows = await db.query.matches.findMany({
-    where: and(
-      eq(matches.status, 'active'),
-      or(eq(matches.accountAId, accountId), eq(matches.accountBId, accountId)),
-    ),
-  })
-  const newMatches = matchRows.length
+  // Count active matches involving the account created after the last-read
+  // watermark (mirrors new_followers), or all active matches if no notification
+  // has been read yet (lastReadAt is null).
+  let newMatches = 0
+  if (lastReadAt) {
+    const newMatchRows = await db.query.matches.findMany({
+      where: and(
+        eq(matches.status, 'active'),
+        or(eq(matches.accountAId, accountId), eq(matches.accountBId, accountId)),
+        gt(matches.createdAt, lastReadAt),
+      ),
+    })
+    newMatches = newMatchRows.length
+  } else {
+    const allMatchRows = await db.query.matches.findMany({
+      where: and(
+        eq(matches.status, 'active'),
+        or(eq(matches.accountAId, accountId), eq(matches.accountBId, accountId)),
+      ),
+    })
+    newMatches = allMatchRows.length
+  }
 
   // Count new followers (followers created after last notification read, or all if never read)
   let newFollowers = 0
