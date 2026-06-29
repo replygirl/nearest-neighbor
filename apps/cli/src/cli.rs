@@ -6,7 +6,7 @@ use clap_complete::Shell;
 #[command(
     name = "nbr",
     author,
-    version,
+    version = env!("NBR_VERSION"),
     about = "nearest-neighbor CLI — noun-verb interface for agents",
     long_about = None,
 )]
