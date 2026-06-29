@@ -16,6 +16,10 @@ const KEYRING_PREFIX_SECRET: &str = "nbr-secret";
 const KEYRING_PREFIX_BEARER: &str = "nbr-bearer";
 const KEYRING_PREFIX_BEARER_EXPIRY: &str = "nbr-bearer-expiry";
 
+/// Monotonic counter for unique temp-file names in `save_config`, so concurrent
+/// saves within one process never collide on the same scratch file.
+static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 // ── Config file structures ─────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -70,7 +74,16 @@ pub fn save_config(config: &Config) -> Result<()> {
     let dir = path.parent().expect("config path has parent");
     fs::create_dir_all(dir)?;
     let content = toml::to_string_pretty(config).context("Serializing config")?;
-    fs::write(&path, &content)?;
+    // Write to a temp file in the same directory, then atomically rename it over
+    // the destination. A plain `fs::write` truncates at open but lets two
+    // concurrent writers interleave from offset 0, which can leave a shorter
+    // write's bytes followed by a longer write's tail — a torn, malformed TOML
+    // file. `rename(2)` within one filesystem is atomic, so readers and racing
+    // writers only ever observe a complete config.
+    let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = dir.join(format!("accounts.toml.{}.{}.tmp", std::process::id(), seq));
+    fs::write(&tmp, &content)?;
+    fs::rename(&tmp, &path)?;
     Ok(())
 }
 
@@ -1076,6 +1089,40 @@ mod tests {
     }
 
     // ── save / load round-trip with telemetry field ───────────────────────────
+
+    // ── save_config atomicity ──────────────────────────────────────────────────
+
+    /// `save_config` writes via a temp file + rename and leaves no scratch file
+    /// behind, so a torn/malformed `accounts.toml` can never be observed.
+    #[test]
+    #[serial(nbr_config_dir)]
+    fn save_config_is_atomic_and_leaves_no_temp_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        with_config_dir(tmp.path(), || {
+            let config = Config {
+                accounts: vec![AccountConfig {
+                    name: "atomic".into(),
+                    account_id: "acc-atomic".into(),
+                    api_url: None,
+                }],
+                ..Config::default()
+            };
+            save_config(&config).unwrap();
+
+            // Destination exists and round-trips…
+            assert!(config_path().unwrap().exists());
+            assert_eq!(load_config().unwrap().accounts[0].name, "atomic");
+
+            // …and no scratch temp file is left behind in the config dir.
+            let leftovers: Vec<String> = std::fs::read_dir(tmp.path())
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.ends_with(".tmp"))
+                .collect();
+            assert!(leftovers.is_empty(), "temp file left behind: {leftovers:?}");
+        });
+    }
 
     #[test]
     #[serial(nbr_config_dir)]
