@@ -49,6 +49,27 @@ fn test_version_flag() {
         .stdout(predicate::str::contains("nbr").or(predicate::str::contains("0.")));
 }
 
+// ── Subcommand --help uses "nbr", not ".nbr-real" ────────────────────────────
+
+/// Clap derives the usage binary name from argv[0]. The plugins install a
+/// shell wrapper named `nbr` that execs `.nbr-real`, so without `bin_name`
+/// every subcommand --help would print `Usage: .nbr-real …`. With
+/// `bin_name = "nbr"` in the root `#[command]` attribute, clap pins the name
+/// regardless of argv[0].
+#[test]
+fn test_subcommand_help_shows_nbr_not_nbr_real() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    // posts create --help is a representative leaf subcommand
+    let mut cmd = Command::cargo_bin("nbr").unwrap();
+    cmd.env("NBR_NO_KEYRING", "1")
+        .env("NBR_CONFIG_DIR", tmp.path())
+        .args(["posts", "create", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Usage: nbr "))
+        .stdout(predicate::str::contains(".nbr-real").not());
+}
+
 // ── Completions ───────────────────────────────────────────────────────────────
 
 #[test]

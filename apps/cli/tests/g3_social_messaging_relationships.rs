@@ -382,6 +382,80 @@ async fn test_run_relationships_with_null_partner_handle() {
         .expect("relationships with null partner_handle should succeed");
 }
 
+// ── run_accept ────────────────────────────────────────────────────────────────
+
+/// Verify run_accept (human output) sends PATCH with state="active" and prints success.
+#[tokio::test]
+async fn test_run_accept_human() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/relationships/rel-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json({
+            let mut r = relationship();
+            r["state"] = json!("active");
+            r
+        }))
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::AcceptArgs {
+        relationship_id: "rel-1".into(),
+    };
+    commands::relationships::run_accept(&mut client, &args, false)
+        .await
+        .expect("run_accept human should succeed");
+}
+
+/// Verify run_accept (json output) sends PATCH with state="active" and returns the relationship.
+#[tokio::test]
+async fn test_run_accept_json() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/relationships/rel-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json({
+            let mut r = relationship();
+            r["state"] = json!("active");
+            r
+        }))
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::AcceptArgs {
+        relationship_id: "rel-1".into(),
+    };
+    commands::relationships::run_accept(&mut client, &args, true)
+        .await
+        .expect("run_accept json should succeed");
+}
+
+/// Verify run_accept returns an error on API failure (e.g. 422 initiator cannot accept).
+#[tokio::test]
+async fn test_run_accept_api_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/relationships/rel-bad"))
+        .respond_with(
+            ResponseTemplate::new(422)
+                .set_body_json(json!({ "error": "Initiator cannot accept their own proposal" })),
+        )
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::AcceptArgs {
+        relationship_id: "rel-bad".into(),
+    };
+    let result = commands::relationships::run_accept(&mut client, &args, false).await;
+    assert!(result.is_err(), "accept 422 should propagate error");
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("Initiator") || msg.contains("422"),
+        "unexpected: {msg}"
+    );
+}
+
 // ── run_align error path ──────────────────────────────────────────────────────
 
 #[tokio::test]

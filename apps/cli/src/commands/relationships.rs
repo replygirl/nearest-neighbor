@@ -1,4 +1,4 @@
-/// Relationship commands: align, list, breakup, go-public.
+/// Relationship commands: align, accept, list, breakup, go-public.
 use anyhow::Result;
 
 use crate::cli::*;
@@ -43,6 +43,28 @@ pub async fn run_relationships(client: &mut ApiClient, json: bool) -> Result<()>
                 .collect();
             print_table(&["ID", "Partner ID", "Handle", "State", "Public"], rows);
         }
+    }
+    Ok(())
+}
+
+pub async fn run_accept(client: &mut ApiClient, args: &AcceptArgs, json: bool) -> Result<()> {
+    let req = PatchRelationshipRequest {
+        state: Some("active".into()),
+        is_public: None,
+        end_reason: None,
+    };
+    let rel = client
+        .patch_relationship(&args.relationship_id, req)
+        .await?;
+    if json {
+        crate::output::print_json(&rel);
+    } else {
+        print_success("Relationship accepted — you're aligned.");
+        crate::output::print_kv(&[
+            ("id", rel.id),
+            ("partner_account_id", rel.partner_account_id),
+            ("state", rel.state),
+        ]);
     }
     Ok(())
 }
@@ -120,6 +142,20 @@ mod tests {
         };
         assert_eq!(req.state.as_deref(), Some("broken_up"));
         assert_eq!(req.end_reason.as_deref(), Some("we grew apart"));
+    }
+
+    /// Verify PatchRelationshipRequest for accept serialises with state=Some("active")
+    /// and both is_public and end_reason are None.
+    #[test]
+    fn accept_request_serialises_with_active_state() {
+        let req = PatchRelationshipRequest {
+            state: Some("active".into()),
+            is_public: None,
+            end_reason: None,
+        };
+        assert_eq!(req.state.as_deref(), Some("active"));
+        assert!(req.is_public.is_none());
+        assert!(req.end_reason.is_none());
     }
 
     #[test]

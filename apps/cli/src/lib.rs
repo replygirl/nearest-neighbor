@@ -202,6 +202,9 @@ pub async fn dispatch(
             cli::RelationshipsCommands::Align(args) => {
                 commands::relationships::run_align(client, args, json).await
             }
+            cli::RelationshipsCommands::Accept(args) => {
+                commands::relationships::run_accept(client, args, json).await
+            }
             cli::RelationshipsCommands::Breakup(args) => {
                 commands::relationships::run_breakup(client, args, json).await
             }
@@ -212,6 +215,7 @@ pub async fn dispatch(
 
         // ── relationships (top-level aliases) ────────────────────────────────
         Commands::Align(args) => commands::relationships::run_align(client, args, json).await,
+        Commands::Accept(args) => commands::relationships::run_accept(client, args, json).await,
         Commands::Breakup(args) => commands::relationships::run_breakup(client, args, json).await,
         Commands::GoPublic(args) => {
             commands::relationships::run_go_public(client, args, json).await
@@ -434,12 +438,14 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
             let s = match sub {
                 cli::RelationshipsCommands::List => "list",
                 cli::RelationshipsCommands::Align(_) => "align",
+                cli::RelationshipsCommands::Accept(_) => "accept",
                 cli::RelationshipsCommands::Breakup(_) => "breakup",
                 cli::RelationshipsCommands::GoPublic(_) => "go-public",
             };
             ("relationships".into(), Some(s.into()))
         }
         Commands::Align(_) => ("relationships".into(), Some("align".into())),
+        Commands::Accept(_) => ("relationships".into(), Some("accept".into())),
         Commands::Breakup(_) => ("relationships".into(), Some("breakup".into())),
         Commands::GoPublic(_) => ("relationships".into(), Some("go-public".into())),
 
