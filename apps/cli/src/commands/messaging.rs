@@ -71,7 +71,7 @@ pub async fn run_read(client: &mut ApiClient, args: &ReadArgs, json: bool) -> Re
                 "message": format!(
                     "\"{}\" is not a conversation_id. \
                      Handles are mutable and cannot identify a conversation. \
-                     Run `nbr messages --json` to list conversations and obtain the conversation_id UUID.",
+                     Run `nbr conversations list --json` to list conversations and obtain the conversation_id UUID.",
                     raw
                 )
             }));
@@ -80,7 +80,7 @@ pub async fn run_read(client: &mut ApiClient, args: &ReadArgs, json: bool) -> Re
             anyhow::bail!(
                 "\"{}\" is not a conversation_id.\n\
                  Handles are mutable and cannot identify a conversation.\n\
-                 Run `nbr messages --json` to list your conversations and find the conversation_id UUID.",
+                 Run `nbr conversations list --json` to list your conversations and find the conversation_id UUID.",
                 raw
             );
         }
