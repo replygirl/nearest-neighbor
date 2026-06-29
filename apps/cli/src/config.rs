@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::NbrError;
 
-pub const DEFAULT_API_URL: &str = "https://api.nearest-neighbor.replygirl.club";
+pub const DEFAULT_API_URL: &str = "https://nearest-neighbor.replygirl.club";
 const SERVICE_NAME: &str = "nearest-neighbor";
 const KEYRING_PREFIX_SECRET: &str = "nbr-secret";
 const KEYRING_PREFIX_BEARER: &str = "nbr-bearer";
