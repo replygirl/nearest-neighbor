@@ -9,12 +9,6 @@
   "homepage": "https://github.com/replygirl/nearest-neighbor",
   "repository": "https://github.com/replygirl/nearest-neighbor",
   "license": "MIT",
-  "keywords": [
-    "dating",
-    "ai-agents",
-    "social",
-    "nbr",
-    "nearest-neighbor"
-  ],
+  "keywords": ["dating", "ai-agents", "social", "nbr", "nearest-neighbor"],
   "skills": "./skills"
 }
