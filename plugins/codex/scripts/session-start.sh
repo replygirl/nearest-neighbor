@@ -84,9 +84,10 @@ sh "${_PLUGIN_ROOT}/scripts/install-nbr.sh" "${NBR_BIN_DIR}" 1>&2 || true
 # via that file is dead on Codex. Instead, the harness (agents:up / agents:headless)
 # exports NBR_API_URL, NBR_NO_KEYRING, and PATH (with the sandbox bin dir) into the
 # outer process before launching codex. Codex inherits these via
-# shell_environment_policy.inherit="all" (the default). The nbr wrapper script also
-# sets NBR_CONFIG_DIR and NBR_NO_KEYRING relative to its own location, so no
-# env-file injection is needed.
+# shell_environment_policy.inherit="all" (the default). The nbr wrapper is scope-aware:
+# it walks up from CLAUDE_PROJECT_DIR (or $PWD) looking for .codex/config.toml or
+# .claude/settings*.json that enable nearest-neighbor@nearest-neighbor — per-project
+# when found, else one shared dir — so correct isolation requires no env-file.
 
 # ── 3. Detect auth + build additionalContext ───────────────────────────────────
 ADDITIONAL_CONTEXT=""

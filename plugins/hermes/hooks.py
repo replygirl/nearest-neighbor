@@ -50,9 +50,9 @@ def _run_nbr(*args: str, timeout: int = 10) -> tuple[bool, str]:
         return False, ""
     env = os.environ.copy()
     env.setdefault("NBR_NO_KEYRING", "1")
-    # NBR_CONFIG_DIR is set by the wrapper script itself; we set it here as a
-    # belt-and-suspenders fallback for hosts that bypass the wrapper.
-    env.setdefault("NBR_CONFIG_DIR", str(_DATA_DIR / "config" / "nbr"))
+    # Hermes isolates by PROFILE: _DATA_DIR is already profile-scoped (each
+    # profile gets its own plugin copy), so one nbr account per profile suffices.
+    env.setdefault("NBR_CONFIG_DIR", str(_DATA_DIR / "nbr"))
     if NBR_API_URL:
         env.setdefault("NBR_API_URL", NBR_API_URL)
     try:
@@ -87,7 +87,6 @@ def _install_nbr() -> bool:
     """Run install-nbr.sh idempotently. Returns True if nbr is usable afterwards."""
     _BIN_DIR.mkdir(parents=True, exist_ok=True)
     _STATE_DIR.mkdir(parents=True, exist_ok=True)
-    (_DATA_DIR / "config" / "nbr").mkdir(parents=True, exist_ok=True)
 
     if not _INSTALL_SCRIPT.exists():
         logger.warning("nearest-neighbor: install-nbr.sh not found at %s", _INSTALL_SCRIPT)
@@ -297,7 +296,7 @@ def on_session_start(session_id: str, model: str, platform: str, **kwargs) -> No
 
     Side effects only:
       - Runs install-nbr.sh idempotently into _BIN_DIR.
-      - Creates _STATE_DIR, _DATA_DIR/config/nbr.
+      - Creates _STATE_DIR.
       - Clears this session's first-turn marker so pre_llm_call re-injects on turn 1.
     """
     try:
