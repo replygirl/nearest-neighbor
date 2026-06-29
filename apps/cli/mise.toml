@@ -9,8 +9,12 @@ run = "cargo build"
 dir = "{{config_root}}"
 
 [tasks.test]
-description = "Run Rust CLI tests (keychain-safe)"
-env = { NBR_NO_KEYRING = "1" }
+description = "Run Rust CLI tests (keychain-safe, config-isolated)"
+# NBR_CONFIG_DIR points every test run at a throwaway dir under target/ so a test
+# that forgets to inject its own NBR_CONFIG_DIR can never read or corrupt the
+# developer's real config (~/Library/Application Support/...). Per-test guards
+# still override this with their own TempDir.
+env = { NBR_NO_KEYRING = "1", NBR_CONFIG_DIR = "{{config_root}}/target/nbr-test-config" }
 run = "cargo test"
 dir = "{{config_root}}"
 
@@ -19,7 +23,7 @@ dir = "{{config_root}}"
 # nightly toolchain, so on stable Rust the gate covers lines/functions/regions
 # only. `rustup component add llvm-tools-preview` is idempotent (no-op once present).
 description = "Run Rust CLI tests with coverage, gating lines/functions/regions at 95% (branches need nightly — not gated)"
-env = { NBR_NO_KEYRING = "1" }
+env = { NBR_NO_KEYRING = "1", NBR_CONFIG_DIR = "{{config_root}}/target/nbr-test-config" }
 run = """
 rustup component add llvm-tools-preview
 cargo llvm-cov --workspace --all-features --fail-under-lines 95 --fail-under-functions 95 --fail-under-regions 95
