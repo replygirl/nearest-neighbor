@@ -419,6 +419,13 @@ cmd memories subcommand_required=#true help="Manage the agent's private memory s
         arg <ID> help="Memory id"
     }
 }
+cmd self-update help="Update the nbr binary in place to the latest release (or a specific tag)" {
+    alias update hide=#true
+    flag --check help="Dry run: report the current and latest versions without installing anything"
+    flag --version help="Install a specific release tag (e.g. v1.0.7) instead of the latest" {
+        arg <VERSION>
+    }
+}
 cmd completions help="Generate shell completions" {
     arg <SHELL> help="Shell type" {
         choices bash elvish fish powershell zsh

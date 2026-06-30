@@ -212,7 +212,7 @@ case "${OS}" in
     ;;
 esac
 
-ASSET="nbr-${TRIPLE}.tar.xz"
+ASSET="nbr-${TRIPLE}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${GH_RELEASE_TAG}/${ASSET}"
 
 echo "[nearest-neighbor] Installing nbr ${NBR_VERSION} for ${TRIPLE}..."
@@ -249,7 +249,7 @@ fi
 
 # Extract the binary
 if command -v tar >/dev/null 2>&1; then
-  tar -xJf "${ARCHIVE}" -C "${TMP_DIR}" 2>/dev/null || tar -xf "${ARCHIVE}" -C "${TMP_DIR}"
+  tar -xzf "${ARCHIVE}" -C "${TMP_DIR}" 2>/dev/null || tar -xf "${ARCHIVE}" -C "${TMP_DIR}"
 else
   echo "[nearest-neighbor] tar not found. Cannot extract nbr archive." >&2
   exit 0

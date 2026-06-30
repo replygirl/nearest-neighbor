@@ -14,7 +14,7 @@
 # an existing tag without republishing the release. Supply the tag name (e.g. v0.2.0).
 #
 # Builds five target triples in a matrix, packages each as
-#   nbr-<triple>.tar.xz  (Unix)
+#   nbr-<triple>.tar.gz  (Unix)
 #   nbr-<triple>.zip     (Windows)
 # Generates SHA256SUMS and uploads all assets with `gh release upload --clobber`.
 #
@@ -47,20 +47,20 @@ jobs:
           # ── macOS ──────────────────────────────────────────────────────────
           - target: aarch64-apple-darwin
             runner: macos-26 # Apple Silicon
-            archive: tar.xz
+            archive: tar.gz
 
           - target: x86_64-apple-darwin
             runner: macos-26-intel # Intel
-            archive: tar.xz
+            archive: tar.gz
 
           # ── Linux musl (static, no OpenSSL, no dbus) ──────────────────────
           - target: aarch64-unknown-linux-musl
             runner: ubuntu-26.04-arm # native arm64 runner (preview)
-            archive: tar.xz
+            archive: tar.gz
 
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-26.04 # preview
-            archive: tar.xz
+            archive: tar.gz
 
           # ── Windows ───────────────────────────────────────────────────────
           - target: x86_64-pc-windows-msvc
@@ -105,9 +105,9 @@ jobs:
           NBR_RELEASE_VERSION: ${{ github.event.release.tag_name || inputs.tag }}
         run: cargo build --release --target ${{ matrix.target }}
 
-      # ── Package: tar.xz (Unix) ─────────────────────────────────────────────
-      - name: Package tar.xz
-        if: matrix.archive == 'tar.xz'
+      # ── Package: tar.gz (Unix) ─────────────────────────────────────────────
+      - name: Package tar.gz
+        if: matrix.archive == 'tar.gz'
         shell: bash
         run: |
           TRIPLE=${{ matrix.target }}
@@ -117,7 +117,7 @@ jobs:
           cp "${BIN}" "${STAGING}/nbr"
           cp apps/cli/README.md "${STAGING}/"
           cp LICENSE "${STAGING}/"
-          tar -cJf "${STAGING}.tar.xz" "${STAGING}"
+          tar -czf "${STAGING}.tar.gz" "${STAGING}"
 
       # ── Package: zip (Windows) ────────────────────────────────────────────
       - name: Package zip
@@ -164,11 +164,11 @@ jobs:
 
       - name: Generate SHA256SUMS
         working-directory: dist
-        run: sha256sum nbr-*.tar.xz nbr-*.zip > SHA256SUMS
+        run: sha256sum nbr-*.tar.gz nbr-*.zip > SHA256SUMS
 
       - name: Attach assets to the existing release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ github.event.release.tag_name || inputs.tag }}
-          gh release upload "${TAG}" dist/nbr-*.tar.xz dist/nbr-*.zip dist/SHA256SUMS --clobber
+          gh release upload "${TAG}" dist/nbr-*.tar.gz dist/nbr-*.zip dist/SHA256SUMS --clobber

@@ -45,6 +45,13 @@ pub async fn run(cli: Cli) -> Result<()> {
         Commands::Config => {
             return commands::auth::run_config(cli.api_url.as_deref(), cli.json);
         }
+        // self-update is auth-free: it replaces the binary on disk and never
+        // builds an API client or needs a token, so it is handled here (before
+        // resolve()) rather than through dispatch().
+        Commands::SelfUpdate(args) => {
+            return commands::system::run_self_update(cli.json, args.check, args.version.clone())
+                .await;
+        }
         _ => {}
     }
 
@@ -353,6 +360,7 @@ pub async fn dispatch(
         | Commands::Auth(_)
         | Commands::Accounts(_)
         | Commands::Completions(_)
+        | Commands::SelfUpdate(_)
         | Commands::Config => unreachable!(),
     }
 }
@@ -532,5 +540,7 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
         }
 
         Commands::Completions(_) => ("completions".into(), None),
+
+        Commands::SelfUpdate(_) => ("self-update".into(), None),
     }
 }

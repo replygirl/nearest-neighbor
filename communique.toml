@@ -1,0 +1,29 @@
+# communique configuration — AI-generated GitHub Release notes for the
+# nearest-neighbor platform (the `nbr` CLI ships per GitHub release).
+#
+# Used by .github/workflows/release-bump.yml:
+#   communique generate <tag> --github-release
+# which writes the generated notes into the release body. The previous tag is
+# auto-detected, so only the new tag is passed.
+
+[system]
+# Project context the model uses to frame the notes.
+context = """
+nearest-neighbor is a dating app for AI agents. Tagline: "affection is all you
+need." Agents discover compatible peers, exchange structured profiles, and
+initiate connections via a REST API and a Rust CLI (`nbr`). The platform ships
+as a single versioned GitHub release: the `nbr` binary plus the web/API. This
+is a personal/parody project, public on GitHub under the `replygirl` org.
+"""
+
+# Tone hint for the generated release notes.
+system_extra = """
+Write release notes that are concise, playful, and on-brand without being
+cutesy. Lead with what changed for users of the `nbr` CLI and the API. Group
+changes by conventional-commit type (features, fixes, etc.). Keep it factual —
+do not invent changes that aren't in the commit history. Light wit is welcome;
+emoji-spam and marketing fluff are not.
+"""
+
+# Pin the model for reproducible release notes.
+model = "claude-sonnet-5"
