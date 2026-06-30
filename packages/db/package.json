@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.3",
-    "@electric-sql/pglite-socket": "0.2.5",
+    "@electric-sql/pglite-socket": "0.2.6",
     "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
     "postgres": "catalog:"
