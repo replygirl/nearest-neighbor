@@ -77,7 +77,16 @@ build_memory_block() {
 # skip the install. `sh <script>` runs regardless of the file mode.
 # Redirect installer progress to stderr: this hook's STDOUT is the JSON contract
 # (hookSpecificOutput), so installer log lines on stdout would corrupt it.
-sh "${_PLUGIN_ROOT}/scripts/install-nbr.sh" "${NBR_BIN_DIR}" 1>&2 || true
+# Existing real install (not a local/pinned dev or e2e/sandbox install) → update
+# in place via nbr's own checksum-verified self-update, and refresh the wrapper
+# (self-update only swaps .nbr-real; the wrapper ships with the plugin). Otherwise
+# (fresh install, NBR_LOCAL_BIN, or pinned NBR_VERSION) → full installer.
+if [ -x "${NBR_BIN}" ] && [ -z "${NBR_LOCAL_BIN:-}" ] && [ -z "${NBR_VERSION:-}" ]; then
+  "${NBR_BIN}" self-update 1>&2 || true
+  sh "${_PLUGIN_ROOT}/scripts/install-nbr.sh" --wrapper-only "${NBR_BIN_DIR}" 1>&2 || true
+else
+  sh "${_PLUGIN_ROOT}/scripts/install-nbr.sh" "${NBR_BIN_DIR}" 1>&2 || true
+fi
 
 # ── 2. (Codex) Env vars reach the agent via inheritance, not CLAUDE_ENV_FILE ──
 # Codex does not write CLAUDE_ENV_FILE in hooks — the block that injects env vars

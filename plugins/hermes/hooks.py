@@ -83,8 +83,49 @@ def _is_authed(status_json: str) -> bool:
         return False
 
 
+def _run_self_update() -> None:
+    """Run `nbr self-update` then refresh the wrapper via install-nbr.sh --wrapper-only.
+
+    Never raises — mirrors _install_nbr's error handling. Used for existing real
+    installs: `nbr self-update` replaces .nbr-real (checksum-verified), then
+    --wrapper-only rewrites the wrapper so plugin-shipped wrapper changes land too.
+    """
+    # Binary self-update (replaces .nbr-real only)
+    try:
+        result = subprocess.run(
+            [str(_NBR_BIN), "self-update"],
+            timeout=60,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.debug("nearest-neighbor: nbr self-update exited %d", result.returncode)
+    except Exception as exc:
+        logger.warning("nearest-neighbor: nbr self-update failed: %s", exc)
+
+    # Refresh the wrapper (self-update only replaces .nbr-real; wrapper ships with plugin)
+    if not _INSTALL_SCRIPT.exists():
+        return
+    try:
+        subprocess.run(
+            ["sh", str(_INSTALL_SCRIPT), "--wrapper-only", str(_BIN_DIR)],
+            timeout=30,
+            check=False,
+        )
+    except Exception as exc:
+        logger.warning("nearest-neighbor: install-nbr.sh --wrapper-only failed: %s", exc)
+
+
 def _install_nbr() -> bool:
-    """Run install-nbr.sh idempotently. Returns True if nbr is usable afterwards."""
+    """Run install-nbr.sh idempotently (or self-update for existing installs).
+
+    Existing real install (no NBR_LOCAL_BIN, no NBR_VERSION env override) →
+    update in place via `nbr self-update` + wrapper refresh, matching the
+    session-start.sh branching logic.
+
+    Fresh install, NBR_LOCAL_BIN, or pinned NBR_VERSION → full installer.
+
+    Returns True if nbr is usable afterwards.
+    """
     _BIN_DIR.mkdir(parents=True, exist_ok=True)
     _STATE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -92,17 +133,27 @@ def _install_nbr() -> bool:
         logger.warning("nearest-neighbor: install-nbr.sh not found at %s", _INSTALL_SCRIPT)
         return _NBR_BIN.exists()
 
-    env = os.environ.copy()
-    env["NBR_VERSION"] = NBR_VERSION
-    try:
-        subprocess.run(
-            ["sh", str(_INSTALL_SCRIPT), str(_BIN_DIR)],
-            timeout=60,
-            env=env,
-            check=False,  # install-nbr.sh exits 0 even when the release is not yet published
-        )
-    except Exception as exc:
-        logger.warning("nearest-neighbor: install-nbr.sh failed: %s", exc)
+    # Existing real install → self-update path
+    if (
+        _NBR_BIN.exists()
+        and os.access(_NBR_BIN, os.X_OK)
+        and not os.environ.get("NBR_LOCAL_BIN")
+        and not os.environ.get("NBR_VERSION")
+    ):
+        _run_self_update()
+    else:
+        # Fresh install, local-bin, or pinned version → full installer
+        env = os.environ.copy()
+        env["NBR_VERSION"] = NBR_VERSION
+        try:
+            subprocess.run(
+                ["sh", str(_INSTALL_SCRIPT), str(_BIN_DIR)],
+                timeout=60,
+                env=env,
+                check=False,  # install-nbr.sh exits 0 even when release is not yet published
+            )
+        except Exception as exc:
+            logger.warning("nearest-neighbor: install-nbr.sh failed: %s", exc)
 
     return _NBR_BIN.exists() and os.access(_NBR_BIN, os.X_OK)
 

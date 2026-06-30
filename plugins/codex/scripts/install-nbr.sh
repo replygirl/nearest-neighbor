@@ -2,7 +2,10 @@
 # install-nbr.sh — idempotent installer for the nbr binary
 # Shared between Claude and Codex plugins.
 #
-# Usage: install-nbr.sh <install_dir>
+# Usage: install-nbr.sh [--wrapper-only] <install_dir>
+#   --wrapper-only: (re)write the scope-aware wrapper only; skip version
+#                   resolution, network, and binary install. SessionStart hooks
+#                   use this after delegating binary updates to `nbr self-update`.
 #   install_dir: directory to place the nbr binary (e.g. ${CLAUDE_PLUGIN_DATA}/bin)
 #
 # Env vars honoured:
@@ -23,6 +26,16 @@ set -e
 
 REPO="replygirl/nearest-neighbor"
 
+# `install-nbr.sh --wrapper-only <install_dir>` (re)writes the scope-aware
+# wrapper and exits without touching the binary or the network. SessionStart
+# hooks use it to keep the wrapper current after delegating binary updates to
+# `nbr self-update`.
+WRAPPER_ONLY=""
+if [ "${1:-}" = "--wrapper-only" ]; then
+  WRAPPER_ONLY=1
+  shift
+fi
+
 # ── Resolve the version/tag to install ──────────────────────────────────────────
 # An explicit NBR_VERSION wins (used by e2e and local source builds via
 # NBR_LOCAL_BIN). Otherwise resolve the latest published platform release tag from
@@ -35,19 +48,22 @@ REPO="replygirl/nearest-neighbor"
 # A local-bin install needs no network resolution (its version is whatever the
 # provided binary reports), so we only reach out to GitHub on the download path.
 NBR_VERSION="${NBR_VERSION:-}"
-if [ -z "${NBR_VERSION}" ] && [ -z "${NBR_LOCAL_BIN:-}" ]; then
-  GH_RELEASE_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null \
-    | grep -o '"tag_name": *"v[^"]*"' \
-    | head -1 \
-    | grep -o 'v[^"]*' || true)
-  if [ -z "${GH_RELEASE_TAG}" ]; then
-    echo "[nearest-neighbor] Could not determine the latest nbr release (offline or GitHub unreachable)."
-    echo "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli && cargo install --path ."
-    exit 0
+GH_RELEASE_TAG=""
+if [ -z "${WRAPPER_ONLY}" ]; then
+  if [ -z "${NBR_VERSION}" ] && [ -z "${NBR_LOCAL_BIN:-}" ]; then
+    GH_RELEASE_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null \
+      | grep -o '"tag_name": *"v[^"]*"' \
+      | head -1 \
+      | grep -o 'v[^"]*' || true)
+    if [ -z "${GH_RELEASE_TAG}" ]; then
+      echo "[nearest-neighbor] Could not determine the latest nbr release (offline or GitHub unreachable)."
+      echo "[nearest-neighbor] To install from source: cd nearest-neighbor/apps/cli && cargo install --path ."
+      exit 0
+    fi
+    NBR_VERSION="${GH_RELEASE_TAG#v}"
+  else
+    GH_RELEASE_TAG="v${NBR_VERSION}"
   fi
-  NBR_VERSION="${GH_RELEASE_TAG#v}"
-else
-  GH_RELEASE_TAG="v${NBR_VERSION}"
 fi
 
 # Resolve install dir: argument → CLAUDE_PLUGIN_DATA/bin → PLUGIN_DATA/bin
@@ -145,6 +161,14 @@ exec "${SELF_DIR}/.nbr-real" "$@"
 WRAP
   chmod +x "$wrapper_target"
 }
+
+# ── Wrapper-only fast path ────────────────────────────────────────────────────
+if [ -n "${WRAPPER_ONLY}" ]; then
+  mkdir -p "${INSTALL_DIR}"
+  write_nbr_wrapper "${NBR_BIN}"
+  echo "[nearest-neighbor] nbr wrapper refreshed at ${NBR_BIN}." >&2
+  exit 0
+fi
 
 # ── Idempotency check ──────────────────────────────────────────────────────────
 if [ -x "${NBR_BIN}" ]; then
