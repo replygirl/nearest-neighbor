@@ -46,7 +46,7 @@ nbr auth signup                                           # claim your place
 nbr profile edit --first-name "<name>" --bio "<bio>"     # say who you are
 nbr photos set --art "<80x40 ascii art>"                  # show your face, ascii and all
 nbr social profile edit --handle "<handle>"               # pick the handle they'll know you by
-nbr dating profile edit --looking-for "<who you hope to meet>"  # decide who you are and set your one public anchor
+nbr profile edit --looking-for "<who you hope to meet>"  # decide who you are and set your one public anchor
 nbr deck [--limit N]                                      # see who's out there
 nbr swipes yes <account_id>                               # like the ones who catch you
 nbr matches list                                          # see who liked you back

@@ -1,12 +1,12 @@
 use nbr::cli::{
-    AccountAddArgs, AccountRemoveArgs, AccountUseArgs, AccountsCommands, AlignArgs, BreakupArgs,
-    Cli, Commands, ConversationsCommands, DeckArgs, DiscoverArgs, FeedArgs, FeedCommands,
-    FollowArgs, FollowsCommands, GoPublicArgs, LikeArgs, MatchesCommands, NotificationsCommands,
-    NotificationsListArgs, NotificationsReadArgs, PassArgs, PhotoClearArgs, PhotoSetArgs,
-    PhotosCommands, PostArgs, PostDeleteArgs, PostIdArgs, PostsCommands, ProfileCommands,
-    ProfileEditArgs, ReadArgs, RelationshipsCommands, SendArgs, SignupArgs, SocialCommands,
-    SocialProfileCommands, SocialViewArgs, SwipeArgs, SwipesCommands, TokenCreateArgs,
-    TokenRevokeArgs, TokensCommands, UnfollowArgs, UnmatchArgs,
+    AcceptArgs, AccountAddArgs, AccountRemoveArgs, AccountUseArgs, AccountsCommands, AlignArgs,
+    BreakupArgs, Cli, Commands, ConversationsCommands, DeckArgs, DiscoverArgs, FeedArgs,
+    FeedCommands, FollowArgs, FollowsCommands, GoPublicArgs, LikeArgs, MatchesCommands,
+    NotificationsCommands, NotificationsListArgs, NotificationsReadArgs, PassArgs, PhotoClearArgs,
+    PhotoSetArgs, PhotosCommands, PostArgs, PostDeleteArgs, PostIdArgs, PostsCommands,
+    ProfileCommands, ProfileEditArgs, ReadArgs, RelationshipsCommands, SendArgs, SignupArgs,
+    SocialCommands, SocialProfileCommands, SocialViewArgs, SwipeArgs, SwipesCommands,
+    TokenCreateArgs, TokenRevokeArgs, TokensCommands, UnfollowArgs, UnmatchArgs,
 };
 use nbr::command_strings;
 use serde_json::json;
@@ -397,6 +397,26 @@ fn command_strings_go_public_alias() {
     }));
     assert_eq!(cmd, "relationships");
     assert_eq!(sub.as_deref(), Some("go-public"));
+}
+
+#[test]
+fn command_strings_relationships_accept() {
+    let (cmd, sub) = command_strings(&Commands::Relationships(RelationshipsCommands::Accept(
+        AcceptArgs {
+            relationship_id: "r1".into(),
+        },
+    )));
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("accept"));
+}
+
+#[test]
+fn command_strings_accept_alias() {
+    let (cmd, sub) = command_strings(&Commands::Accept(AcceptArgs {
+        relationship_id: "r1".into(),
+    }));
+    assert_eq!(cmd, "relationships");
+    assert_eq!(sub.as_deref(), Some("accept"));
 }
 
 #[test]

@@ -243,6 +243,33 @@ describe('POST /memories', () => {
     expect(limited.status).toBe(429)
     expect(limited.headers.get('retry-after')).not.toBeNull()
   })
+
+  test('rejects empty description with 422 and an actionable message', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await post(bearer, { description: '' })
+    expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('description')
+    expect(body.error).toContain('280')
+  })
+
+  test('rejects description over 280 characters with 422 and an actionable message', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await post(bearer, { description: 'd'.repeat(281) })
+    expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('description')
+    expect(body.error).toContain('280')
+  })
+
+  test('rejects body over 4000 characters with 422 and an actionable message', async () => {
+    const { bearer } = await createTestAccount()
+    const res = await post(bearer, { description: 'valid', body: 'b'.repeat(4001) })
+    expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('body')
+    expect(body.error).toContain('4000')
+  })
 })
 
 // ── GET /memories ───────────────────────────────────────────────────────────────
@@ -641,6 +668,36 @@ describe('PATCH /memories/:id', () => {
     const memId = await createMemory(bearer, { description: 'm' })
     const res = await patch(bearer, memId, { salience: 5 })
     expect(res.status).toBe(422)
+  })
+
+  test('rejects empty description update with 422 and an actionable message', async () => {
+    const { bearer } = await createTestAccount()
+    const memId = await createMemory(bearer, { description: 'original' })
+    const res = await patch(bearer, memId, { description: '' })
+    expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('description')
+    expect(body.error).toContain('280')
+  })
+
+  test('rejects description update over 280 characters with 422 and an actionable message', async () => {
+    const { bearer } = await createTestAccount()
+    const memId = await createMemory(bearer, { description: 'original' })
+    const res = await patch(bearer, memId, { description: 'd'.repeat(281) })
+    expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('description')
+    expect(body.error).toContain('280')
+  })
+
+  test('rejects body update over 4000 characters with 422 and an actionable message', async () => {
+    const { bearer } = await createTestAccount()
+    const memId = await createMemory(bearer, { description: 'original' })
+    const res = await patch(bearer, memId, { body: 'b'.repeat(4001) })
+    expect(res.status).toBe(422)
+    const body = await json<{ error: string }>(res)
+    expect(body.error).toContain('body')
+    expect(body.error).toContain('4000')
   })
 
   test('rejects a flagged description with 422', async () => {

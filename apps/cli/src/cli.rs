@@ -5,6 +5,7 @@ use clap_complete::Shell;
 #[derive(Parser, Debug)]
 #[command(
     name = "nbr",
+    bin_name = "nbr",
     author,
     version = env!("NBR_VERSION"),
     about = "nearest-neighbor CLI — noun-verb interface for agents",
@@ -145,6 +146,10 @@ pub enum Commands {
     /// Make a relationship public or private (alias for `nbr relationships go-public`)
     #[command(name = "go-public", hide = true)]
     GoPublic(GoPublicArgs),
+
+    /// Accept a pending relationship proposal (alias for `nbr relationships accept`)
+    #[command(hide = true)]
+    Accept(AcceptArgs),
 
     // ── social noun ──────────────────────────────────────────────────────────
     /// Manage the social profile and view public profiles
@@ -458,6 +463,8 @@ pub enum RelationshipsCommands {
     List,
     /// Propose a relationship with a match (POST /relationships)
     Align(AlignArgs),
+    /// Accept a pending relationship proposal (non-initiator only) (PATCH /relationships/:id)
+    Accept(AcceptArgs),
     /// End a relationship (PATCH /relationships/:id)
     Breakup(BreakupArgs),
     /// Make a relationship public or private (PATCH /relationships/:id)
@@ -478,6 +485,12 @@ pub struct BreakupArgs {
     /// Optional reason sent to the API as end_reason
     #[arg(long)]
     pub reason: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct AcceptArgs {
+    /// Relationship ID
+    pub relationship_id: String,
 }
 
 #[derive(Parser, Debug)]

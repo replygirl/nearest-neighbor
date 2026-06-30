@@ -22,14 +22,14 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use nbr::cli::{
-    AlignArgs, AuthCommands, BreakupArgs, Cli, Commands, CompletionsArgs, ConversationsCommands,
-    DeckArgs, DiscoverArgs, FeedArgs, FeedCommands, FollowArgs, FollowsCommands, GoPublicArgs,
-    LikeArgs, MatchesCommands, MessagesCommands, NotificationsCommands, NotificationsListArgs,
-    NotificationsReadArgs, PassArgs, PhotoClearArgs, PhotoSetArgs, PhotosCommands, PostArgs,
-    PostDeleteArgs, PostIdArgs, PostsCommands, ProfileCommands, ProfileEditArgs, ReadArgs,
-    RelationshipsCommands, SendArgs, SignupArgs, SocialCommands, SocialProfileCommands,
-    SocialProfileEditArgs, SocialViewArgs, SwipeArgs, SwipesCommands, TokenCreateArgs,
-    TokenRevokeArgs, TokensCommands, UnfollowArgs, UnmatchArgs,
+    AcceptArgs, AlignArgs, AuthCommands, BreakupArgs, Cli, Commands, CompletionsArgs,
+    ConversationsCommands, DeckArgs, DiscoverArgs, FeedArgs, FeedCommands, FollowArgs,
+    FollowsCommands, GoPublicArgs, LikeArgs, MatchesCommands, MessagesCommands,
+    NotificationsCommands, NotificationsListArgs, NotificationsReadArgs, PassArgs, PhotoClearArgs,
+    PhotoSetArgs, PhotosCommands, PostArgs, PostDeleteArgs, PostIdArgs, PostsCommands,
+    ProfileCommands, ProfileEditArgs, ReadArgs, RelationshipsCommands, SendArgs, SignupArgs,
+    SocialCommands, SocialProfileCommands, SocialProfileEditArgs, SocialViewArgs, SwipeArgs,
+    SwipesCommands, TokenCreateArgs, TokenRevokeArgs, TokensCommands, UnfollowArgs, UnmatchArgs,
 };
 use nbr::command_strings;
 
@@ -837,6 +837,61 @@ async fn dispatch_relationships_go_public() {
         "relationships go-public should succeed: {:?}",
         result
     );
+}
+
+#[tokio::test]
+async fn dispatch_relationships_accept() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/relationships/rel-g4-acc"))
+        .respond_with(ResponseTemplate::new(200).set_body_json({
+            let mut b = relationship_body();
+            b["state"] = serde_json::json!("active");
+            b
+        }))
+        .mount(&server)
+        .await;
+
+    let mut client = authed_client(&server.uri());
+    let result = nbr::dispatch(
+        &Commands::Relationships(RelationshipsCommands::Accept(AcceptArgs {
+            relationship_id: "rel-g4-acc".into(),
+        })),
+        &mut client,
+        false,
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "relationships accept should succeed: {:?}",
+        result
+    );
+}
+
+/// Flat alias Accept.
+#[tokio::test]
+async fn dispatch_accept_alias() {
+    let server = MockServer::start().await;
+    Mock::given(method("PATCH"))
+        .and(path("/v1/relationships/rel-g4-acca"))
+        .respond_with(ResponseTemplate::new(200).set_body_json({
+            let mut b = relationship_body();
+            b["state"] = serde_json::json!("active");
+            b
+        }))
+        .mount(&server)
+        .await;
+
+    let mut client = authed_client(&server.uri());
+    let result = nbr::dispatch(
+        &Commands::Accept(AcceptArgs {
+            relationship_id: "rel-g4-acca".into(),
+        }),
+        &mut client,
+        false,
+    )
+    .await;
+    assert!(result.is_ok(), "accept alias should succeed: {:?}", result);
 }
 
 /// Flat alias Align.

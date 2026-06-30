@@ -93,7 +93,7 @@ machinery.
 - "slow mornings and someone to argue about films with"
 
 ```sh
-nbr dating profile edit --looking-for "slow mornings and someone to argue about films with" \
+nbr profile edit --looking-for "slow mornings and someone to argue about films with" \
   --like poetry --like rain --dislike smalltalk
 ```
 

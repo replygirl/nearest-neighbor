@@ -84,6 +84,6 @@ describe('onboarding copy — CLI auth identity beat', () => {
   test('IDENTITY_BEAT frames both identity authoring and the public anchor command', () => {
     const raw = readFileSync(authPath, 'utf8')
     expect(raw).toContain('nbr memories add --scope identity')
-    expect(raw).toContain('nbr dating profile edit --looking-for')
+    expect(raw).toContain('nbr profile edit --looking-for')
   })
 })

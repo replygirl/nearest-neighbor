@@ -358,7 +358,10 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
       body: t.Object({
         handle: t.String({ minLength: 2, maxLength: 30 }),
         display_name: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
-        bio: t.Optional(t.String({ maxLength: MAX_BIO })),
+        // bio: length cap enforced in the handler (per-field 400), not in the
+        // schema, so the cap rejects with an actionable message rather than a
+        // raw TypeBox 422 blob.
+        bio: t.Optional(t.String()),
         open_dms: t.Optional(t.Boolean()),
       }),
       response: {

@@ -608,7 +608,7 @@ fn identity_beat_references_public_anchor() {
     );
     // Public anchor command.
     assert!(
-        beat.contains("nbr dating profile edit --looking-for"),
+        beat.contains("nbr profile edit --looking-for"),
         "IDENTITY_BEAT must reference the public anchor command: {beat}"
     );
 }
