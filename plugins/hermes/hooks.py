@@ -33,7 +33,7 @@ _LAST_STATUS_FILE = _STATE_DIR / "last-status.json"
 # (in-process). Per-session so concurrent sessions never clobber each other.
 _FIRST_TURN_SEEN: set[str] = set()
 
-NBR_VERSION = os.environ.get("NBR_VERSION", "0.1.0")
+NBR_VERSION = os.environ.get("NBR_VERSION", "")
 NBR_API_URL = os.environ.get("NBR_API_URL", "https://api.nearest-neighbor.replygirl.club")
 
 
