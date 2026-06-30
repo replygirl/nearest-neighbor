@@ -1,42 +1,102 @@
-# Platform release pipeline — builds and attaches the `nbr` CLI binary to a GitHub Release.
+# Platform release pipeline — the SINGLE entry point that cuts a new `nbr`
+# platform release and ships it atomically.
 #
-# Model: the owner creates a GitHub Release in the web UI (draft → publish).
-# Publishing fires `release: published`, which triggers this workflow to build
-# the five CLI targets and attach the binaries to the existing release.
-# No release is ever created by CI; title, body, draft, and prerelease flags
-# are left exactly as the owner set them.
+# Flow: dispatch → version → build → notes → publish
 #
-# Prereleases are treated as real releases: `release: published` fires for both
-# prerelease and full releases, so binaries are always attached. deploy-production
-# also runs on `release: published` so prerelease → prod deploy works end-to-end.
+#   1. version  — compute the next semver with cocogitto (`cog bump --dry-run`,
+#                 no manifest edit, no commit), derive the tag `v<n>.<n>.<n>`,
+#                 and fail fast if that tag already exists on origin. The tag is
+#                 NOT pushed here.
+#   2. build    — build the six CLI targets in a matrix, packaging each as
+#                   nbr-<triple>.tar.gz  (Unix)
+#                   nbr-<triple>.zip     (Windows)
+#                 and uploading each archive as a workflow artifact. The version
+#                 is baked from the computed tag via NBR_RELEASE_VERSION.
+#   3. publish  — only AFTER every target built: push the annotated tag (so a
+#                 build failure leaves no dangling tag), download all artifacts,
+#                 generate SHA256SUMS, create a DRAFT release with all assets +
+#                 placeholder notes, fill the body with AI-generated notes via
+#                 `communique`, then flip the release to published. There is no
+#                 window where the release is visible without its binaries.
 #
-# Manual re-attach: workflow_dispatch lets you (re)build and attach binaries for
-# an existing tag without republishing the release. Supply the tag name (e.g. v0.2.0).
+# Publishing fires `release: published`, which other workflows consume
+# (deploy-production deploys the API alongside the CLI). The release is a FULL
+# release (no `--prerelease`), matching what installers + `nbr self-update`
+# expect.
 #
-# Builds five target triples in a matrix, packages each as
-#   nbr-<triple>.tar.gz  (Unix)
-#   nbr-<triple>.zip     (Windows)
-# Generates SHA256SUMS and uploads all assets with `gh release upload --clobber`.
-#
-# Rustls is used for TLS so musl builds need no OpenSSL.
+# Cargo.toml stays pinned at 0.1.0; the git tag is the single source of truth.
+# cog (cog.toml) is configured to never rewrite a manifest. Rustls is used for
+# TLS so musl builds need no OpenSSL.
 
 name: CLI Release
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Existing release tag to (re)attach nbr binaries to'
-        required: true
+      bump:
+        description: 'Version bump (auto = derive from conventional commits)'
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+        default: auto
 
 permissions:
   contents: write
 
 jobs:
+  # ── Compute the next version (no side effects; the tag is NOT pushed here) ──
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      tag: ${{ steps.compute.outputs.tag }}
+      sha: ${{ steps.compute.outputs.sha }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # cog needs full history + tags to compute the bump
+
+      - uses: ./.github/actions/setup-mise
+      - name: Install cocogitto
+        run: mise use -g cargo:cocogitto
+
+      # Cargo.toml stays pinned at 0.1.0, so there is NOTHING to commit — the
+      # version lives only in the git tag. cog computes the next semver from
+      # conventional commits (or the dispatched override) WITHOUT side effects
+      # (--dry-run prints only the version). The tag is pushed later, in
+      # `publish`, only after every target has built.
+      - name: Compute version
+        id: compute
+        run: |
+          case "${{ inputs.bump }}" in
+            auto)  VERSION=$(mise exec -- cog bump --auto  --dry-run) ;;
+            major) VERSION=$(mise exec -- cog bump --major --dry-run) ;;
+            minor) VERSION=$(mise exec -- cog bump --minor --dry-run) ;;
+            patch) VERSION=$(mise exec -- cog bump --patch --dry-run) ;;
+            *) echo "unknown bump: ${{ inputs.bump }}" >&2; exit 1 ;;
+          esac || { echo "cog bump --dry-run failed" >&2; exit 1; }
+          [ -n "${VERSION}" ] || { echo "cog produced no version" >&2; exit 1; }
+          TAG="v${VERSION#v}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag ${TAG} already exists on origin" >&2
+            exit 1
+          fi
+          SHA=$(git rev-parse HEAD)
+          echo "Next version: ${TAG} (at ${SHA})"
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "sha=${SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+  # ── Build the six target triples natively and upload each as an artifact ────
   build:
     name: Build ${{ matrix.target }}
+    needs: version
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -74,7 +134,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.version.outputs.sha }}
 
       # ── Rust toolchain ─────────────────────────────────────────────────────────
       - name: Install Rust stable
@@ -102,7 +162,7 @@ jobs:
       - name: Build
         working-directory: apps/cli
         env:
-          NBR_RELEASE_VERSION: ${{ github.event.release.tag_name || inputs.tag }}
+          NBR_RELEASE_VERSION: ${{ needs.version.outputs.tag }}
         run: cargo build --release --target ${{ matrix.target }}
 
       # ── Package: tar.gz (Unix) ─────────────────────────────────────────────
@@ -133,7 +193,7 @@ jobs:
           Copy-Item LICENSE       "$dir\LICENSE"
           Compress-Archive -Path "$dir\*" -DestinationPath "$dir.zip"
 
-      # ── Upload artifact for the checksum + attach jobs ───────────────────
+      # ── Upload artifact for the publish job ──────────────────────────────
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -141,15 +201,33 @@ jobs:
           path: nbr-${{ matrix.target }}.${{ matrix.archive }}
           if-no-files-found: error
 
-  # ── Collect all artifacts, compute checksums, attach to the existing release ──
-  attach:
-    name: Attach nbr binaries to the release
-    needs: build
+  # ── Push the tag, collect artifacts, generate notes, publish atomically ─────
+  publish:
+    name: Publish release
+    needs: [version, build]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.version.outputs.sha }}
+          fetch-depth: 0 # communique reads commit history to write the notes
+
+      - uses: ./.github/actions/setup-mise
+      - name: Install communique
+        run: mise use -g cargo:communique
+
+      # ── Push the tag NOW — only after every target built, so a build failure
+      #    leaves no dangling tag. The tag must exist on origin before the draft
+      #    release is created (gh --verify-tag) and before communique runs.
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Push annotated tag
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          git tag -a "${TAG}" -m "${TAG}" "${{ needs.version.outputs.sha }}"
+          git push origin "${TAG}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -166,9 +244,30 @@ jobs:
         working-directory: dist
         run: sha256sum nbr-*.tar.gz nbr-*.zip > SHA256SUMS
 
-      - name: Attach assets to the existing release
+      # ── Publish with NO missing-binaries window ───────────────────────────
+      # Create a DRAFT release with every asset already attached, fill the body
+      # with AI-generated notes (communique edits the draft in place), then flip
+      # to published — the release becomes visible already complete. Flipping a
+      # draft to published fires `release: published` for downstream consumers.
+      - name: Create draft release with all assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=${{ github.event.release.tag_name || inputs.tag }}
-          gh release upload "${TAG}" dist/nbr-*.tar.gz dist/nbr-*.zip dist/SHA256SUMS --clobber
+          TAG=${{ needs.version.outputs.tag }}
+          gh release create "${TAG}" \
+            --draft \
+            --verify-tag \
+            --title "${TAG}" \
+            --notes "Release notes are being generated…" \
+            dist/nbr-*.tar.gz dist/nbr-*.zip dist/SHA256SUMS
+
+      - name: Generate release notes (communique)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_COMMUNIQUE }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: mise exec -- communique generate "${{ needs.version.outputs.tag }}" --github-release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ needs.version.outputs.tag }}" --draft=false

@@ -6,13 +6,13 @@
 #
 # Therefore cocogitto must NOT rewrite any manifest: there are no
 # `bump_profiles`, no pre/post-bump hooks that edit Cargo.toml, and
-# `pre_bump_hooks` / `post_bump_hooks` are intentionally empty. The
-# release-bump workflow runs `cog bump --dry-run` only to COMPUTE the next
-# semver from conventional commits; the workflow itself creates and pushes the
+# `pre_bump_hooks` / `post_bump_hooks` are intentionally empty. The unified
+# release workflow runs `cog bump --dry-run` only to COMPUTE the next semver
+# from conventional commits; the workflow itself creates and pushes the
 # annotated tag (nothing is committed — the tag is the only artifact).
 
-# Annotated tag with a leading `v` (matches the existing v1.0.x tags and the
-# release.yml `release: published` trigger).
+# Annotated tag with a leading `v` (matches the existing v1.0.x tags; the
+# unified release.yml computes and pushes this tag).
 tag_prefix = "v"
 
 # Conventional Commits only — no manifest bumping.

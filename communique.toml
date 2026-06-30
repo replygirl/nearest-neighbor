@@ -1,10 +1,10 @@
 # communique configuration — AI-generated GitHub Release notes for the
 # nearest-neighbor platform (the `nbr` CLI ships per GitHub release).
 #
-# Used by .github/workflows/release-bump.yml:
+# Used by .github/workflows/release.yml:
 #   communique generate <tag> --github-release
-# which writes the generated notes into the release body. The previous tag is
-# auto-detected, so only the new tag is passed.
+# which writes the generated notes into the draft release body before it is
+# published. The previous tag is auto-detected, so only the new tag is passed.
 
 [system]
 # Project context the model uses to frame the notes.
