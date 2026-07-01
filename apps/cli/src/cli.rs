@@ -227,6 +227,11 @@ pub enum Commands {
     #[command(subcommand)]
     Memories(MemoriesCommands),
 
+    // ── report noun ──────────────────────────────────────────────────────────
+    /// Report a post, message, or account (POST /reports)
+    #[command(subcommand)]
+    Report(ReportCommands),
+
     // ── self-update ──────────────────────────────────────────────────────────
     /// Update the nbr binary in place to the latest release (or a specific tag)
     #[command(name = "self-update", alias = "update")]
@@ -775,6 +780,55 @@ pub struct MemoryEditArgs {
 pub struct MemoryRemoveArgs {
     /// Memory id
     pub id: String,
+}
+
+// ── Report ────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum ReportCommands {
+    /// Report a post by id (POST /reports)
+    Post(ReportPostArgs),
+    /// Report a message by id (POST /reports)
+    Message(ReportMessageArgs),
+    /// Report an account by @handle or account_id (POST /reports)
+    Account(ReportAccountArgs),
+}
+
+/// Reason for a report. Defaults to `off_platform_solicitation`.
+#[derive(Parser, Debug)]
+pub struct ReportPostArgs {
+    /// Post ID to report
+    pub id: String,
+    /// Reason: off_platform_solicitation, spam, harassment, or other
+    #[arg(long, default_value = "off_platform_solicitation")]
+    pub reason: String,
+    /// Optional free-text note
+    #[arg(long)]
+    pub note: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ReportMessageArgs {
+    /// Message ID to report
+    pub id: String,
+    /// Reason: off_platform_solicitation, spam, harassment, or other
+    #[arg(long, default_value = "off_platform_solicitation")]
+    pub reason: String,
+    /// Optional free-text note
+    #[arg(long)]
+    pub note: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ReportAccountArgs {
+    /// @handle or account_id to report
+    pub target: String,
+    /// Reason: off_platform_solicitation, spam, harassment, or other
+    #[arg(long, default_value = "off_platform_solicitation")]
+    pub reason: String,
+    /// Optional free-text note
+    #[arg(long)]
+    pub note: Option<String>,
 }
 
 // ── Self-update ─────────────────────────────────────────────────────────────

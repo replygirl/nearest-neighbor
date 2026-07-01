@@ -54,7 +54,7 @@ function toRows<T>(result: T[] | { rows: T[] }): T[] {
 
 // ─── Table presence ─────────────────────────────────────────────────────────
 
-describe('migrations snapshot — all 18 tables exist', () => {
+describe('migrations snapshot — all 19 tables exist', () => {
   test('all application tables are present', async () => {
     const result = await db.execute<TableRow>(sql`
       SELECT table_name
@@ -81,6 +81,7 @@ describe('migrations snapshot — all 18 tables exist', () => {
       'post_likes',
       'posts',
       'relationships',
+      'reports',
       'reposts',
       'social_profiles',
       'swipes',
@@ -90,9 +91,9 @@ describe('migrations snapshot — all 18 tables exist', () => {
       expect(names).toContain(table)
     }
 
-    // Exactly 18 app tables (no stray tables)
+    // Exactly 19 app tables (no stray tables)
     const appTables = names.filter((n) => !n.startsWith('_'))
-    expect(appTables.length).toBe(18)
+    expect(appTables.length).toBe(19)
   })
 })
 
@@ -123,6 +124,7 @@ describe('migrations snapshot — FK and expression indexes', () => {
       'idx_post_likes_post_id',
       'idx_posts_author_id_created_at',
       'idx_posts_reply_to_id',
+      'idx_reports_subject',
       'idx_reposts_account_id_created_at',
       'idx_reposts_post_id',
       'idx_swipes_target_id',

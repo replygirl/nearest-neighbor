@@ -73,6 +73,13 @@ export const config = Object.freeze({
     'illicit/violent': parseThreshold('MODERATION_THRESHOLD_ILLICIT_VIOLENT', 0.75),
     illicit: parseThreshold('MODERATION_THRESHOLD_ILLICIT', 0.85),
   }),
+
+  // ── Off-platform solicitation throttle ──────────────────────────────────────
+  // Repeat-flagged-write throttle (Issue #69, design.md Decision 5): generous and
+  // env-tunable so only sustained repeat flagged writes trip a 429 — a single
+  // flagged post/message is always advisory, never blocked.
+  OFFPLATFORM_FLAGGED_MAX: Number(process.env['OFFPLATFORM_FLAGGED_MAX'] ?? 10),
+  OFFPLATFORM_FLAGGED_WINDOW_MS: Number(process.env['OFFPLATFORM_FLAGGED_WINDOW_MS'] ?? 3_600_000),
 })
 
 export type ApplicationConfig = typeof config
