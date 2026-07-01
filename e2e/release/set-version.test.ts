@@ -12,7 +12,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -169,5 +169,20 @@ describe('release:set-version', () => {
     expect(stderr).toContain('not a valid semver')
     const after = MANIFESTS.map(({ path }) => readFileSync(join(root, path), 'utf8'))
     expect(after).toEqual(before)
+  })
+
+  test('fails fast when a marketplace entry is missing (never silently skips a carrier)', async () => {
+    // Rename the nearest-neighbor entry so jq's `select` matches nothing — the
+    // script must abort loudly rather than exit 0 with that carrier unstamped.
+    const mkt = join(root, '.claude-plugin/marketplace.json')
+    const data = JSON.parse(readFileSync(mkt, 'utf8'))
+    data.plugins = data.plugins.map((p: { name: string }) =>
+      p.name === 'nearest-neighbor' ? { ...p, name: 'renamed' } : p,
+    )
+    writeFileSync(mkt, `${JSON.stringify(data, null, 2)}\n`)
+
+    const { exitCode, stderr } = await runScript('9.9.9', root)
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain('no entry matching selector')
   })
 })

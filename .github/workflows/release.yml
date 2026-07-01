@@ -44,7 +44,7 @@
 # Secret RELEASE_DEPLOY_KEY: an SSH private key for a repo deploy key with write
 # access that is registered as an exempt bypass actor on the main ruleset.
 
-name: CLI Release
+name: Release new version
 
 on:
   workflow_dispatch:
@@ -77,7 +77,7 @@ jobs:
 
       - uses: ./.github/actions/setup-mise
       - name: Install cocogitto
-        run: mise use -g cargo:cocogitto
+        run: mise use -g aqua:cocogitto/cocogitto # prebuilt binary — no cargo compile
 
       # cog computes the next semver from conventional commits (or the dispatched
       # override) WITHOUT side effects (--dry-run prints only the version). The
@@ -140,6 +140,15 @@ jobs:
       # deploy key, which is exempt from the main branch-protection ruleset.
       - name: Commit, tag, and push
         id: commit
+        # The bot's commit + push are mechanical and already normalised
+        # (set-version ran taplo/oxfmt), so skip the developer git hooks via hk's
+        # OWN env vars — NOT `git --no-verify`. HK_SKIP_HOOK bypasses hk's
+        # pre-commit + commit-msg (the latter needs dev-only commitlint deps this
+        # job doesn't install); HK=0 bypasses the custom pre-push gate, which on
+        # main would otherwise run the full slow test profile.
+        env:
+          HK: '0'
+          HK_SKIP_HOOK: pre-commit,commit-msg
         run: |
           TAG=${{ needs.version.outputs.tag }}
           if [ -n "$(git status --porcelain)" ]; then
@@ -275,7 +284,7 @@ jobs:
 
       - uses: ./.github/actions/setup-mise
       - name: Install communique
-        run: mise use -g cargo:communique
+        run: mise use -g ubi:jdx/communique # prebuilt binary — no cargo compile
 
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -337,6 +346,8 @@ jobs:
           fetch-depth: 0
 
       - name: Delete the tag from origin
+        env:
+          HK: '0' # skip the custom pre-push gate for the bot's tag-delete push
         run: |
           TAG=${{ needs.version.outputs.tag }}
           [ -n "${TAG}" ] || { echo "no tag computed; nothing to clean up"; exit 0; }

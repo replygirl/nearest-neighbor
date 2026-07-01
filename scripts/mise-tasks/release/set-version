@@ -114,8 +114,11 @@ set_json_version() {
   base="$(basename "$target")"
   tmp="$dir/.$base.setver.$$.tmp.json"
   jq --indent 2 --arg v "$VERSION" "$filter" "$target" > "$tmp"
+  # Normalise with oxfmt when available; let a real oxfmt failure abort the run
+  # (the command -v guard already covers the not-installed case) so we never
+  # commit partially-normalised JSON or mask a broken toolchain.
   if command -v oxfmt >/dev/null 2>&1; then
-    oxfmt --write "$tmp" >/dev/null 2>&1 || true
+    oxfmt --write "$tmp" >/dev/null 2>&1
   fi
   if cmp -s "$tmp" "$target"; then
     rm -f "$tmp"
@@ -124,6 +127,14 @@ set_json_version() {
     mv "$tmp" "$target"
     echo "  updated:   ${target#"$ROOT"/}"
   fi
+}
+
+# Fail fast if a jq selector matches no element, so a renamed/removed marketplace
+# entry can't silently no-op the version stamp (jq's `select` still exits 0 and
+# writes an unchanged file). This script must stamp EVERY carrier or fail loudly.
+require_jq_match() {
+  jq -e "$2" "$1" >/dev/null 2>&1 \
+    || { echo "ERROR: no entry matching selector in $1: $2" >&2; exit 1; }
 }
 
 # --- Rust: apps/cli/Cargo.toml [package] version -----------------------------
@@ -168,8 +179,11 @@ require_file "$AGENTS_MARKET"
 set_json_version "$CLAUDE_PLUGIN" '.version = $v'
 set_json_version "$CODEX_PLUGIN" '.version = $v'
 
-# The nearest-neighbor entry inside each marketplace's plugins[] array.
+# The nearest-neighbor entry inside each marketplace's plugins[] array. Assert
+# the entry exists first — `select` no-ops (exit 0) if it was renamed/removed.
+require_jq_match "$CLAUDE_MARKET" '.plugins[] | select(.name == "nearest-neighbor")'
 set_json_version "$CLAUDE_MARKET" '(.plugins[] | select(.name == "nearest-neighbor")).version = $v'
+require_jq_match "$AGENTS_MARKET" '.plugins[] | select(.name == "nearest-neighbor")'
 set_json_version "$AGENTS_MARKET" '(.plugins[] | select(.name == "nearest-neighbor")).version = $v'
 
 echo "Platform version set to $VERSION across all manifests under $ROOT"
