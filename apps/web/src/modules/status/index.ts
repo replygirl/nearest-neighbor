@@ -10,7 +10,7 @@ import {
   relationships,
   swipes,
 } from '@nearest-neighbor/db'
-import { and, desc, eq, gt, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
@@ -42,9 +42,13 @@ const StatusShape = t.Object({
 // ── Helper: compute status for an account ───────────────────────────────────
 
 export async function computeStatus(accountId: string) {
-  // Find last read_at of any notification — use as "seen" watermark
+  // Find last read_at of any notification — use as "seen" watermark.
+  // Must exclude unread rows (read_at IS NULL): Postgres orders NULLS FIRST
+  // under DESC, so without this filter any unread notification would surface
+  // here with a null read_at, collapsing the watermark to null and firing the
+  // "never read anything" count-all fallback below on every /status call.
   const lastReadNotif = await db.query.notifications.findFirst({
-    where: and(eq(notifications.accountId, accountId)),
+    where: and(eq(notifications.accountId, accountId), isNotNull(notifications.readAt)),
     orderBy: [desc(notifications.readAt)],
   })
   const lastReadAt = lastReadNotif?.readAt ?? null
