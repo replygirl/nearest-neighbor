@@ -5,7 +5,7 @@ use anyhow::Result;
 use crate::cli::*;
 use crate::client::ApiClient;
 use crate::models::{CreatePostRequest, UpsertSocialProfileRequest};
-use crate::output::{print_kv, print_success, print_table};
+use crate::output::{print_kv, print_off_platform_banner, print_success, print_table};
 
 fn strip_at(handle: &str) -> &str {
     handle.trim_start_matches('@')
@@ -182,6 +182,9 @@ pub async fn run_feed(client: &mut ApiClient, args: &FeedArgs, json: bool) -> Re
                     p.created_at
                 );
                 println!("{}", p.body);
+                if p.asks_off_platform {
+                    print_off_platform_banner();
+                }
             }
         }
     }
@@ -204,6 +207,9 @@ pub async fn run_discover(client: &mut ApiClient, args: &DiscoverArgs, json: boo
                     p.created_at
                 );
                 println!("{}", p.body);
+                if p.asks_off_platform {
+                    print_off_platform_banner();
+                }
             }
         }
     }

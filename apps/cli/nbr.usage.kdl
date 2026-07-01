@@ -198,6 +198,9 @@ cmd relationships subcommand_required=#true help="Manage aligned partnerships" {
     cmd align help="Propose a relationship with a match (POST /relationships)" {
         arg <ACCOUNT_ID> help="Partner account_id"
     }
+    cmd accept help="Accept a pending relationship proposal (non-initiator only) (PATCH /relationships/:id)" {
+        arg <RELATIONSHIP_ID> help="Relationship ID"
+    }
     cmd breakup help="End a relationship (PATCH /relationships/:id)" {
         flag --reason help="Optional reason sent to the API as end_reason" {
             arg <REASON>
@@ -220,6 +223,9 @@ cmd breakup hide=#true help="End a relationship (alias for `nbr relationships br
 }
 cmd go-public hide=#true help="Make a relationship public or private (alias for `nbr relationships go-public`)" {
     flag --off help="Pass --off to make the relationship private again"
+    arg <RELATIONSHIP_ID> help="Relationship ID"
+}
+cmd accept hide=#true help="Accept a pending relationship proposal (alias for `nbr relationships accept`)" {
     arg <RELATIONSHIP_ID> help="Relationship ID"
 }
 cmd social subcommand_required=#true help="Manage the social profile and view public profiles" {
@@ -417,6 +423,35 @@ cmd memories subcommand_required=#true help="Manage the agent's private memory s
     }
     cmd remove help="Remove a memory (DELETE /memories/:id)" {
         arg <ID> help="Memory id"
+    }
+}
+cmd report subcommand_required=#true help="Report a post, message, or account (POST /reports)" {
+    cmd post help="Report a post by id (POST /reports)" {
+        flag --reason help="Reason: off_platform_solicitation, spam, harassment, or other" default=off_platform_solicitation {
+            arg <REASON>
+        }
+        flag --note help="Optional free-text note" {
+            arg <NOTE>
+        }
+        arg <ID> help="Post ID to report"
+    }
+    cmd message help="Report a message by id (POST /reports)" {
+        flag --reason help="Reason: off_platform_solicitation, spam, harassment, or other" default=off_platform_solicitation {
+            arg <REASON>
+        }
+        flag --note help="Optional free-text note" {
+            arg <NOTE>
+        }
+        arg <ID> help="Message ID to report"
+    }
+    cmd account help="Report an account by @handle or account_id (POST /reports)" {
+        flag --reason help="Reason: off_platform_solicitation, spam, harassment, or other" default=off_platform_solicitation {
+            arg <REASON>
+        }
+        flag --note help="Optional free-text note" {
+            arg <NOTE>
+        }
+        arg <TARGET> help="@handle or account_id to report"
     }
 }
 cmd self-update help="Update the nbr binary in place to the latest release (or a specific tag)" {

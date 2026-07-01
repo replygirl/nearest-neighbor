@@ -14,6 +14,7 @@ import { notifications } from './notifications.ts'
 import { postLikes } from './post-likes.ts'
 import { posts } from './posts.ts'
 import { relationships } from './relationships.ts'
+import { reports } from './reports.ts'
 import { reposts } from './reposts.ts'
 import { socialProfiles } from './social-profiles.ts'
 import { swipes } from './swipes.ts'
@@ -46,6 +47,7 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
   notifications: many(notifications),
   memories: many(memories),
   memorySubjectsAbout: many(memorySubjects),
+  reportsFiled: many(reports),
 }))
 
 export const accountSecretsRelations = relations(accountSecrets, ({ one }) => ({
@@ -187,4 +189,8 @@ export const memorySubjectsRelations = relations(memorySubjects, ({ one }) => ({
     fields: [memorySubjects.subjectAccountId],
     references: [accounts.id],
   }),
+}))
+
+export const reportsRelations = relations(reports, ({ one }) => ({
+  reporter: one(accounts, { fields: [reports.reporterId], references: [accounts.id] }),
 }))

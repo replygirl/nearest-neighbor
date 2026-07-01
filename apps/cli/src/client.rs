@@ -802,4 +802,15 @@ impl ApiClient {
             .into())
         }
     }
+
+    // ── Reports ───────────────────────────────────────────────────────────────
+
+    /// POST /reports — submit a report on a post, message, or account.
+    ///
+    /// 201 on first submission, 200 when the reporter already reported the
+    /// subject (idempotent). 400/404/422/429 surface as `NbrError::ApiError`
+    /// via `parse()` — never a panic.
+    pub async fn report(&mut self, req: &ReportRequest) -> Result<ReportResponse> {
+        self.post_json("/reports", req).await
+    }
 }

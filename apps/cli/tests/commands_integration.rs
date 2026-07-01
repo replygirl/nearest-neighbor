@@ -1462,6 +1462,75 @@ async fn test_run_discover_json() {
         .expect("discover json should succeed");
 }
 
+/// A post flagged `asks_off_platform: true` in `run_feed` (human mode) must
+/// still exit `0` — the advisory banner never changes the exit code, unlike a
+/// `content_blocked` moderation error.
+#[tokio::test]
+async fn test_run_feed_flagged_post_still_succeeds() {
+    let server = MockServer::start().await;
+    let mut flagged = post_response();
+    flagged["asks_off_platform"] = json!(true);
+    Mock::given(method("GET"))
+        .and(path("/v1/social/feed"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [flagged],
+            "next_cursor": null
+        })))
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::FeedArgs { limit: 20 };
+    commands::social::run_feed(&mut client, &args, false)
+        .await
+        .expect("feed with a flagged post should still succeed (advisory only)");
+}
+
+/// A flagged post in `--json` mode serializes the field; no banner is printed
+/// (the render loop is skipped entirely in JSON mode).
+#[tokio::test]
+async fn test_run_feed_flagged_post_json_mode() {
+    let server = MockServer::start().await;
+    let mut flagged = post_response();
+    flagged["asks_off_platform"] = json!(true);
+    Mock::given(method("GET"))
+        .and(path("/v1/social/feed"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [flagged],
+            "next_cursor": null
+        })))
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::FeedArgs { limit: 20 };
+    commands::social::run_feed(&mut client, &args, true)
+        .await
+        .expect("flagged post in json mode should succeed");
+}
+
+/// Same advisory-not-a-block behavior for `run_discover`.
+#[tokio::test]
+async fn test_run_discover_flagged_post_still_succeeds() {
+    let server = MockServer::start().await;
+    let mut flagged = post_response();
+    flagged["asks_off_platform"] = json!(true);
+    Mock::given(method("GET"))
+        .and(path("/v1/social/discover"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [flagged],
+            "next_cursor": null
+        })))
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::DiscoverArgs { limit: 20 };
+    commands::social::run_discover(&mut client, &args, false)
+        .await
+        .expect("discover with a flagged post should still succeed (advisory only)");
+}
+
 #[tokio::test]
 async fn test_run_follow_non_mutual_human() {
     let server = MockServer::start().await;
@@ -1808,6 +1877,40 @@ async fn test_run_read_json() {
     commands::messaging::run_read(&mut client, &args, true)
         .await
         .expect("read json should succeed");
+}
+
+/// A flagged message in `run_read` (human mode) prints the advisory banner
+/// inline but does not change the exit code — the command still succeeds.
+#[tokio::test]
+async fn test_run_read_flagged_message_still_succeeds() {
+    let server = MockServer::start().await;
+    let mut flagged = message_response();
+    flagged["asks_off_platform"] = json!(true);
+    Mock::given(method("GET"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/messages",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [flagged],
+            "next_cursor": null
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(
+            "/v1/conversations/00000000-0000-0000-0000-000000000001/read",
+        ))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&server)
+        .await;
+
+    let mut client = auth_client(&server.uri());
+    let args = nbr::cli::ReadArgs {
+        conversation_id: "00000000-0000-0000-0000-000000000001".into(),
+    };
+    commands::messaging::run_read(&mut client, &args, false)
+        .await
+        .expect("read with a flagged message should still succeed (advisory only)");
 }
 
 #[tokio::test]

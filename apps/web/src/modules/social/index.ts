@@ -14,6 +14,7 @@ import { and, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { config } from '../../config.ts'
 import { unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
@@ -21,6 +22,7 @@ import { applyRateLimit } from '../../lib/ratelimit.ts'
 import { HANDLE_REGEX, MAX_BIO, MAX_BODY, isValidAsciiArt } from '../../lib/validation.ts'
 import { moderationMacro } from '../../moderation/macro.ts'
 import { ModerationErrorResponse } from '../../moderation/schema.ts'
+import { detectOffPlatformSolicitation } from '../../solicitation/detect.ts'
 
 // ─── Shared response shapes ──────────────────────────────────────────────────
 
@@ -56,6 +58,7 @@ const PostResponse = t.Object({
   reply_count: t.Number(),
   liked_by_me: t.Boolean(),
   reposted_by_me: t.Boolean(),
+  asks_off_platform: t.Boolean(),
 })
 
 const FeedPostResponse = t.Object({
@@ -74,6 +77,7 @@ const FeedPostResponse = t.Object({
   reposted_by: t.Nullable(t.String()),
   reposted_by_account_id: t.Nullable(t.String()),
   reposted_at: t.Nullable(t.String()),
+  asks_off_platform: t.Boolean(),
 })
 
 const LikeResponse = t.Object({
@@ -101,6 +105,7 @@ interface PostRow {
   replyToId: string | null
   authorId: string
   createdAt: Date
+  asksOffPlatform: boolean
 }
 
 interface PostCounts {
@@ -125,6 +130,7 @@ function formatPost(post: PostRow, handle: string | null, counts: PostCounts) {
     reply_count: counts.replyCount,
     liked_by_me: counts.likedByMe,
     reposted_by_me: counts.repostedByMe,
+    asks_off_platform: post.asksOffPlatform,
   }
 }
 
@@ -439,6 +445,23 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         if (!parent) return status(404, { error: 'Reply target post not found' })
       }
 
+      // Off-platform-solicitation advisory flag (Issue #69). A flagged write is
+      // always created (advisory, never blocked); only sustained repeat flagged
+      // writes trip the shared `{account_id}:offplatform` throttle.
+      const flaggedOffPlatform = detectOffPlatformSolicitation(body.body).flagged
+      if (flaggedOffPlatform) {
+        if (
+          applyRateLimit(
+            set,
+            `${account.id}:offplatform`,
+            config.OFFPLATFORM_FLAGGED_MAX,
+            config.OFFPLATFORM_FLAGGED_WINDOW_MS,
+          )
+        ) {
+          return status(429, { error: 'Rate limit exceeded' })
+        }
+      }
+
       const id = crypto.randomUUID()
       const now = new Date()
       await db.insert(posts).values({
@@ -449,6 +472,7 @@ export const socialModule = new Elysia({ prefix: '/social', name: 'social-module
         replyToId: body.reply_to_id ?? null,
         createdAt: now,
         updatedAt: now,
+        asksOffPlatform: flaggedOffPlatform,
       })
 
       const post = await db.query.posts.findFirst({ where: eq(posts.id, id) })

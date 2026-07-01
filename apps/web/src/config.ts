@@ -37,6 +37,17 @@ export function parseThreshold(envName: string, fallback: number): number {
   return parsed
 }
 
+// Parse a positive integer from the environment. A missing, non-numeric, or
+// non-positive value falls back to the default rather than becoming NaN — a NaN
+// max/window would make the rate limiter never trip (silently disabling the
+// throttle) and emit NaN RateLimit headers.
+export function parsePositiveInt(envName: string, fallback: number): number {
+  const raw = process.env[envName]
+  if (raw === undefined) return fallback
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback
+}
+
 export const config = Object.freeze({
   PORT: Number(process.env['PORT'] ?? 8080),
   JWT_SECRET: resolveJwtSecret(),
@@ -73,6 +84,13 @@ export const config = Object.freeze({
     'illicit/violent': parseThreshold('MODERATION_THRESHOLD_ILLICIT_VIOLENT', 0.75),
     illicit: parseThreshold('MODERATION_THRESHOLD_ILLICIT', 0.85),
   }),
+
+  // ── Off-platform solicitation throttle ──────────────────────────────────────
+  // Repeat-flagged-write throttle (Issue #69, design.md Decision 5): generous and
+  // env-tunable so only sustained repeat flagged writes trip a 429 — a single
+  // flagged post/message is always advisory, never blocked.
+  OFFPLATFORM_FLAGGED_MAX: parsePositiveInt('OFFPLATFORM_FLAGGED_MAX', 10),
+  OFFPLATFORM_FLAGGED_WINDOW_MS: parsePositiveInt('OFFPLATFORM_FLAGGED_WINDOW_MS', 3_600_000),
 })
 
 export type ApplicationConfig = typeof config

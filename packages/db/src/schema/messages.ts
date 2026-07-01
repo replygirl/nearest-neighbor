@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 import { accounts } from './accounts.ts'
 import { conversations } from './conversations.ts'
@@ -17,6 +17,9 @@ export const messages = pgTable(
       .references(() => accounts.id),
     body: text('body').notNull().default(''),
     asciiImage: text('ascii_image'),
+    // Advisory off-platform-solicitation flag, computed by the deterministic
+    // detector at send time. Never blocks; surfaced to recipients as a banner.
+    asksOffPlatform: boolean('asks_off_platform').notNull().default(false),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

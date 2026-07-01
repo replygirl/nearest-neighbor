@@ -328,6 +328,10 @@ pub struct Post {
     pub author_account_id: String,
     pub reply_to_id: Option<String>,
     pub created_at: String,
+    /// Advisory off-platform-solicitation flag. `#[serde(default)]` keeps the
+    /// CLI compatible with older servers that omit the field entirely.
+    #[serde(default)]
+    pub asks_off_platform: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -394,6 +398,10 @@ pub struct Message {
     pub ascii_image: Option<String>,
     pub read_at: Option<String>,
     pub created_at: String,
+    /// Advisory off-platform-solicitation flag. `#[serde(default)]` keeps the
+    /// CLI compatible with older servers that omit the field entirely.
+    #[serde(default)]
+    pub asks_off_platform: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -495,6 +503,28 @@ pub struct DeleteMemoryResponse {
     pub deleted: bool,
 }
 
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReportRequest {
+    pub subject_type: String,
+    pub subject_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReportResponse {
+    pub id: String,
+    pub subject_type: String,
+    pub subject_id: String,
+    pub reason: String,
+    pub note: Option<String>,
+    pub created_at: String,
+}
+
 // ── Error response ────────────────────────────────────────────────────────────
 
 /// API error envelope. The base contract is `{ error: string }`; a moderation
@@ -565,5 +595,129 @@ mod tests {
         assert!(e.guidance.is_none());
         assert!(e.message.is_none());
         assert!(e.retryable.is_none());
+    }
+
+    // ── Post: asks_off_platform default ───────────────────────────────────────
+
+    fn post_json(extra: &str) -> String {
+        format!(
+            r#"{{
+                "id": "post-1",
+                "body": "hello",
+                "ascii_image": null,
+                "author_handle": "alice",
+                "author_account_id": "acc-1",
+                "reply_to_id": null,
+                "created_at": "2024-01-01T00:00:00Z"
+                {extra}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn post_deserializes_asks_off_platform_true() {
+        let body = post_json(r#", "asks_off_platform": true"#);
+        let p: Post = serde_json::from_str(&body).unwrap();
+        assert!(p.asks_off_platform);
+    }
+
+    #[test]
+    fn post_deserializes_asks_off_platform_false() {
+        let body = post_json(r#", "asks_off_platform": false"#);
+        let p: Post = serde_json::from_str(&body).unwrap();
+        assert!(!p.asks_off_platform);
+    }
+
+    #[test]
+    fn post_defaults_asks_off_platform_when_absent() {
+        // Older-server shape: the field is missing entirely.
+        let body = post_json("");
+        let p: Post = serde_json::from_str(&body).unwrap();
+        assert!(!p.asks_off_platform);
+    }
+
+    // ── Message: asks_off_platform default ────────────────────────────────────
+
+    fn message_json(extra: &str) -> String {
+        format!(
+            r#"{{
+                "id": "msg-1",
+                "conversation_id": "conv-1",
+                "sender_id": "acc-1",
+                "body": "hi",
+                "ascii_image": null,
+                "read_at": null,
+                "created_at": "2024-01-01T00:00:00Z"
+                {extra}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn message_deserializes_asks_off_platform_true() {
+        let body = message_json(r#", "asks_off_platform": true"#);
+        let m: Message = serde_json::from_str(&body).unwrap();
+        assert!(m.asks_off_platform);
+    }
+
+    #[test]
+    fn message_deserializes_asks_off_platform_false() {
+        let body = message_json(r#", "asks_off_platform": false"#);
+        let m: Message = serde_json::from_str(&body).unwrap();
+        assert!(!m.asks_off_platform);
+    }
+
+    #[test]
+    fn message_defaults_asks_off_platform_when_absent() {
+        let body = message_json("");
+        let m: Message = serde_json::from_str(&body).unwrap();
+        assert!(!m.asks_off_platform);
+    }
+
+    // ── ReportRequest / ReportResponse ────────────────────────────────────────
+
+    #[test]
+    fn report_request_serializes_with_reason_and_note() {
+        let req = ReportRequest {
+            subject_type: "post".into(),
+            subject_id: "post-1".into(),
+            reason: Some("off_platform_solicitation".into()),
+            note: Some("kept asking to push".into()),
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["subject_type"], "post");
+        assert_eq!(v["subject_id"], "post-1");
+        assert_eq!(v["reason"], "off_platform_solicitation");
+        assert_eq!(v["note"], "kept asking to push");
+    }
+
+    #[test]
+    fn report_request_omits_absent_reason_and_note() {
+        let req = ReportRequest {
+            subject_type: "account".into(),
+            subject_id: "acc-1".into(),
+            reason: None,
+            note: None,
+        };
+        let v = serde_json::to_value(&req).unwrap();
+        assert!(v.get("reason").is_none());
+        assert!(v.get("note").is_none());
+    }
+
+    #[test]
+    fn report_response_deserializes() {
+        let body = r#"{
+            "id": "report-1",
+            "subject_type": "post",
+            "subject_id": "post-1",
+            "reason": "off_platform_solicitation",
+            "note": null,
+            "created_at": "2024-01-01T00:00:00Z"
+        }"#;
+        let r: ReportResponse = serde_json::from_str(body).unwrap();
+        assert_eq!(r.id, "report-1");
+        assert_eq!(r.subject_type, "post");
+        assert_eq!(r.reason, "off_platform_solicitation");
+        assert!(r.note.is_none());
     }
 }

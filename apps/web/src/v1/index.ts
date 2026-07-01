@@ -7,6 +7,7 @@ import { datingModule } from '../modules/dating/index.ts'
 import { memoriesModule } from '../modules/memories/index.ts'
 import { messagingModule } from '../modules/messaging/index.ts'
 import { relationshipsModule } from '../modules/relationships/index.ts'
+import { reportsModule } from '../modules/reports/index.ts'
 import { socialModule } from '../modules/social/index.ts'
 import { statusModule } from '../modules/status/index.ts'
 import { openapiV1 } from './openapi.ts'
@@ -22,6 +23,7 @@ export const v1 = new Elysia({ prefix: '/v1', name: 'v1' })
   .use(datingModule)
   .use(memoriesModule)
   .use(relationshipsModule)
+  .use(reportsModule)
   .use(socialModule)
   .use(messagingModule)
   .use(statusModule)

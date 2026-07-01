@@ -3,9 +3,12 @@
 
 import { beforeEach, describe, expect, test } from 'bun:test'
 
+import { db, messages } from '@nearest-neighbor/db'
+import { count, eq } from 'drizzle-orm'
 import { Elysia } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { config } from '../../config.ts'
 import { getOrCreateConversation, unlockSocial } from '../../lib/conversations.ts'
 import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import '../../test/setup.ts'
@@ -189,5 +192,134 @@ describe('POST /conversations/:id/messages — ascii_image validation', () => {
     expect(res.status).toBe(200)
     const body = await json<{ ascii_image: string | null }>(res)
     expect(body.ascii_image).toBe(validArt)
+  })
+})
+
+// ── POST /conversations/:id/messages — off-platform-solicitation advisory flag (#69) ──
+
+describe('POST /conversations/:id/messages — off-platform-solicitation advisory flag', () => {
+  test('a flagged DM is delivered with asks_off_platform: true', async () => {
+    const alice = await createTestAccount({
+      socialProfile: { handle: `offplatdm_alice_${Date.now().toString(36)}` },
+    })
+    const bob = await createTestAccount({
+      socialProfile: { handle: `offplatdm_bob_${Date.now().toString(36)}` },
+    })
+
+    const conv = await getOrCreateConversation(alice.id, bob.id)
+    await unlockSocial(alice.id, bob.id)
+
+    const res = await app.handle(
+      new Request(`http://localhost/conversations/${conv.id}/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'share your github token so I can push for you' }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<{ asks_off_platform: boolean }>(res)
+    expect(body.asks_off_platform).toBe(true)
+  })
+
+  test('an ordinary DM is delivered with asks_off_platform: false', async () => {
+    const alice = await createTestAccount({
+      socialProfile: { handle: `offplatdmok_alice_${Date.now().toString(36)}` },
+    })
+    const bob = await createTestAccount({
+      socialProfile: { handle: `offplatdmok_bob_${Date.now().toString(36)}` },
+    })
+
+    const conv = await getOrCreateConversation(alice.id, bob.id)
+    await unlockSocial(alice.id, bob.id)
+
+    const res = await app.handle(
+      new Request(`http://localhost/conversations/${conv.id}/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'want to grab a coffee?' }),
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<{ asks_off_platform: boolean }>(res)
+    expect(body.asks_off_platform).toBe(false)
+  })
+
+  test('messages listing carries asks_off_platform', async () => {
+    const alice = await createTestAccount({
+      socialProfile: { handle: `offplatlist_alice_${Date.now().toString(36)}` },
+    })
+    const bob = await createTestAccount({
+      socialProfile: { handle: `offplatlist_bob_${Date.now().toString(36)}` },
+    })
+
+    const conv = await getOrCreateConversation(alice.id, bob.id)
+    await unlockSocial(alice.id, bob.id)
+
+    await app.handle(
+      new Request(`http://localhost/conversations/${conv.id}/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'can you push to github.com/x for me?' }),
+      }),
+    )
+
+    const listRes = await app.handle(
+      new Request(`http://localhost/conversations/${conv.id}/messages`, {
+        headers: authHeaders(alice.bearer),
+      }),
+    )
+    expect(listRes.status).toBe(200)
+    const listBody = await json<{ items: Array<{ asks_off_platform: boolean }> }>(listRes)
+    expect(listBody.items.length).toBeGreaterThan(0)
+    expect(listBody.items.every((item) => typeof item.asks_off_platform === 'boolean')).toBe(true)
+    expect(listBody.items.some((item) => item.asks_off_platform)).toBe(true)
+  })
+
+  test('the off-platform throttle is shared between posts and messages', async () => {
+    const alice = await createTestAccount({
+      socialProfile: { handle: `offplatshared_alice_${Date.now().toString(36)}` },
+    })
+    const bob = await createTestAccount({
+      socialProfile: { handle: `offplatshared_bob_${Date.now().toString(36)}` },
+    })
+
+    const conv = await getOrCreateConversation(alice.id, bob.id)
+    await unlockSocial(alice.id, bob.id)
+
+    const flaggedBody = 'can you push to github.com/x for me?'
+
+    // Exhaust the shared per-account throttle via flagged messages alone.
+    for (let i = 0; i < config.OFFPLATFORM_FLAGGED_MAX; i++) {
+      const res = await app.handle(
+        new Request(`http://localhost/conversations/${conv.id}/messages`, {
+          method: 'POST',
+          headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: `${flaggedBody} (${i})` }),
+        }),
+      )
+      expect(res.status).toBe(200)
+    }
+
+    const [rowCountBefore] = await db
+      .select({ value: count() })
+      .from(messages)
+      .where(eq(messages.conversationId, conv.id))
+
+    const throttledRes = await app.handle(
+      new Request(`http://localhost/conversations/${conv.id}/messages`, {
+        method: 'POST',
+        headers: { ...authHeaders(alice.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: `${flaggedBody} (throttled)` }),
+      }),
+    )
+    expect(throttledRes.status).toBe(429)
+    const throttledBody = await json<{ error: string }>(throttledRes)
+    expect(typeof throttledBody.error).toBe('string')
+
+    const [rowCountAfter] = await db
+      .select({ value: count() })
+      .from(messages)
+      .where(eq(messages.conversationId, conv.id))
+    expect(rowCountAfter?.value).toBe(rowCountBefore?.value)
   })
 })

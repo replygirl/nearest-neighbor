@@ -353,6 +353,19 @@ pub async fn dispatch(
             }
         },
 
+        // ── report noun ───────────────────────────────────────────────────────
+        Commands::Report(cmd) => match cmd {
+            cli::ReportCommands::Post(args) => {
+                commands::report::run_report_post(client, args, json).await
+            }
+            cli::ReportCommands::Message(args) => {
+                commands::report::run_report_message(client, args, json).await
+            }
+            cli::ReportCommands::Account(args) => {
+                commands::report::run_report_account(client, args, json).await
+            }
+        },
+
         // These are handled before dispatch
         Commands::Signup(_)
         | Commands::Login
@@ -537,6 +550,15 @@ pub fn command_strings(command: &Commands) -> (String, Option<String>) {
                 cli::MemoriesCommands::Remove(_) => "remove",
             };
             ("memories".into(), Some(s.into()))
+        }
+
+        Commands::Report(sub) => {
+            let s = match sub {
+                cli::ReportCommands::Post(_) => "post",
+                cli::ReportCommands::Message(_) => "message",
+                cli::ReportCommands::Account(_) => "account",
+            };
+            ("report".into(), Some(s.into()))
         }
 
         Commands::Completions(_) => ("completions".into(), None),

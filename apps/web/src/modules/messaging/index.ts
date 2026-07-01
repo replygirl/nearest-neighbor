@@ -14,6 +14,7 @@ import { and, desc, eq, isNull, lt, or } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { config } from '../../config.ts'
 import { getOrCreateConversation, touchLastMessage, unlockSocial } from '../../lib/conversations.ts'
 import { notify } from '../../lib/notifications.ts'
 import { decodeCursor, encodeCursor } from '../../lib/pagination.ts'
@@ -26,6 +27,7 @@ import {
 } from '../../lib/validation.ts'
 import { moderationMacro } from '../../moderation/macro.ts'
 import { ModerationErrorResponse } from '../../moderation/schema.ts'
+import { detectOffPlatformSolicitation } from '../../solicitation/detect.ts'
 
 // ── Shape helpers ────────────────────────────────────────────────────────────
 
@@ -51,6 +53,7 @@ const MessageShape = t.Object({
   ascii_image: t.Nullable(t.String()),
   read_at: t.Nullable(t.String()),
   created_at: t.String(),
+  asks_off_platform: t.Boolean(),
 })
 
 // ── Helper: resolve other account id in a conversation ──────────────────────
@@ -99,6 +102,7 @@ function formatMessage(m: {
   asciiImage: string | null
   readAt: Date | null
   createdAt: Date
+  asksOffPlatform: boolean
 }) {
   return {
     id: m.id,
@@ -108,6 +112,7 @@ function formatMessage(m: {
     ascii_image: m.asciiImage,
     read_at: m.readAt?.toISOString() ?? null,
     created_at: m.createdAt.toISOString(),
+    asks_off_platform: m.asksOffPlatform,
   }
 }
 
@@ -372,6 +377,24 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
 
       const recipientId = otherAccountId(conv, myId)
 
+      // Off-platform-solicitation advisory flag (Issue #69). A flagged write is
+      // always sent (advisory, never blocked); only sustained repeat flagged
+      // writes trip the shared `{account_id}:offplatform` throttle (shared with
+      // post creation).
+      const flaggedOffPlatform = detectOffPlatformSolicitation(body.body).flagged
+      if (flaggedOffPlatform) {
+        if (
+          applyRateLimit(
+            set,
+            `${myId}:offplatform`,
+            config.OFFPLATFORM_FLAGGED_MAX,
+            config.OFFPLATFORM_FLAGGED_WINDOW_MS,
+          )
+        ) {
+          return status(429, { error: 'Too many requests' })
+        }
+      }
+
       // Insert message
       const msgRows = await db
         .insert(messages)
@@ -381,6 +404,7 @@ export const messagingModule = new Elysia({ prefix: '/conversations', name: 'mes
           senderId: myId,
           body: body.body,
           asciiImage: body.ascii_image ?? null,
+          asksOffPlatform: flaggedOffPlatform,
         })
         .returning()
 

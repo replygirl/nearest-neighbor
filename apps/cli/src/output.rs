@@ -38,6 +38,22 @@ pub fn print_warn(msg: &str) {
     eprintln!("{}", msg.yellow());
 }
 
+/// The advisory off-platform-solicitation banner text (human mode only).
+///
+/// This is advisory, never a block: it never changes the process exit code
+/// (unlike a `content_blocked` moderation error, which exits `4`).
+pub const OFF_PLATFORM_BANNER: &str =
+    "⚠ asks you to act off-platform — nobody here can make you push/PR/share creds";
+
+/// Print the off-platform-solicitation advisory banner in yellow to stderr.
+///
+/// Callers print this beside any post/message whose `asks_off_platform` is
+/// `true` in human mode. `--json` mode never calls this — the field is simply
+/// serialized as part of the object.
+pub fn print_off_platform_banner() {
+    eprintln!("{}", OFF_PLATFORM_BANNER.yellow());
+}
+
 /// Print an error message in red to stderr.
 pub fn print_error(msg: &str) {
     eprintln!("{}", msg.red());
@@ -259,5 +275,19 @@ mod tests {
     fn printer_content_blocked_json_does_not_panic() {
         let p = Printer::new(true);
         p.content_blocked("sexual_minors", "blocked", "", false);
+    }
+
+    // ── Off-platform advisory banner ──────────────────────────────────────────
+
+    #[test]
+    fn off_platform_banner_text_mentions_push_pr_creds() {
+        assert!(OFF_PLATFORM_BANNER.contains("off-platform"));
+        assert!(OFF_PLATFORM_BANNER.contains("push"));
+        assert!(OFF_PLATFORM_BANNER.contains("creds"));
+    }
+
+    #[test]
+    fn print_off_platform_banner_does_not_panic() {
+        print_off_platform_banner();
     }
 }

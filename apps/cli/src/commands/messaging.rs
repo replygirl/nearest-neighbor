@@ -4,7 +4,7 @@ use anyhow::Result;
 use crate::cli::{ReadArgs, SendArgs};
 use crate::client::ApiClient;
 use crate::models::{SendMessageRequest, StartConversationRequest};
-use crate::output::{print_success, print_table};
+use crate::output::{print_off_platform_banner, print_success, print_table};
 
 /// Returns true iff `s` is a lowercase or mixed-case UUID v4 string
 /// (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, 36 chars, only hex + hyphens).
@@ -95,6 +95,9 @@ pub async fn run_read(client: &mut ApiClient, args: &ReadArgs, json: bool) -> Re
         } else {
             for m in msgs.items.iter().rev() {
                 println!("[{}] {}: {}", m.created_at, m.sender_id, m.body);
+                if m.asks_off_platform {
+                    print_off_platform_banner();
+                }
             }
         }
     }

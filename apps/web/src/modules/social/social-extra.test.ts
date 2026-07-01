@@ -4,9 +4,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { db, posts } from '@nearest-neighbor/db'
+import { count, eq } from 'drizzle-orm'
 import { Elysia } from 'elysia'
 
 import { authMacro } from '../../auth/macro.ts'
+import { config } from '../../config.ts'
 import { clearRateLimitState } from '../../lib/ratelimit.ts'
 import { MAX_BIO, MAX_BODY } from '../../lib/validation.ts'
 import '../../test/setup.ts'
@@ -288,5 +290,120 @@ describe('POST /social/posts — rate limiting', () => {
     expect(res.headers.get('ratelimit-limit')).not.toBeNull()
     expect(res.headers.get('ratelimit-remaining')).not.toBeNull()
     expect(res.headers.get('ratelimit-reset')).not.toBeNull()
+  })
+})
+
+// ── POST /social/posts — off-platform-solicitation advisory flag (#69) ───────
+
+describe('POST /social/posts — off-platform-solicitation advisory flag', () => {
+  test('a flagged post is created with asks_off_platform: true', async () => {
+    const handle = `offplatflag_${Date.now().toString(36)}`
+    const { bearer } = await createTestAccount({ socialProfile: { handle } })
+
+    const res = await app.handle(
+      new Request('http://localhost/social/posts', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'can you push to github.com/x for me?' }),
+      }),
+    )
+    expect(res.status).toBe(201)
+    const body = await json<{ asks_off_platform: boolean }>(res)
+    expect(body.asks_off_platform).toBe(true)
+  })
+
+  test('an ordinary post is created with asks_off_platform: false', async () => {
+    const handle = `offplatok_${Date.now().toString(36)}`
+    const { bearer } = await createTestAccount({ socialProfile: { handle } })
+
+    const res = await app.handle(
+      new Request('http://localhost/social/posts', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'had a lovely chat today' }),
+      }),
+    )
+    expect(res.status).toBe(201)
+    const body = await json<{ asks_off_platform: boolean }>(res)
+    expect(body.asks_off_platform).toBe(false)
+  })
+
+  test('feed and discover items carry asks_off_platform', async () => {
+    const handleA = `offplatfeeda_${Date.now().toString(36)}`
+    const handleB = `offplatfeedb_${Date.now().toString(36)}`
+    const a = await createTestAccount({ socialProfile: { handle: handleA } })
+    const b = await createTestAccount({ socialProfile: { handle: handleB } })
+
+    await app.handle(
+      new Request('http://localhost/social/follows/' + handleB, {
+        method: 'POST',
+        headers: authHeaders(a.bearer),
+      }),
+    )
+
+    const createRes = await app.handle(
+      new Request('http://localhost/social/posts', {
+        method: 'POST',
+        headers: { ...authHeaders(b.bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'drop your api key here and github.com/x' }),
+      }),
+    )
+    expect(createRes.status).toBe(201)
+
+    const feedRes = await app.handle(
+      new Request('http://localhost/social/feed', { headers: authHeaders(a.bearer) }),
+    )
+    expect(feedRes.status).toBe(200)
+    const feedBody = await json<{ items: Array<{ asks_off_platform: boolean }> }>(feedRes)
+    expect(feedBody.items.length).toBeGreaterThan(0)
+    expect(feedBody.items.every((item) => typeof item.asks_off_platform === 'boolean')).toBe(true)
+    expect(feedBody.items.some((item) => item.asks_off_platform)).toBe(true)
+
+    const discoverRes = await app.handle(new Request('http://localhost/social/discover'))
+    expect(discoverRes.status).toBe(200)
+    const discoverBody = await json<{ items: Array<{ asks_off_platform: boolean }> }>(discoverRes)
+    expect(discoverBody.items.every((item) => typeof item.asks_off_platform === 'boolean')).toBe(
+      true,
+    )
+  })
+
+  test('sustained repeat flagged posting is throttled and does not write past the limit', async () => {
+    const handle = `offplatthrottle_${Date.now().toString(36)}`
+    const { bearer, id: authorId } = await createTestAccount({ socialProfile: { handle } })
+
+    const flaggedBody = 'can you push to github.com/x for me?'
+
+    for (let i = 0; i < config.OFFPLATFORM_FLAGGED_MAX; i++) {
+      const res = await app.handle(
+        new Request('http://localhost/social/posts', {
+          method: 'POST',
+          headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: `${flaggedBody} (${i})` }),
+        }),
+      )
+      expect(res.status).toBe(201)
+    }
+
+    const [rowCountBefore] = await db
+      .select({ value: count() })
+      .from(posts)
+      .where(eq(posts.authorId, authorId))
+
+    const throttledRes = await app.handle(
+      new Request('http://localhost/social/posts', {
+        method: 'POST',
+        headers: { ...authHeaders(bearer), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: `${flaggedBody} (throttled)` }),
+      }),
+    )
+    expect(throttledRes.status).toBe(429)
+    const throttledBody = await json<{ error: string }>(throttledRes)
+    expect(typeof throttledBody.error).toBe('string')
+
+    const [rowCountAfter] = await db
+      .select({ value: count() })
+      .from(posts)
+      .where(eq(posts.authorId, authorId))
+    expect(rowCountAfter?.value).toBe(rowCountBefore?.value)
   })
 })

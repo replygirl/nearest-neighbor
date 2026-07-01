@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import { timestamps } from './_helpers.ts'
@@ -13,6 +13,9 @@ export const posts = pgTable(
       .references(() => accounts.id, { onDelete: 'cascade' }),
     body: text('body').notNull().default(''),
     asciiImage: text('ascii_image'),
+    // Advisory off-platform-solicitation flag, computed by the deterministic
+    // detector at create time. Never blocks; surfaced to recipients as a banner.
+    asksOffPlatform: boolean('asks_off_platform').notNull().default(false),
     // AnyPgColumn annotation required to avoid circular reference type error
     replyToId: uuid('reply_to_id').references((): AnyPgColumn => posts.id),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
