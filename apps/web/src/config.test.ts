@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
-import { config, parseThreshold, requireModerationKey } from './config.ts'
+import { config, parsePositiveInt, parseThreshold, requireModerationKey } from './config.ts'
 
 describe('parseThreshold', () => {
   const KEY = 'MODERATION_THRESHOLD_TEST_ONLY'
@@ -35,6 +35,41 @@ describe('parseThreshold', () => {
     expect(parseThreshold(KEY, 0.42)).toBe(0.42)
     process.env[KEY] = '-0.1'
     expect(parseThreshold(KEY, 0.42)).toBe(0.42)
+  })
+})
+
+describe('parsePositiveInt', () => {
+  const KEY = 'OFFPLATFORM_TEST_ONLY'
+  afterEach(() => {
+    delete process.env[KEY]
+  })
+
+  test('returns the fallback when the env var is unset', () => {
+    delete process.env[KEY]
+    expect(parsePositiveInt(KEY, 10)).toBe(10)
+  })
+
+  test('parses a valid positive integer override', () => {
+    process.env[KEY] = '25'
+    expect(parsePositiveInt(KEY, 10)).toBe(25)
+  })
+
+  test('floors a fractional value', () => {
+    process.env[KEY] = '12.9'
+    expect(parsePositiveInt(KEY, 10)).toBe(12)
+  })
+
+  test('falls back on a non-numeric value instead of returning NaN', () => {
+    // A NaN limit would silently disable the throttle and emit NaN headers.
+    process.env[KEY] = 'not-a-number'
+    expect(parsePositiveInt(KEY, 10)).toBe(10)
+  })
+
+  test('falls back on a non-positive value', () => {
+    process.env[KEY] = '0'
+    expect(parsePositiveInt(KEY, 10)).toBe(10)
+    process.env[KEY] = '-5'
+    expect(parsePositiveInt(KEY, 10)).toBe(10)
   })
 })
 

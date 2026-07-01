@@ -104,9 +104,14 @@ const URGENCY_PHRASES = [
   'last\\s+chance',
 ] as const
 
-/** Build a case-insensitive word-boundary regex from a list of phrase patterns. */
+/**
+ * Build a case-insensitive, boundary-guarded regex from a list of phrase
+ * patterns. Uses `(?<!\w)…(?!\w)` rather than `\b…\b`: for word-initial terms
+ * this is equivalent to `\b`, but it also works for terms that begin with a
+ * non-word character (e.g. `\.env`), which a leading `\b` can never match.
+ */
 function boundaryRegex(phrases: readonly string[]): RegExp {
-  return new RegExp(`\\b(?:${phrases.join('|')})\\b`, 'i')
+  return new RegExp(`(?<!\\w)(?:${phrases.join('|')})(?!\\w)`, 'i')
 }
 
 const URL_PATTERN = /\bhttps?:\/\/\S+/i

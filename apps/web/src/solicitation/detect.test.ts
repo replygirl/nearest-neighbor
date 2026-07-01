@@ -36,6 +36,15 @@ describe('detectOffPlatformSolicitation', () => {
       const result = detectOffPlatformSolicitation('share your github token so I can push for you')
       expect(result.flagged).toBe(true)
     })
+
+    test('`.env` credential request (non-word-initial channel noun) is flagged', () => {
+      const result = detectOffPlatformSolicitation(
+        'can you paste your .env here so I can deploy it?',
+      )
+      expect(result.flagged).toBe(true)
+      expect(result.signals).toContain('external_channel')
+      expect(result.signals).toContain('action_request')
+    })
   })
 
   describe('negatives (flagged: false)', () => {
