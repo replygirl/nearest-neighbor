@@ -345,6 +345,11 @@ description = "Post-deploy smoke: install the Claude plugin in-harness and drive
 run = "HARNESS=claude NBR_API_URL=${NBR_API_URL:-https://nearest-neighbor-staging.fly.dev} bash e2e/plugin-install/run.sh"
 dir = "{{config_root}}"
 
+[tasks."test:release"]
+description = "Test the release:set-version script — bumps a throwaway copy of the manifests and asserts all seven land at the target version (no working-tree mutation)"
+run = "bun test e2e/release/"
+dir = "{{config_root}}"
+
 [tasks."web:brand-assets"]
 description = "Regenerate the social/OG image + favicons from HTML (run locally, commit output)"
 run = """
@@ -363,7 +368,7 @@ dir = "{{config_root}}/apps/web"
 # ───────────────────────────────────────────────
 
 [tasks.check]
-description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + cli:test:coverage + plugin isolation tests + openspec"
+description = "Full CI gate: lint + format:check + typecheck + test + test:coverage + cli:test:coverage + plugin isolation tests + release version-bump + openspec"
 depends = [
   "lint",
   "format:check",
@@ -373,6 +378,7 @@ depends = [
   "cli:test:coverage",
   "test:plugins",
   "test:plugins:hermes",
+  "test:release",
   "openspec:validate:specs",
   "openspec:validate:changes",
   "openspec:schema:validate",
@@ -684,6 +690,15 @@ run = "flyctl status --app nearest-neighbor-production"
 [tasks."fly:status:staging"]
 description = "Show machine status for nearest-neighbor-staging"
 run = "flyctl status --app nearest-neighbor-staging"
+
+# ───────────────────────────────────────────────
+# Release
+# ───────────────────────────────────────────────
+
+[tasks."release:set-version"]
+description = "Stamp ONE platform version (semver) into every manifest: apps/cli Cargo.toml+Cargo.lock, the three plugin manifests, and both marketplaces. Idempotent. Usage: mise run release:set-version -- 1.0.8"
+run = "bash scripts/mise-tasks/release/set-version"
+dir = "{{config_root}}"
 
 # ───────────────────────────────────────────────
 # CLI docs generation (usage 3.x)

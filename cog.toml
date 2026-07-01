@@ -1,15 +1,15 @@
 # cocogitto configuration for the nearest-neighbor platform.
 #
-# The git tag is the SINGLE SOURCE OF TRUTH for the nbr release version.
-# `apps/cli/Cargo.toml` stays pinned at 0.1.0 — the build bakes the real
-# version from the tag via NBR_RELEASE_VERSION (see .github/workflows/release.yml).
+# cog's ONLY job here is to COMPUTE the next semver from conventional commits
+# (`cog bump --dry-run`, which prints the version and does nothing else). It
+# must NOT rewrite any manifest: there are no `bump_profiles`, and the
+# `pre_bump_hooks` / `post_bump_hooks` are intentionally empty.
 #
-# Therefore cocogitto must NOT rewrite any manifest: there are no
-# `bump_profiles`, no pre/post-bump hooks that edit Cargo.toml, and
-# `pre_bump_hooks` / `post_bump_hooks` are intentionally empty. The unified
-# release workflow runs `cog bump --dry-run` only to COMPUTE the next semver
-# from conventional commits; the workflow itself creates and pushes the
-# annotated tag (nothing is committed — the tag is the only artifact).
+# The release workflow (.github/workflows/release.yml) takes that computed
+# version and stamps it into every manifest via `mise run release:set-version`
+# (apps/cli/Cargo.toml + Cargo.lock, both plugin.json, pyproject.toml, both
+# marketplace.json), commits that on main, then tags — so one consistent
+# version ships across the CLI crate and the plugin marketplaces.
 
 # Annotated tag with a leading `v` (matches the existing v1.0.x tags; the
 # unified release.yml computes and pushes this tag).
@@ -19,8 +19,8 @@ tag_prefix = "v"
 from_latest_tag = true
 ignore_merge_commits = true
 
-# No package/manifest is declared, so `cog bump` never touches Cargo.toml,
-# package.json, or any other version file. The tag is the only artifact.
+# No package/manifest is declared to cog, so `cog bump` itself never touches
+# any version file — the release workflow's set-version step owns that.
 
 # Explicitly empty: do not run anything that could rewrite a manifest.
 pre_bump_hooks = []

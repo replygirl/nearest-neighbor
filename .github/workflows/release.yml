@@ -1,32 +1,48 @@
 # Platform release pipeline — the SINGLE entry point that cuts a new `nbr`
 # platform release and ships it atomically.
 #
-# Flow: dispatch → version → build → notes → publish
+# Flow: dispatch → bump (commit to main via deploy key) → build → notes → publish
 #
 #   1. version  — compute the next semver with cocogitto (`cog bump --dry-run`,
 #                 no manifest edit, no commit), derive the tag `v<n>.<n>.<n>`,
-#                 and fail fast if that tag already exists on origin. The tag is
-#                 NOT pushed here.
-#   2. build    — build the six CLI targets in a matrix, packaging each as
+#                 and fail fast if that tag already exists on origin.
+#   2. bump     — stamp that ONE version into every manifest (Cargo.toml/.lock,
+#                 both plugin.json, pyproject.toml, both marketplace.json) with
+#                 `mise run release:set-version`, commit the bump to main, create
+#                 the annotated tag, and push both over SSH using an exempt
+#                 deploy key (secret RELEASE_DEPLOY_KEY). main has a
+#                 branch-protection ruleset, but deploy keys are an EXEMPT bypass
+#                 actor, so this push is accepted without a PR and unsigned. The
+#                 commit is idempotent: if the manifests already carry the
+#                 version, only the tag is pushed.
+#   3. build    — build the six CLI targets in a matrix, packaging each as
 #                   nbr-<triple>.tar.gz  (Unix)
 #                   nbr-<triple>.zip     (Windows)
-#                 and uploading each archive as a workflow artifact. The version
-#                 is baked from the computed tag via NBR_RELEASE_VERSION.
-#   3. publish  — only AFTER every target built: push the annotated tag (so a
-#                 build failure leaves no dangling tag), download all artifacts,
-#                 generate SHA256SUMS, create a DRAFT release with all assets +
-#                 placeholder notes, fill the body with AI-generated notes via
-#                 `communique`, then flip the release to published. There is no
-#                 window where the release is visible without its binaries.
+#                 and uploading each archive as a workflow artifact. Built at the
+#                 bump commit; the version is baked from the tag via
+#                 NBR_RELEASE_VERSION (which also matches Cargo.toml now).
+#   4. publish  — only AFTER every target built: download all artifacts, generate
+#                 SHA256SUMS, create a DRAFT release with all assets +
+#                 placeholder notes (the tag is already on origin from the bump
+#                 job), fill the body with AI-generated notes via `communique`,
+#                 then flip the release to published. There is no window where the
+#                 release is visible without its binaries.
+#   5. cleanup  — on failure only: delete the pushed tag from origin so a
+#                 re-dispatch can recompute cleanly. main and the bump commit are
+#                 left intact (never force-pushed).
 #
 # Publishing fires `release: published`, which other workflows consume
 # (deploy-production deploys the API alongside the CLI). The release is a FULL
 # release (no `--prerelease`), matching what installers + `nbr self-update`
 # expect.
 #
-# Cargo.toml stays pinned at 0.1.0; the git tag is the single source of truth.
-# cog (cog.toml) is configured to never rewrite a manifest. Rustls is used for
-# TLS so musl builds need no OpenSSL.
+# The git tag and the committed manifests carry the SAME version: `set-version`
+# writes the tag's semver into every manifest. cog (cog.toml) stays compute-only
+# (no manifest rewrite); this workflow owns the commit and tag. Rustls is used
+# for TLS so musl builds need no OpenSSL.
+#
+# Secret RELEASE_DEPLOY_KEY: an SSH private key for a repo deploy key with write
+# access that is registered as an exempt bypass actor on the main ruleset.
 
 name: CLI Release
 
@@ -54,7 +70,6 @@ jobs:
     outputs:
       version: ${{ steps.compute.outputs.version }}
       tag: ${{ steps.compute.outputs.tag }}
-      sha: ${{ steps.compute.outputs.sha }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -64,11 +79,9 @@ jobs:
       - name: Install cocogitto
         run: mise use -g cargo:cocogitto
 
-      # Cargo.toml stays pinned at 0.1.0, so there is NOTHING to commit — the
-      # version lives only in the git tag. cog computes the next semver from
-      # conventional commits (or the dispatched override) WITHOUT side effects
-      # (--dry-run prints only the version). The tag is pushed later, in
-      # `publish`, only after every target has built.
+      # cog computes the next semver from conventional commits (or the dispatched
+      # override) WITHOUT side effects (--dry-run prints only the version). The
+      # bump job then stamps it into the manifests and pushes the commit + tag.
       - name: Compute version
         id: compute
         run: |
@@ -80,23 +93,71 @@ jobs:
             *) echo "unknown bump: ${{ inputs.bump }}" >&2; exit 1 ;;
           esac || { echo "cog bump --dry-run failed" >&2; exit 1; }
           [ -n "${VERSION}" ] || { echo "cog produced no version" >&2; exit 1; }
-          TAG="v${VERSION#v}"
+          VERSION="${VERSION#v}"           # set-version rejects a leading 'v'
+          TAG="v${VERSION}"
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "tag ${TAG} already exists on origin" >&2
             exit 1
           fi
-          SHA=$(git rev-parse HEAD)
-          echo "Next version: ${TAG} (at ${SHA})"
+          echo "Next version: ${TAG}"
           {
             echo "version=${VERSION}"
             echo "tag=${TAG}"
-            echo "sha=${SHA}"
           } >> "$GITHUB_OUTPUT"
+
+  # ── Commit the version bump to main + push the tag (over the exempt deploy key)
+  bump:
+    name: Commit version bump
+    needs: version
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      # Check out main over SSH with the deploy key so the later push authenticates
+      # as the exempt bypass actor. fetch-depth 0 keeps history for the commit/tag.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ref: main
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-mise
+
+      # Stamp the ONE computed version into every manifest (Cargo.toml/.lock,
+      # both plugin.json, pyproject.toml, both marketplace.json). set-version
+      # needs only mise (usage-spec task + oxfmt) and jq — no cocogitto here.
+      - name: Set platform version across all manifests
+        run: mise run release:set-version -- "${{ needs.version.outputs.version }}"
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Idempotent: only commit + push main if the stamp actually changed a file
+      # (a re-run at the same version skips the commit). The annotated tag is
+      # always created at the resulting HEAD and pushed. Both pushes ride the
+      # deploy key, which is exempt from the main branch-protection ruleset.
+      - name: Commit, tag, and push
+        id: commit
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -am "chore(release): ${TAG}"
+            git push origin HEAD:main
+          else
+            echo "Manifests already at ${TAG#v} — skipping commit."
+          fi
+          git tag -a "${TAG}" -m "${TAG}"
+          git push origin "${TAG}"
+          SHA=$(git rev-parse HEAD)
+          echo "Bump HEAD: ${SHA}"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
   # ── Build the six target triples natively and upload each as an artifact ────
   build:
     name: Build ${{ matrix.target }}
-    needs: version
+    needs: [version, bump]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -134,7 +195,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ needs.version.outputs.sha }}
+          ref: ${{ needs.bump.outputs.sha }}
 
       # ── Rust toolchain ─────────────────────────────────────────────────────────
       - name: Install Rust stable
@@ -201,33 +262,20 @@ jobs:
           path: nbr-${{ matrix.target }}.${{ matrix.archive }}
           if-no-files-found: error
 
-  # ── Push the tag, collect artifacts, generate notes, publish atomically ─────
+  # ── Collect artifacts, generate notes, publish atomically (tag already pushed)
   publish:
     name: Publish release
-    needs: [version, build]
+    needs: [version, bump, build]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ needs.version.outputs.sha }}
+          ref: ${{ needs.bump.outputs.sha }}
           fetch-depth: 0 # communique reads commit history to write the notes
 
       - uses: ./.github/actions/setup-mise
       - name: Install communique
         run: mise use -g cargo:communique
-
-      # ── Push the tag NOW — only after every target built, so a build failure
-      #    leaves no dangling tag. The tag must exist on origin before the draft
-      #    release is created (gh --verify-tag) and before communique runs.
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Push annotated tag
-        run: |
-          TAG=${{ needs.version.outputs.tag }}
-          git tag -a "${TAG}" -m "${TAG}" "${{ needs.version.outputs.sha }}"
-          git push origin "${TAG}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -245,10 +293,11 @@ jobs:
         run: sha256sum nbr-*.tar.gz nbr-*.zip > SHA256SUMS
 
       # ── Publish with NO missing-binaries window ───────────────────────────
-      # Create a DRAFT release with every asset already attached, fill the body
-      # with AI-generated notes (communique edits the draft in place), then flip
-      # to published — the release becomes visible already complete. Flipping a
-      # draft to published fires `release: published` for downstream consumers.
+      # The annotated tag is already on origin (pushed by the bump job). Create a
+      # DRAFT release with every asset already attached, fill the body with
+      # AI-generated notes (communique edits the draft in place), then flip to
+      # published — the release becomes visible already complete. Flipping a draft
+      # to published fires `release: published` for downstream consumers.
       - name: Create draft release with all assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -271,3 +320,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "${{ needs.version.outputs.tag }}" --draft=false
+
+  # ── On failure only: roll the pushed tag back so a re-dispatch recomputes ───
+  # Deletes ONLY the tag from origin (best-effort). main and the bump commit are
+  # left intact — never force-pushed, never reverted.
+  cleanup:
+    name: Roll back tag on failure
+    needs: [version, bump, build, publish]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ref: main
+          fetch-depth: 0
+
+      - name: Delete the tag from origin
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          [ -n "${TAG}" ] || { echo "no tag computed; nothing to clean up"; exit 0; }
+          echo "Deleting ${TAG} from origin (best-effort)"
+          git push origin ":refs/tags/${TAG}" || true
