@@ -1,0 +1,175 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+# The jq filter literals passed to set_json_version use single quotes on purpose:
+# `$v` is a jq variable bound via `--arg v`, not a shell expansion. (SC2016)
+# shellcheck disable=SC2016
+#USAGE name "release:set-version"
+#USAGE arg "<version>" help="Target platform version (semver, e.g. 1.0.8)"
+#USAGE flag "--root <root>" help="Repo root to operate on (default: the repo this script lives in). Point at a temp copy to test without mutating the working tree."
+
+# Writes ONE platform version into every manifest that carries it, so a single
+# `v<n>.<n>.<n>` GitHub release ships the whole nbr platform at one consistent
+# version. Invoked by the release workflow after `cog bump --dry-run` computes
+# the next semver; also runnable by hand.
+#
+# Files written (all relative to --root):
+#   apps/cli/Cargo.toml               [package] version   (NOT dependency versions)
+#   apps/cli/Cargo.lock               [[package]] name="nbr" version (kept in sync)
+#   plugins/claude/.claude-plugin/plugin.json    .version
+#   plugins/codex/.codex-plugin/plugin.json      .version
+#   plugins/hermes/pyproject.toml     [project] version   (NOT tool target-versions)
+#   .claude-plugin/marketplace.json   plugins[name=nearest-neighbor].version
+#   .agents/plugins/marketplace.json  plugins[name=nearest-neighbor].version
+#
+# Idempotent: running twice with the same version yields no further change.
+# Portable: uses temp-file + mv (no `sed -i`) so it behaves identically on the
+# macOS dev box and the Linux release runner.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Parse args: one positional <version>, optional --root <dir>.
+# ---------------------------------------------------------------------------
+VERSION=""
+ROOT=""
+PREV=""
+for arg in "$@"; do
+  if [[ "$PREV" == "--root" ]]; then
+    ROOT="$arg"
+    PREV=""
+    continue
+  fi
+  case "$arg" in
+    --root)
+      PREV="--root"
+      ;;
+    --root=*)
+      ROOT="${arg#--root=}"
+      ;;
+    -*)
+      echo "ERROR: unknown flag: $arg" >&2
+      exit 2
+      ;;
+    *)
+      if [[ -z "$VERSION" ]]; then
+        VERSION="$arg"
+      else
+        echo "ERROR: unexpected extra argument: $arg" >&2
+        exit 2
+      fi
+      ;;
+  esac
+done
+
+if [[ -z "$VERSION" ]]; then
+  echo "ERROR: missing <version> argument (e.g. 1.0.8)" >&2
+  exit 2
+fi
+
+# Validate the version looks like a release semver: MAJOR.MINOR.PATCH with an
+# optional -prerelease suffix. Rejects a leading 'v', ranges, and empty parts.
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+  echo "ERROR: '$VERSION' is not a valid semver (expected MAJOR.MINOR.PATCH[-prerelease], no leading 'v')" >&2
+  exit 2
+fi
+
+# Resolve the repo root: explicit --root wins, else the repo that contains this
+# script (scripts/mise-tasks/release/set-version -> three levels up).
+if [[ -z "$ROOT" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+else
+  ROOT="$(cd "$ROOT" && pwd)"
+fi
+
+require_file() {
+  [[ -f "$1" ]] || { echo "ERROR: expected file not found: $1" >&2; exit 1; }
+}
+
+# Replace a file's contents from stdin, only when they actually changed, and
+# never leave a half-written file behind (write to a temp sibling, then mv).
+write_if_changed() {
+  local target="$1"
+  local tmp
+  tmp="$(mktemp "$target.XXXXXX.tmp")"
+  cat > "$tmp"
+  if cmp -s "$tmp" "$target"; then
+    rm -f "$tmp"
+    echo "  unchanged: ${target#"$ROOT"/}"
+  else
+    mv "$tmp" "$target"
+    echo "  updated:   ${target#"$ROOT"/}"
+  fi
+}
+
+# Set a version field in a JSON manifest via jq, then normalise with oxfmt so the
+# result matches .oxfmtrc.json (jq expands short arrays like `keywords` that the
+# formatter keeps inline). oxfmt runs on the candidate BEFORE the change compare
+# so the on-disk form is a formatter fixed point — running twice is a true no-op.
+# The temp file keeps a `.json` extension so oxfmt formats it as JSON.
+set_json_version() {
+  local target="$1" filter="$2"
+  local dir base tmp
+  dir="$(dirname "$target")"
+  base="$(basename "$target")"
+  tmp="$dir/.$base.setver.$$.tmp.json"
+  jq --indent 2 --arg v "$VERSION" "$filter" "$target" > "$tmp"
+  if command -v oxfmt >/dev/null 2>&1; then
+    oxfmt --write "$tmp" >/dev/null 2>&1 || true
+  fi
+  if cmp -s "$tmp" "$target"; then
+    rm -f "$tmp"
+    echo "  unchanged: ${target#"$ROOT"/}"
+  else
+    mv "$tmp" "$target"
+    echo "  updated:   ${target#"$ROOT"/}"
+  fi
+}
+
+# --- Rust: apps/cli/Cargo.toml [package] version -----------------------------
+CARGO_TOML="$ROOT/apps/cli/Cargo.toml"
+require_file "$CARGO_TOML"
+# Range-scope the substitution to the [package] section (addr1 .. next header)
+# so dependency `version = "..."` lines are never touched.
+sed '/^\[package\]/,/^\[/{s/^version = .*/version = "'"$VERSION"'"/;}' "$CARGO_TOML" \
+  | write_if_changed "$CARGO_TOML"
+
+# --- Rust: apps/cli/Cargo.lock nbr entry -------------------------------------
+CARGO_LOCK="$ROOT/apps/cli/Cargo.lock"
+require_file "$CARGO_LOCK"
+# Only the [[package]] block whose name is exactly "nbr" (name precedes version
+# in Cargo.lock). Reset the flag at each block boundary so no other crate moves.
+awk -v ver="$VERSION" '
+  /^\[\[package\]\]/ { isnbr = 0 }
+  /^name = "nbr"$/   { isnbr = 1 }
+  isnbr && /^version = / { $0 = "version = \"" ver "\""; isnbr = 0 }
+  { print }
+' "$CARGO_LOCK" | write_if_changed "$CARGO_LOCK"
+
+# --- Python: plugins/hermes/pyproject.toml [project] version -----------------
+PYPROJECT="$ROOT/plugins/hermes/pyproject.toml"
+require_file "$PYPROJECT"
+# Range-scope to [project] so `target-version`/`python-version` etc. are safe.
+sed '/^\[project\]/,/^\[/{s/^version = .*/version = "'"$VERSION"'"/;}' "$PYPROJECT" \
+  | write_if_changed "$PYPROJECT"
+
+# --- JSON manifests (jq) -----------------------------------------------------
+CLAUDE_PLUGIN="$ROOT/plugins/claude/.claude-plugin/plugin.json"
+CODEX_PLUGIN="$ROOT/plugins/codex/.codex-plugin/plugin.json"
+CLAUDE_MARKET="$ROOT/.claude-plugin/marketplace.json"
+AGENTS_MARKET="$ROOT/.agents/plugins/marketplace.json"
+
+require_file "$CLAUDE_PLUGIN"
+require_file "$CODEX_PLUGIN"
+require_file "$CLAUDE_MARKET"
+require_file "$AGENTS_MARKET"
+
+# Top-level .version on the plugin manifests.
+set_json_version "$CLAUDE_PLUGIN" '.version = $v'
+set_json_version "$CODEX_PLUGIN" '.version = $v'
+
+# The nearest-neighbor entry inside each marketplace's plugins[] array.
+set_json_version "$CLAUDE_MARKET" '(.plugins[] | select(.name == "nearest-neighbor")).version = $v'
+set_json_version "$AGENTS_MARKET" '(.plugins[] | select(.name == "nearest-neighbor")).version = $v'
+
+echo "Platform version set to $VERSION across all manifests under $ROOT"
