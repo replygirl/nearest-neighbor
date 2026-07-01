@@ -22,11 +22,18 @@
 #                 bump commit; the version is baked from the tag via
 #                 NBR_RELEASE_VERSION (which also matches Cargo.toml now).
 #   4. publish  — only AFTER every target built: download all artifacts, generate
-#                 SHA256SUMS, create a DRAFT release with all assets +
-#                 placeholder notes (the tag is already on origin from the bump
-#                 job), fill the body with AI-generated notes via `communique`,
-#                 then flip the release to published. There is no window where the
-#                 release is visible without its binaries.
+#                 SHA256SUMS, write AI-generated notes to a file via `communique`
+#                 (no GitHub side effect), then CREATE the release published in a
+#                 single `gh release create` call with the notes + every asset
+#                 attached (the tag is already on origin from the bump job). We
+#                 create it published rather than draft-then-flip because GitHub
+#                 does NOT bind a *draft* release to its git tag, so
+#                 `gh release edit/view <tag>` returns "release not found" for a
+#                 draft (that lookup only sees published releases). Creating the
+#                 release published sidesteps the tag lookup and never leaves an
+#                 orphan draft. Trade-off: assets upload just after the release
+#                 object is created, so there is a brief window where the release
+#                 is visible while its binaries finish uploading.
 #   5. cleanup  — on failure only: delete the pushed tag from origin so a
 #                 re-dispatch can recompute cleanly. main and the bump commit are
 #                 left intact (never force-pushed).
@@ -301,34 +308,35 @@ jobs:
         working-directory: dist
         run: sha256sum nbr-*.tar.gz nbr-*.zip > SHA256SUMS
 
-      # ── Publish with NO missing-binaries window ───────────────────────────
-      # The annotated tag is already on origin (pushed by the bump job). Create a
-      # DRAFT release with every asset already attached, fill the body with
-      # AI-generated notes (communique edits the draft in place), then flip to
-      # published — the release becomes visible already complete. Flipping a draft
-      # to published fires `release: published` for downstream consumers.
-      - name: Create draft release with all assets
+      # ── Generate notes to a file, then CREATE the published release ───────────
+      # communique writes the AI notes to a file (no GitHub side effect); the tag
+      # is already on origin (pushed by the bump job). A single `gh release create`
+      # then publishes the release with the notes and every asset in one call,
+      # which fires `release: published` for downstream consumers.
+      #
+      # Why create-published instead of create-draft-then-`gh release edit`: a
+      # draft release is not bound to its git tag, so `gh release edit/view <tag>`
+      # returns "release not found" for a draft (that endpoint only sees published
+      # releases). Publishing directly avoids the tag lookup — and never orphans a
+      # draft on failure. Trade-off: assets upload just after the release object is
+      # created, so there is a brief window where the release is visible while its
+      # binaries finish uploading.
+      - name: Generate release notes (communique)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_COMMUNIQUE }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: mise exec -- communique generate "${{ needs.version.outputs.tag }}" --output RELEASE_NOTES.md
+
+      - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           gh release create "${TAG}" \
-            --draft \
             --verify-tag \
             --title "${TAG}" \
-            --notes "Release notes are being generated…" \
+            --notes-file RELEASE_NOTES.md \
             dist/nbr-*.tar.gz dist/nbr-*.zip dist/SHA256SUMS
-
-      - name: Generate release notes (communique)
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_COMMUNIQUE }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: mise exec -- communique generate "${{ needs.version.outputs.tag }}" --github-release
-
-      - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${{ needs.version.outputs.tag }}" --draft=false
 
   # ── On failure only: roll the pushed tag back so a re-dispatch recomputes ───
   # Deletes ONLY the tag from origin (best-effort). main and the bump commit are
