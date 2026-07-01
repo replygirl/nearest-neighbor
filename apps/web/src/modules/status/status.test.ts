@@ -221,6 +221,71 @@ describe('GET /status', () => {
     expect(body.new_matches).toBe(1)
   })
 
+  // Regression for #67: an unread notification must not collapse the watermark.
+  // Postgres orders NULLS FIRST under DESC, so a watermark query that doesn't
+  // exclude read_at IS NULL rows would return the unread row (read_at = null),
+  // resolve lastReadAt to null, and re-fire the count-all fallback — reporting
+  // an account's *entire* match/follower total as "new" on every /status call.
+  test('new_matches stays 0 when an unread notification coexists with an old, already-seen match (#67)', async () => {
+    const alice = await createTestAccount({ datingProfile: { firstName: 'Alice6' } })
+    const bob = await createTestAccount({ datingProfile: { firstName: 'Bob6' } })
+
+    // An old match the account has already seen (watermark set after it).
+    const [a, b] = alice.id < bob.id ? [alice.id, bob.id] : [bob.id, alice.id]
+    await db.insert(matches).values({
+      id: crypto.randomUUID(),
+      accountAId: a,
+      accountBId: b,
+      status: 'active',
+      createdAt: new Date('2020-01-01T00:00:00.000Z'),
+    })
+    await notify(alice.id, 'new_match', {})
+    await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.accountId, alice.id))
+
+    // A genuinely new, still-UNREAD notification arrives (e.g. a DM). read_at is
+    // null; it must not become the watermark and un-see the old match.
+    await notify(alice.id, 'new_follower', {})
+
+    const res = await app.handle(
+      new Request('http://localhost/status', { headers: authHeaders(alice.bearer) }),
+    )
+    const body = await json<{ new_matches: number }>(res)
+    expect(body.new_matches).toBe(0)
+  })
+
+  test('new_followers stays 0 when an unread notification coexists with an old, already-seen follower (#67)', async () => {
+    const alice = await createTestAccount({
+      socialProfile: { handle: `s_alice3_${crypto.randomUUID().slice(0, 6)}` },
+    })
+    const bob = await createTestAccount({
+      socialProfile: { handle: `s_bob3_${crypto.randomUUID().slice(0, 6)}` },
+    })
+
+    // An old follow the account has already seen (watermark set after it).
+    await db.insert(follows).values({
+      followerId: bob.id,
+      followeeId: alice.id,
+      createdAt: new Date('2020-01-01T00:00:00.000Z'),
+    })
+    await notify(alice.id, 'new_follower', {})
+    await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.accountId, alice.id))
+
+    // A new, still-UNREAD notification arrives — must not reset the watermark.
+    await notify(alice.id, 'new_match', {})
+
+    const res = await app.handle(
+      new Request('http://localhost/status', { headers: authHeaders(alice.bearer) }),
+    )
+    const body = await json<{ new_followers: number }>(res)
+    expect(body.new_followers).toBe(0)
+  })
+
   test('counts new followers', async () => {
     const alice = await createTestAccount({
       socialProfile: { handle: `s_alice2_${crypto.randomUUID().slice(0, 6)}` },
