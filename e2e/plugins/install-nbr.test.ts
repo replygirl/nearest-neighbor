@@ -244,6 +244,34 @@ describe('install-nbr.sh — NBR_LOCAL_BIN path', () => {
   })
 })
 
+describe('install-nbr.sh — --wrapper-only mode', () => {
+  it('writes an executable nbr wrapper, no .nbr-real, exits 0, no network call', async () => {
+    const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nbr-wrapper-only-'))
+    try {
+      // No NBR_VERSION, no NBR_LOCAL_BIN — wrapper-only must skip version resolution
+      // and the network entirely and just write the wrapper script.
+      const { code, stderr } = await spawn('sh', [SCRIPT, '--wrapper-only', wrapperDir], {})
+
+      expect(code).toBe(0)
+
+      // Wrapper must exist and be executable
+      const wrapper = path.join(wrapperDir, 'nbr')
+      const wrapperStat = fs.statSync(wrapper)
+      expect(wrapperStat.isFile()).toBe(true)
+      // Owner-execute bit set
+      expect(wrapperStat.mode & 0o100).toBeTruthy()
+
+      // .nbr-real must NOT be created (binary is untouched)
+      expect(fs.existsSync(path.join(wrapperDir, '.nbr-real'))).toBe(false)
+
+      // Confirmation notice emitted to stderr
+      expect(stderr).toContain('wrapper refreshed')
+    } finally {
+      fs.rmSync(wrapperDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('install-nbr.sh — version resolution', () => {
   const src = fs.readFileSync(SCRIPT, 'utf8')
 

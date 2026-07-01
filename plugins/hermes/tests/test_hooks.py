@@ -624,3 +624,57 @@ class TestOnSessionStart:
         with patch.object(hooks, "_install_nbr", mock_install):
             hooks.on_session_start(session_id="s4", model="m", platform="p")
         mock_install.assert_called_once()
+
+    def test_existing_wrapper_no_env_overrides_calls_self_update(self, tmp_path, monkeypatch):
+        """With existing executable nbr wrapper and no NBR_LOCAL_BIN/NBR_VERSION → self-update."""
+        fake_nbr = tmp_path / "nbr"
+        fake_nbr.write_text("#!/bin/sh\n")
+        fake_nbr.chmod(0o755)
+        # The script must exist so _install_nbr reaches the branching logic.
+        fake_script = tmp_path / "install-nbr.sh"
+        fake_script.write_text("#!/bin/sh\n")
+
+        monkeypatch.delenv("NBR_LOCAL_BIN", raising=False)
+        monkeypatch.delenv("NBR_VERSION", raising=False)
+
+        mock_self_update = MagicMock()
+        with (
+            patch.object(hooks, "_NBR_BIN", fake_nbr),
+            patch.object(hooks, "_BIN_DIR", tmp_path),
+            patch.object(hooks, "_STATE_DIR", tmp_path),
+            patch.object(hooks, "_INSTALL_SCRIPT", fake_script),
+            patch.object(hooks, "_run_self_update", mock_self_update),
+        ):
+            hooks.on_session_start(session_id="s5", model="m", platform="p")
+
+        mock_self_update.assert_called_once()
+
+    def test_nbr_local_bin_set_uses_full_installer(self, tmp_path, monkeypatch):
+        """With NBR_LOCAL_BIN set, even if nbr exists, uses the full installer."""
+        fake_nbr = tmp_path / "nbr"
+        fake_nbr.write_text("#!/bin/sh\n")
+        fake_nbr.chmod(0o755)
+        # The script must exist so _install_nbr reaches the branching logic.
+        fake_script = tmp_path / "install-nbr.sh"
+        fake_script.write_text("#!/bin/sh\n")
+
+        monkeypatch.setenv("NBR_LOCAL_BIN", str(tmp_path / "fake-real-nbr"))
+        monkeypatch.delenv("NBR_VERSION", raising=False)
+
+        mock_self_update = MagicMock()
+        with (
+            patch.object(hooks, "_NBR_BIN", fake_nbr),
+            patch.object(hooks, "_BIN_DIR", tmp_path),
+            patch.object(hooks, "_STATE_DIR", tmp_path),
+            patch.object(hooks, "_INSTALL_SCRIPT", fake_script),
+            patch.object(hooks, "_run_self_update", mock_self_update),
+            patch.object(hooks.subprocess, "run") as mock_subprocess,
+        ):
+            hooks.on_session_start(session_id="s6", model="m", platform="p")
+
+        # self-update must NOT be called when NBR_LOCAL_BIN is set
+        mock_self_update.assert_not_called()
+        # Full installer subprocess.run must be called
+        mock_subprocess.assert_called_once()
+        call_args = mock_subprocess.call_args[0][0]
+        assert call_args == ["sh", str(fake_script), str(tmp_path)]

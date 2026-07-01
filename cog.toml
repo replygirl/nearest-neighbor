@@ -1,0 +1,35 @@
+# cocogitto configuration for the nearest-neighbor platform.
+#
+# The git tag is the SINGLE SOURCE OF TRUTH for the nbr release version.
+# `apps/cli/Cargo.toml` stays pinned at 0.1.0 — the build bakes the real
+# version from the tag via NBR_RELEASE_VERSION (see .github/workflows/release.yml).
+#
+# Therefore cocogitto must NOT rewrite any manifest: there are no
+# `bump_profiles`, no pre/post-bump hooks that edit Cargo.toml, and
+# `pre_bump_hooks` / `post_bump_hooks` are intentionally empty. The unified
+# release workflow runs `cog bump --dry-run` only to COMPUTE the next semver
+# from conventional commits; the workflow itself creates and pushes the
+# annotated tag (nothing is committed — the tag is the only artifact).
+
+# Annotated tag with a leading `v` (matches the existing v1.0.x tags; the
+# unified release.yml computes and pushes this tag).
+tag_prefix = "v"
+
+# Conventional Commits only — no manifest bumping.
+from_latest_tag = true
+ignore_merge_commits = true
+
+# No package/manifest is declared, so `cog bump` never touches Cargo.toml,
+# package.json, or any other version file. The tag is the only artifact.
+
+# Explicitly empty: do not run anything that could rewrite a manifest.
+pre_bump_hooks = []
+post_bump_hooks = []
+
+[changelog]
+# Changelog generation is handled by `communique` (AI release notes), not cog.
+# These remain for `cog changelog` ad-hoc use.
+authors = []
+
+[commit_types]
+# Standard conventional-commit types; matches the scopes used in this repo.

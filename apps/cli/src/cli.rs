@@ -227,6 +227,11 @@ pub enum Commands {
     #[command(subcommand)]
     Memories(MemoriesCommands),
 
+    // ── self-update ──────────────────────────────────────────────────────────
+    /// Update the nbr binary in place to the latest release (or a specific tag)
+    #[command(name = "self-update", alias = "update")]
+    SelfUpdate(SelfUpdateArgs),
+
     // ── plumbing ─────────────────────────────────────────────────────────────
     /// Generate shell completions
     Completions(CompletionsArgs),
@@ -770,6 +775,19 @@ pub struct MemoryEditArgs {
 pub struct MemoryRemoveArgs {
     /// Memory id
     pub id: String,
+}
+
+// ── Self-update ─────────────────────────────────────────────────────────────
+
+#[derive(Parser, Debug)]
+pub struct SelfUpdateArgs {
+    /// Dry run: report the current and latest versions without installing anything
+    #[arg(long)]
+    pub check: bool,
+
+    /// Install a specific release tag (e.g. v1.0.7) instead of the latest
+    #[arg(long)]
+    pub version: Option<String>,
 }
 
 // ── Completions ───────────────────────────────────────────────────────────────

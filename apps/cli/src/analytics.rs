@@ -27,19 +27,23 @@ pub async fn send_event(client: reqwest::Client, host_url: String, payload: Valu
     let _ = client.post(&url).json(&payload).send().await;
 }
 
-/// Spawn a fire-and-forget task to capture a CLI event.
-pub fn capture(ctx: AnalyticsContext) {
+/// Build the `(host, payload)` for an event, or `None` when telemetry is opted
+/// out or no PostHog key is configured.
+///
+/// Shared by both [`capture`] (fire-and-forget) and [`capture_and_flush`]
+/// (awaited) so the opt-out gate and payload shape stay in one place.
+fn build_event(ctx: &AnalyticsContext) -> Option<(String, Value)> {
     // Check opt-out signals
     if std::env::var("NBR_NO_TELEMETRY").is_ok() || std::env::var("DO_NOT_TRACK").is_ok() {
-        return;
+        return None;
     }
     if ctx.telemetry_enabled == Some(false) {
-        return;
+        return None;
     }
 
     let api_key = match std::env::var("NBR_POSTHOG_KEY") {
         Ok(k) if !k.is_empty() => k,
-        _ => return, // No key → silent no-op
+        _ => return None, // No key → silent no-op
     };
 
     let host =
@@ -58,6 +62,15 @@ pub fn capture(ctx: AnalyticsContext) {
         },
     });
 
+    Some((host, payload))
+}
+
+/// Spawn a fire-and-forget task to capture a CLI event.
+pub fn capture(ctx: AnalyticsContext) {
+    let Some((host, payload)) = build_event(&ctx) else {
+        return;
+    };
+
     // Spawn a detached task — we don't await it.
     // The tokio::spawn handoff itself is not covered by tests (it is an
     // intentional fire-and-forget boundary); the inner HTTP logic is covered
@@ -69,6 +82,24 @@ pub fn capture(ctx: AnalyticsContext) {
         let Ok(client) = client else { return };
         send_event(client, host, payload).await;
     });
+}
+
+/// Capture a CLI event and AWAIT its delivery before returning.
+///
+/// Used by `self-update` immediately before the self-replacing binary swap: a
+/// fire-and-forget [`capture`] spawn would be torn down when the process image
+/// is replaced, so the event must be flushed synchronously first. Like
+/// [`capture`], it is a silent no-op when telemetry is opted out or unconfigured,
+/// and it never errors — analytics must not break the command.
+pub async fn capture_and_flush(ctx: AnalyticsContext) {
+    let Some((host, payload)) = build_event(&ctx) else {
+        return;
+    };
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build();
+    let Ok(client) = client else { return };
+    send_event(client, host, payload).await;
 }
 
 /// Best-effort machine identifier for anonymous analytics.

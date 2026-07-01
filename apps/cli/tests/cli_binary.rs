@@ -49,6 +49,49 @@ fn test_version_flag() {
         .stdout(predicate::str::contains("nbr").or(predicate::str::contains("0.")));
 }
 
+// ── self-update command surface ──────────────────────────────────────────────
+
+/// `self-update --help` documents the command and both flags.
+#[test]
+fn test_self_update_help_shows_flags() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("nbr").unwrap();
+    cmd.env("NBR_NO_KEYRING", "1")
+        .env("NBR_CONFIG_DIR", tmp.path())
+        .args(["self-update", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Usage: nbr self-update"))
+        .stdout(predicate::str::contains("--check"))
+        .stdout(predicate::str::contains("--version"));
+}
+
+/// The `update` alias resolves to the same command.
+#[test]
+fn test_self_update_alias_update_help() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("nbr").unwrap();
+    cmd.env("NBR_NO_KEYRING", "1")
+        .env("NBR_CONFIG_DIR", tmp.path())
+        .args(["update", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--check"));
+}
+
+/// `self-update` appears in the top-level command list.
+#[test]
+fn test_self_update_listed_in_help() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("nbr").unwrap();
+    cmd.env("NBR_NO_KEYRING", "1")
+        .env("NBR_CONFIG_DIR", tmp.path())
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("self-update"));
+}
+
 // ── Subcommand --help uses "nbr", not ".nbr-real" ────────────────────────────
 
 /// Clap derives the usage binary name from argv[0]. The plugins install a

@@ -107,7 +107,7 @@ fi
 
 # ── Download ─────────────────────────────────────────────────────────────────
 
-archive_name="${BINARY}-${triple}.tar.xz"
+archive_name="${BINARY}-${triple}.tar.gz"
 download_url="${GITHUB_DL}/${REPO}/releases/download/${tag}/${archive_name}"
 checksum_url="${GITHUB_DL}/${REPO}/releases/download/${tag}/SHA256SUMS"
 
@@ -136,7 +136,7 @@ curl -fsSL -o "${tmpdir}/SHA256SUMS" "${checksum_url}"
 # ── Extract and install ───────────────────────────────────────────────────────
 
 echo "Extracting..."
-tar -xJf "${tmpdir}/${archive_name}" -C "${tmpdir}"
+tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
 
 src="${tmpdir}/${BINARY}-${triple}/${BINARY}"
 if [ ! -f "${src}" ]; then

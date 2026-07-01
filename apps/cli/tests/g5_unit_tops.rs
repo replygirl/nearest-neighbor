@@ -9,7 +9,7 @@
 /// parallel invocations within this binary cannot race.
 mod common;
 
-use nbr::analytics::{AnalyticsContext, capture};
+use nbr::analytics::{AnalyticsContext, capture, capture_and_flush};
 use serial_test::serial;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -172,6 +172,68 @@ async fn capture_uses_nbr_posthog_host_env_var() {
         !reqs.is_empty(),
         "NBR_POSTHOG_HOST env var should route the request to the mock server"
     );
+}
+
+/// Verifies that `capture_and_flush()` AWAITS delivery: the POST has completed
+/// by the time the call returns (no polling needed), which is what makes it safe
+/// to call right before the self-update binary swap.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial(nbr_env)]
+async fn capture_and_flush_awaits_delivery() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/capture/"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+
+    let _guard = common::EnvGuard::new();
+    _guard.remove("NBR_NO_TELEMETRY");
+    _guard.remove("DO_NOT_TRACK");
+    _guard.set("NBR_POSTHOG_KEY", "phk_flush_test");
+    _guard.set("NBR_POSTHOG_HOST", &server.uri());
+
+    capture_and_flush(AnalyticsContext {
+        account_id: Some("flush-acc".into()),
+        command: "self-update".into(),
+        subcommand: None,
+        telemetry_enabled: None,
+    })
+    .await;
+
+    // No wait_for_requests poll: the await above must have flushed the POST.
+    let reqs = server.received_requests().await.unwrap();
+    assert_eq!(
+        reqs.len(),
+        1,
+        "capture_and_flush must deliver before returning"
+    );
+    let body: serde_json::Value = serde_json::from_slice(&reqs[0].body).unwrap();
+    assert_eq!(body["distinct_id"].as_str(), Some("flush-acc"));
+    assert_eq!(body["properties"]["command"].as_str(), Some("self-update"));
+}
+
+/// Verifies that `capture_and_flush()` is a silent no-op when telemetry is
+/// opted out — no request is sent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial(nbr_env)]
+async fn capture_and_flush_opt_out_sends_nothing() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/capture/"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+
+    let _guard = common::EnvGuard::new();
+    _guard.set("NBR_NO_TELEMETRY", "1");
+    _guard.set("NBR_POSTHOG_KEY", "phk_should_not_send");
+    _guard.set("NBR_POSTHOG_HOST", &server.uri());
+
+    capture_and_flush(make_ctx(Some("acc"), None)).await;
+
+    let reqs = server.received_requests().await.unwrap();
+    assert!(reqs.is_empty(), "opt-out must suppress the request");
 }
 
 /// Verifies that `capture()` sends `subcommand: null` when subcommand is None.
