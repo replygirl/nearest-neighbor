@@ -353,13 +353,10 @@ jobs:
       # out from under a live release. On failure, dispatch manually via
       # `gh workflow run deploy-production.yml --ref <tag>`.
       - name: Deploy production
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG=${{ needs.version.outputs.tag }}
-          if ! gh workflow run deploy-production.yml --ref "${TAG}"; then
-            echo "::warning::Failed to dispatch deploy-production for ${TAG} — run it manually: gh workflow run deploy-production.yml --ref ${TAG}"
-          fi
+        run: gh workflow run deploy-production.yml --ref "${{ needs.version.outputs.tag }}"
 
   # ── On failure only: roll the pushed tag back so a re-dispatch recomputes ───
   # Deletes ONLY the tag from origin (best-effort). main and the bump commit are
