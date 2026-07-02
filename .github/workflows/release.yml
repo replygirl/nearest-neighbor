@@ -68,6 +68,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # dispatch deploy-production after publishing the release
 
 jobs:
   # ── Compute the next version (no side effects; the tag is NOT pushed here) ──
@@ -311,8 +312,14 @@ jobs:
       # ── Generate notes to a file, then CREATE the published release ───────────
       # communique writes the AI notes to a file (no GitHub side effect); the tag
       # is already on origin (pushed by the bump job). A single `gh release create`
-      # then publishes the release with the notes and every asset in one call,
-      # which fires `release: published` for downstream consumers.
+      # then publishes the release with the notes and every asset in one call.
+      #
+      # Note: because the release is created with the default GITHUB_TOKEN,
+      # GitHub suppresses the resulting `release: published` event (Actions
+      # recursion guard) — it will NOT trigger other workflows. Production is
+      # deployed via an explicit `gh workflow run` dispatch below instead; the
+      # `release:` trigger on deploy-production.yml still serves manually
+      # created releases.
       #
       # Why create-published instead of create-draft-then-`gh release edit`: a
       # draft release is not bound to its git tag, so `gh release edit/view <tag>`
@@ -337,6 +344,13 @@ jobs:
             --title "${TAG}" \
             --notes-file RELEASE_NOTES.md \
             dist/nbr-*.tar.gz dist/nbr-*.zip dist/SHA256SUMS
+
+      # Explicit dispatches are exempt from the GITHUB_TOKEN event suppression,
+      # so this works with the default token (needs `actions: write`).
+      - name: Deploy production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-production.yml --ref "${{ needs.version.outputs.tag }}"
 
   # ── On failure only: roll the pushed tag back so a re-dispatch recomputes ───
   # Deletes ONLY the tag from origin (best-effort). main and the bump commit are
