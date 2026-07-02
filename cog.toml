@@ -32,4 +32,22 @@ post_bump_hooks = []
 authors = []
 
 [commit_types]
-# Standard conventional-commit types; matches the scopes used in this repo.
+# Auto-bump policy: give every conventional type at least a patch bump so
+# `cog bump --auto` always computes a version. Without this, a release carrying
+# only ci/perf/docs/etc. work makes cog print "No conventional commits ...
+# required a bump" and exit 0 (no version) — which the Compute version step in
+# .github/workflows/release.yml then fails on. `feat` bumps minor; a breaking
+# change (`!` or a BREAKING CHANGE footer) is still a major bump.
+#
+# https://docs.cocogitto.io/guide/bump.html#auto-bump-commit-types
+feat = { bump_minor = true }
+fix = { bump_patch = true }
+perf = { bump_patch = true }
+refactor = { bump_patch = true }
+build = { bump_patch = true }
+revert = { bump_patch = true }
+ci = { bump_patch = true }
+docs = { bump_patch = true }
+style = { bump_patch = true }
+test = { bump_patch = true }
+chore = { bump_patch = true }
