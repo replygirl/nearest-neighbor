@@ -88,8 +88,13 @@ jobs:
         run: mise use -g aqua:cocogitto/cocogitto # prebuilt binary — no cargo compile
 
       # cog computes the next semver from conventional commits (or the dispatched
-      # override) WITHOUT side effects (--dry-run prints only the version). The
-      # bump job then stamps it into the manifests and pushes the commit + tag.
+      # override) WITHOUT side effects (--dry-run makes no manifest edit / commit).
+      # The bump job then stamps it into the manifests and pushes the commit + tag.
+      # NOTE: with `auto`, cog prints an informational message (not a version) and
+      # still exits 0 when it finds nothing to bump — no commits since the last
+      # tag, or only commit types cog.toml maps to no bump. The guard below rejects
+      # that so the step fails clean instead of corrupting $GITHUB_OUTPUT. (cog.toml
+      # bumps every known type at least a patch, so in practice this is now rare.)
       - name: Compute version
         id: compute
         run: |
@@ -100,8 +105,16 @@ jobs:
             patch) VERSION=$(mise exec -- cog bump --patch --dry-run) ;;
             *) echo "unknown bump: ${{ inputs.bump }}" >&2; exit 1 ;;
           esac || { echo "cog bump --dry-run failed" >&2; exit 1; }
-          [ -n "${VERSION}" ] || { echo "cog produced no version" >&2; exit 1; }
-          VERSION="${VERSION#v}"           # set-version rejects a leading 'v'
+          VERSION="${VERSION#v}"           # cog may prefix 'v'; set-version rejects it
+          # Require an exact x.y.z. `cog bump --auto` exits 0 and prints a
+          # "no conventional commits ... required a bump" message (not a version)
+          # when nothing is bumpable, so a mere non-empty check would pass that
+          # message straight into $GITHUB_OUTPUT and fail with "Invalid format".
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No release cut: bump='${{ inputs.bump }}' produced no version — cog found nothing to bump (no commits since the last tag, or only unrecognized commit types). Re-dispatch with patch, minor, or major to force a release."
+            echo "cog output was: ${VERSION}" >&2
+            exit 1
+          fi
           TAG="v${VERSION}"
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "tag ${TAG} already exists on origin" >&2
