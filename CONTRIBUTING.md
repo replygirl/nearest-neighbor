@@ -219,6 +219,61 @@ See [docs/testing.md](docs/testing.md) for the full strategy.
 
 ---
 
+## Faster local Rust builds
+
+Dev and test builds already emit reduced debug info via the `[profile.dev]` /
+`[profile.test]` settings in `apps/cli/Cargo.toml` — nothing to configure. The
+options below are optional, personal, local-only speedups on top of that.
+
+### sccache
+
+**sccache** caches compiled Rust artifacts across worktrees, avoiding
+recompilation when switching between short-lived `.claude/worktrees/*` branches.
+This is a net win for the nbr CLI (small first-party crate, heavy dependency
+tree ~534 crates) because worktree recompiles already disable incremental
+compilation at the git boundary.
+
+**Install sccache** (prebuilt binary, not from source):
+
+```sh
+mise use -g aqua:mozilla/sccache@0.16.0
+```
+
+This adds sccache to your global mise config and fetches the v0.16.0 prebuilt
+binary matching your platform.
+
+**Enable locally** — add this to your shell profile (`~/.zshrc` or equivalent):
+
+```sh
+export RUSTC_WRAPPER=sccache
+```
+
+Do NOT commit this to `.claude/settings.json` or any repo config: CI already
+uses Swatinem/rust-cache, and double-caching is pointless. The wrapper is a
+personal local optimization only.
+
+**The tradeoff:** sccache disables Rust's incremental compilation
+(all-or-nothing artifact cache), but each new worktree recompiles from scratch
+anyway because git resets the state. sccache speeds up the _repeated_
+dependencies across worktrees — the long pole in cold builds.
+
+### Linker
+
+Apple's default `ld-prime` linker (shipping with recent Xcode / Command Line
+Tools) is already fast on Apple Silicon, so there is nothing to change here for
+most contributors. **Do not commit a linker override** — `-fuse-ld=lld` requires
+a Homebrew LLVM install and doesn't beat `ld-prime` on macOS, so pinning it in
+`.cargo/config.toml` would only break contributors who lack it. Advanced users
+who want to experiment can set it as a personal, local env override (outside any
+committed config):
+
+```sh
+brew install llvm
+export RUSTFLAGS="-C link-arg=-fuse-ld=$(brew --prefix llvm)/bin/ld64.lld"
+```
+
+---
+
 ## PR etiquette
 
 - One concern per PR. A PR that adds a feature and refactors something unrelated

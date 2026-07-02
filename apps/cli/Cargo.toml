@@ -61,3 +61,15 @@ keyring = { version = "4.1.2", default-features = false, features = [
   "linux-keyutils-keyring-store",
   "db-keystore",
 ] }
+
+# Trim debug info on dev/test builds: `line-tables-only` keeps file+line data
+# for backtraces (and coverage source mapping) while dropping the variable-level
+# DWARF that dominates debug-build link time — speeding local `cargo build`/
+# `cargo test` and the CI coverage build. `[profile.release]` is untouched.
+# Coverage regions come from `-C instrument-coverage`, which is independent of
+# debug info, so the 95% line/region gate is unaffected.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.test]
+debug = "line-tables-only"

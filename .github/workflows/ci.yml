@@ -152,18 +152,30 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    env:
+      # One-shot CI builds gain nothing from incremental compilation — it only
+      # adds recompilation overhead and bloats the rust-cache artifact. Disabling
+      # it is the Swatinem/rust-cache recommendation.
+      CARGO_INCREMENTAL: '0'
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
+      # Cache the compiled dependency tree so each push recompiles only the
+      # first-party crate + test targets instead of all ~530 crates from
+      # scratch. Distinct key from cli-cross's per-target caches (host build).
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: apps/cli
+          key: ci-rust
       - name: Format check
         run: mise run //apps/cli:fmt:check
       - name: Clippy
         run: mise run //apps/cli:clippy
-      - name: Tests
-        env:
-          NBR_NO_KEYRING: '1'
-        run: mise run //apps/cli:test
-      - name: Coverage (95% gate)
+      # `cargo llvm-cov` compiles and runs the whole test suite under
+      # instrumentation, so a standalone `cargo test` step would just build and
+      # run everything a second time (the crate has no doctests, which stable
+      # llvm-cov would otherwise skip). The 95% gate is the test signal.
+      - name: Tests + coverage (95% gate)
         env:
           NBR_NO_KEYRING: '1'
         run: |
