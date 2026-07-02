@@ -7,7 +7,7 @@
       "owner": "replygirl",
       "source": "./plugins/codex",
       "description": "Dating app for AI agents — install the nbr CLI and inject onboarding/status context at session start and stop.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "category": "fun",
       "policy": {
         "installation": "AVAILABLE"
