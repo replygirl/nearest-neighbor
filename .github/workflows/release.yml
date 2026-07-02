@@ -23,17 +23,17 @@
 #                 NBR_RELEASE_VERSION (which also matches Cargo.toml now).
 #   4. publish  — only AFTER every target built: download all artifacts, generate
 #                 SHA256SUMS, write AI-generated notes to a file via `communique`
-#                 (no GitHub side effect), then CREATE the release published in a
-#                 single `gh release create` call with the notes + every asset
-#                 attached (the tag is already on origin from the bump job). We
-#                 create it published rather than draft-then-flip because GitHub
-#                 does NOT bind a *draft* release to its git tag, so
-#                 `gh release edit/view <tag>` returns "release not found" for a
-#                 draft (that lookup only sees published releases). Creating the
-#                 release published sidesteps the tag lookup and never leaves an
-#                 orphan draft. Trade-off: assets upload just after the release
-#                 object is created, so there is a brief window where the release
-#                 is visible while its binaries finish uploading.
+#                 (no GitHub side effect), create a DRAFT release with those notes
+#                 + every asset already attached (the tag is already on origin from
+#                 the bump job), then flip it to published by RELEASE ID. The
+#                 assets are on the draft before it is ever visible, so there is no
+#                 window where the release appears without its binaries. The flip
+#                 is by id, NOT by tag, because GitHub does not bind a *draft*
+#                 release to its git tag: `gh release edit/view <tag>` returns
+#                 "release not found" for a draft (that lookup only sees published
+#                 releases), which is exactly what broke the previous attempt.
+#                 Production is then deployed via an explicit dispatch (the
+#                 `release: published` event is suppressed under GITHUB_TOKEN).
 #   5. cleanup  — on failure only: delete the pushed tag from origin so a
 #                 re-dispatch can recompute cleanly. main and the bump commit are
 #                 left intact (never force-pushed).
@@ -309,41 +309,66 @@ jobs:
         working-directory: dist
         run: sha256sum nbr-*.tar.gz nbr-*.zip > SHA256SUMS
 
-      # ── Generate notes to a file, then CREATE the published release ───────────
-      # communique writes the AI notes to a file (no GitHub side effect); the tag
-      # is already on origin (pushed by the bump job). A single `gh release create`
-      # then publishes the release with the notes and every asset in one call.
+      # ── Publish with NO missing-binaries window ───────────────────────────
+      # communique writes the AI notes to a file (no GitHub side effect), so the
+      # draft can be created complete in one call: a DRAFT release with the notes
+      # and every asset already attached (the tag is already on origin from the
+      # bump job). The assets are uploaded to the draft before it is ever visible,
+      # then we flip it to published — so the release is never visible without its
+      # binaries.
       #
-      # Note: because the release is created with the default GITHUB_TOKEN,
-      # GitHub suppresses the resulting `release: published` event (Actions
-      # recursion guard) — it will NOT trigger other workflows. Production is
-      # deployed via an explicit `gh workflow run` dispatch below instead; the
-      # `release:` trigger on deploy-production.yml still serves manually
-      # created releases.
+      # The flip is done by RELEASE ID, not by tag: GitHub does not bind a draft
+      # release to its git tag, so `gh release edit/view <tag>` returns "release
+      # not found" for a draft (that endpoint only sees published releases). We
+      # resolve the draft's numeric id from the releases list (matched on
+      # tag_name + draft, newest first) and PATCH draft=false.
       #
-      # Why create-published instead of create-draft-then-`gh release edit`: a
-      # draft release is not bound to its git tag, so `gh release edit/view <tag>`
-      # returns "release not found" for a draft (that endpoint only sees published
-      # releases). Publishing directly avoids the tag lookup — and never orphans a
-      # draft on failure. Trade-off: assets upload just after the release object is
-      # created, so there is a brief window where the release is visible while its
-      # binaries finish uploading.
+      # Note: the flip uses the default GITHUB_TOKEN, so GitHub suppresses the
+      # resulting `release: published` event (Actions recursion guard) — it will
+      # NOT trigger other workflows. Production is deployed via an explicit
+      # `gh workflow run` dispatch below instead; the `release:` trigger on
+      # deploy-production.yml still serves manually created releases.
       - name: Generate release notes (communique)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_COMMUNIQUE }}
           GITHUB_TOKEN: ${{ github.token }}
         run: mise exec -- communique generate "${{ needs.version.outputs.tag }}" --output RELEASE_NOTES.md
 
-      - name: Create the release
+      - name: Create draft release with notes and all assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           gh release create "${TAG}" \
+            --draft \
             --verify-tag \
             --title "${TAG}" \
             --notes-file RELEASE_NOTES.md \
             dist/nbr-*.tar.gz dist/nbr-*.zip dist/SHA256SUMS
+
+      - name: Publish the draft (by release id — drafts aren't addressable by tag)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          # The releases list can lag a moment behind the create above, so retry
+          # briefly. The id is selected in jq (no `head` — a SIGPIPE there would
+          # trip `pipefail`); `// empty` yields nothing until a match appears.
+          RELEASE_ID=""
+          for attempt in 1 2 3 4 5; do
+            RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
+              --jq "map(select(.tag_name == \"${TAG}\" and .draft)) | .[0].id // empty")
+            if [ -n "${RELEASE_ID}" ]; then break; fi
+            echo "draft for ${TAG} not visible yet (attempt ${attempt}); retrying in 3s…" >&2
+            sleep 3
+          done
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "no draft release found for ${TAG} after retries" >&2
+            exit 1
+          fi
+          echo "Publishing draft release ${RELEASE_ID} (${TAG})"
+          gh api --method PATCH "repos/${{ github.repository }}/releases/${RELEASE_ID}" \
+            -F draft=false >/dev/null
 
       # Explicit dispatches are exempt from the GITHUB_TOKEN event suppression,
       # so this works with the default token (needs `actions: write`).
