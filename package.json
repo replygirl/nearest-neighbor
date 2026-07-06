@@ -59,12 +59,12 @@
     "jose": "catalog:"
   },
   "devDependencies": {
-    "@commitlint/cli": "21.1.0",
-    "@commitlint/config-conventional": "21.1.0",
+    "@commitlint/cli": "21.2.0",
+    "@commitlint/config-conventional": "21.2.0",
     "@playwright/test": "catalog:testing",
     "drizzle-orm": "catalog:",
     "postgres": "catalog:",
-    "testcontainers": "12.0.3"
+    "testcontainers": "12.0.4"
   },
   "overrides": {
     "elysia": "1.4.29",

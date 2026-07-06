@@ -35,8 +35,8 @@
     "react-router": "catalog:"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.3",
-    "@electric-sql/pglite-socket": "0.2.5",
+    "@electric-sql/pglite": "0.5.4",
+    "@electric-sql/pglite-socket": "0.2.7",
     "@elysiajs/eden": "catalog:",
     "@react-router/dev": "catalog:",
     "@tailwindcss/vite": "catalog:",
