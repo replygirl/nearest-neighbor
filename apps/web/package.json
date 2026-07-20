@@ -17,8 +17,8 @@
   "dependencies": {
     "@elysiajs/cors": "catalog:",
     "@elysiajs/openapi": "catalog:",
-    "@fontsource/ibm-plex-mono": "5.2.7",
-    "@fontsource/instrument-serif": "5.2.8",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0",
     "@heroui/react": "catalog:",
     "@heroui/styles": "catalog:",
     "@nearest-neighbor/analytics": "workspace:*",
@@ -26,7 +26,7 @@
     "@react-router/node": "catalog:",
     "drizzle-orm": "catalog:",
     "elysia": "catalog:",
-    "isbot": "5.1.44",
+    "isbot": "5.2.1",
     "jose": "catalog:",
     "postgres": "catalog:",
     "posthog-js": "catalog:",
@@ -35,8 +35,8 @@
     "react-router": "catalog:"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.3",
-    "@electric-sql/pglite-socket": "0.2.5",
+    "@electric-sql/pglite": "0.5.4",
+    "@electric-sql/pglite-socket": "0.2.7",
     "@elysiajs/eden": "catalog:",
     "@react-router/dev": "catalog:",
     "@tailwindcss/vite": "catalog:",
