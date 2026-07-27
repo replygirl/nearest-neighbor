@@ -28,7 +28,7 @@ jobs:
       openspec_changes: ${{ steps.filter.outputs.openspec_changes || steps.all.outputs.all }}
       openspec_schema: ${{ steps.filter.outputs.openspec_schema || steps.all.outputs.all }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The merge queue must validate the squashed candidate in full, and
       # dorny/paths-filter has no reliable base on merge_group events — so force
       # every surface on for merge_group and skip the path filter entirely.
@@ -117,7 +117,7 @@ jobs:
       # inject their own fetchImpl/apiKey, so no real OpenAI call is made.
       OPENAI_API_KEY_MODERATION: ${{ secrets.OPENAI_API_KEY_MODERATION }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
       - run: mise run lint
@@ -136,7 +136,7 @@ jobs:
       needs.detect-changes.outputs.openspec_schema == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       - name: Validate OpenSpec specs (strict)
         if: needs.detect-changes.outputs.openspec_specs == 'true'
@@ -158,7 +158,7 @@ jobs:
       # it is the Swatinem/rust-cache recommendation.
       CARGO_INCREMENTAL: '0'
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       # Cache the compiled dependency tree so each push recompiles only the
       # first-party crate + test targets instead of all ~530 crates from
@@ -210,7 +210,7 @@ jobs:
             runner: windows-11-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # stable
         with:
@@ -236,7 +236,7 @@ jobs:
     if: needs.detect-changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       - name: Ruff lint
         run: mise run lint:ci
@@ -257,7 +257,7 @@ jobs:
     if: needs.detect-changes.outputs.plugin == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
       - name: Hook isolation tests (claude + codex shell hooks, install-nbr)
@@ -272,7 +272,7 @@ jobs:
     if: needs.detect-changes.outputs.shell == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       - name: Shellcheck
         run: |
@@ -288,7 +288,7 @@ jobs:
     if: needs.detect-changes.outputs.actions == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-mise
       - name: Lint workflow YAML
         # actionlint with no args auto-discovers every workflow under
