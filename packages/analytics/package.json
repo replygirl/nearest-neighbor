@@ -21,7 +21,7 @@
     "posthog-node": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "19.2.17",
+    "@types/react": "19.2.18",
     "bun-types": "catalog:"
   },
   "peerDependencies": {
