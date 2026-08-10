@@ -163,7 +163,7 @@ jobs:
       # Cache the compiled dependency tree so each push recompiles only the
       # first-party crate + test targets instead of all ~530 crates from
       # scratch. Distinct key from cli-cross's per-target caches (host build).
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: apps/cli
           key: ci-rust
@@ -223,7 +223,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: check-${{ matrix.target }}
           workspaces: apps/cli
